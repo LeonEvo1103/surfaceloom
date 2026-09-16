@@ -153,52 +153,52 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
 | `SL-P0-001` | done | — | `docs/FRAMEWORK_SSOT.md` | 本文档；任务 ID/依赖/第一波接口无冲突，`git diff --check` |
-| `SL-P0-010` | ready | `001` | `docs/framework/capabilities.md` | 逐项链接源码、测试、验证级别；明确 manifest/实现、bridge/contract/live 差距 |
-| `SL-P0-020` | planned | `001` | `scripts/check-framework-ssot.mjs`、对应 tests | 校验 ID、依赖、环、状态和 done 证据；不做调度系统 |
-| `SL-P0-030` | planned | `001`,`010` | README、AGENTS、`ARCHITECTURE_V2.md` | 增加 SSOT 入口并修正冲突，不把规划写成已实现 |
+| `SL-P0-010` | in_progress | `SL-P0-001` | `docs/framework/capabilities.md` | 逐项链接源码、测试、验证级别；明确 manifest/实现、bridge/contract/live 差距 |
+| `SL-P0-020` | done | `SL-P0-001` | `scripts/check-framework-ssot.mjs`、对应 tests | 校验 ID、依赖、环、状态和 done 证据；不做调度系统 |
+| `SL-P0-030` | planned | `SL-P0-001`,`SL-P0-010` | README、AGENTS、`ARCHITECTURE_V2.md` | 增加 SSOT 入口并修正冲突，不把规划写成已实现 |
 
 ### P1：首个可信 Agent Case
 
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
-| `SL-P1-010` | ready | `P0-001` | 新 `packages/test/**` | 可嵌入 executeCase、注册、step/criterion、正常 fixture 生命周期；成功、正文/setup/teardown 失败均生成合法结果且不覆盖首因 |
-| `SL-P1-020` | ready | `P0-001` | 新 `examples/reference-agent/**` | 审批 HTTP fixture、确定性 run、独立工具账本、故障注入；拒绝 0、批准 1、重复批准不重复执行 |
-| `SL-P1-030` | planned | `010` | test package observation/assertion 子模块 | 自动重读、deadline、结构化 assertion/criterion；读取失败不等于 absent |
-| `SL-P1-040` | planned | `010` | test package plan/policy/effects 子模块 | capability 预检、effect descriptor/旧 enum 兼容；副作用前 fail closed |
-| `SL-P1-050` | planned | `030`,`040` | test package execution/deadline/resources/worker 子模块 | 迟到 setup、挂起正文、cleanup 失败；区分 stopped/unconfirmed/tainted，不以 Promise.race 冒充停止 |
-| `SL-P1-060` | planned | `020`,`030`,`040`,`050` | reference-agent adapter/cases/e2e | 真浏览器拒绝 0、批准 1、拒绝后错误执行必失败 |
-| `SL-P1-070` | planned | `030`,`040`,`050` | test package CLI/report 子模块、bin/exports | CLI 与嵌入入口使用同一 kernel；逐 Case 报告和 exit code |
-| `SL-P1-080` | planned | `060`,`070` | 根 scripts/CI 与 SSOT 证据 | showcase + 普通非 Agent Case；全量 TS/架构/e2e，不能全 skip |
+| `SL-P1-010` | in_progress | `SL-P0-001` | 新 `packages/test/**` | 可嵌入 executeCase、注册、step/criterion、正常 fixture 生命周期；成功、正文/setup/teardown 失败均生成合法结果且不覆盖首因 |
+| `SL-P1-020` | ready | `SL-P0-001` | 新 `examples/reference-agent/**` | 审批 HTTP fixture、确定性 run、独立工具账本、故障注入；拒绝 0、批准 1、重复批准不重复执行 |
+| `SL-P1-030` | planned | `SL-P1-010` | test package observation/assertion 子模块 | 自动重读、deadline、结构化 assertion/criterion；读取失败不等于 absent |
+| `SL-P1-040` | planned | `SL-P1-010` | test package plan/policy/effects 子模块 | capability 预检、effect descriptor/旧 enum 兼容；副作用前 fail closed |
+| `SL-P1-050` | planned | `SL-P1-030`,`SL-P1-040` | test package execution/deadline/resources/worker 子模块 | 迟到 setup、挂起正文、cleanup 失败；区分 stopped/unconfirmed/tainted，不以 Promise.race 冒充停止 |
+| `SL-P1-060` | planned | `SL-P1-020`,`SL-P1-030`,`SL-P1-040`,`SL-P1-050` | reference-agent adapter/cases/e2e | 真浏览器拒绝 0、批准 1、拒绝后错误执行必失败 |
+| `SL-P1-070` | planned | `SL-P1-030`,`SL-P1-040`,`SL-P1-050` | test package CLI/report 子模块、bin/exports | CLI 与嵌入入口使用同一 kernel；逐 Case 报告和 exit code |
+| `SL-P1-080` | planned | `SL-P1-060`,`SL-P1-070` | 根 scripts/CI 与 SSOT 证据 | showcase + 普通非 Agent Case；全量 TS/架构/e2e，不能全 skip |
 
 ### P2：Windows native 垂直切片
 
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
-| `SL-P2-010` | planned | `P0-010`,`P1-080` | 新 native package 协议 schema/vectors | 版本、ownership、deadline、错误、operation outcome、句柄范围 |
-| `SL-P2-020` | planned | `010` | `native/windows-host/**` | host 对齐协议且明确 0.2 兼容/停用策略，unknown 不重发 |
-| `SL-P2-030` | planned | `010` | native TS client/transport/tests | host 生命周期；错误版本、断线、超时、stale session、payload 边界 |
-| `SL-P2-040` | planned | `010` | 新 `native/windows-fixture/**` | 中性 UIA app：invoke/setValue/歧义/消失元素/owned lifecycle |
-| `SL-P2-050` | planned | `020`,`030`,`040` | Windows live tests/scripts/workflow | 真实 conformance，记录 OS/host/revision/Case 数，禁止全 skip |
+| `SL-P2-010` | planned | `SL-P0-010`,`SL-P1-080` | 新 native package 协议 schema/vectors | 版本、ownership、deadline、错误、operation outcome、句柄范围 |
+| `SL-P2-020` | planned | `SL-P2-010` | `native/windows-host/**` | host 对齐协议且明确 0.2 兼容/停用策略，unknown 不重发 |
+| `SL-P2-030` | planned | `SL-P2-010` | native TS client/transport/tests | host 生命周期；错误版本、断线、超时、stale session、payload 边界 |
+| `SL-P2-040` | planned | `SL-P2-010` | 新 `native/windows-fixture/**` | 中性 UIA app：invoke/setValue/歧义/消失元素/owned lifecycle |
+| `SL-P2-050` | planned | `SL-P2-020`,`SL-P2-030`,`SL-P2-040` | Windows live tests/scripts/workflow | 真实 conformance，记录 OS/host/revision/Case 数，禁止全 skip |
 
 ### P3：macOS 与 multi-surface
 
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
-| `SL-P3-010` | planned | `P2-010`,`P2-050` | Package.swift、新 macOS host/tests | 同协议 stdio host，复用现有 AX/ownership，不新造 wire 语义 |
-| `SL-P3-020` | planned | `P2-010` | 新 macOS fixture | 与 Windows 同一行为契约的中性 app |
-| `SL-P3-030` | planned | `P3-010` | native package macOS binding/tests | typed desktop session 和显式平台专属 capability |
-| `SL-P3-040` | planned | `P1-080` | reporter package | report/v3 host/surface/attempt 和 v2 importer；不静默降级 |
-| `SL-P3-050` | planned | `P3-040` | Core evidence context、agent-loop/tests | 显式 correlation；时间相邻不冒充因果，trace 不改 verdict |
-| `SL-P3-060` | planned | `010`,`020`,`030` | macOS live tests/scripts/CI | 同一行为集真实 conformance；TCC 不足明确报告且不自动授权 |
-| `SL-P3-070` | planned | `P2-050`,`040`,`050`,`060` | mixed-surface example 与 lease tests | browser + native Case，跨面动作、证据、租约和清理，报告列两面 |
+| `SL-P3-010` | planned | `SL-P2-010`,`SL-P2-050` | Package.swift、新 macOS host/tests | 同协议 stdio host，复用现有 AX/ownership，不新造 wire 语义 |
+| `SL-P3-020` | planned | `SL-P2-010` | 新 macOS fixture | 与 Windows 同一行为契约的中性 app |
+| `SL-P3-030` | planned | `SL-P3-010` | native package macOS binding/tests | typed desktop session 和显式平台专属 capability |
+| `SL-P3-040` | planned | `SL-P1-080` | reporter package | report/v3 host/surface/attempt 和 v2 importer；不静默降级 |
+| `SL-P3-050` | planned | `SL-P3-040` | Core evidence context、agent-loop/tests | 显式 correlation；时间相邻不冒充因果，trace 不改 verdict |
+| `SL-P3-060` | planned | `SL-P3-010`,`SL-P3-020`,`SL-P3-030` | macOS live tests/scripts/CI | 同一行为集真实 conformance；TCC 不足明确报告且不自动授权 |
+| `SL-P3-070` | planned | `SL-P2-050`,`SL-P3-040`,`SL-P3-050`,`SL-P3-060` | mixed-surface example 与 lease tests | browser + native Case，跨面动作、证据、租约和清理，报告列两面 |
 
 ### P4：可安装 alpha
 
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
-| `SL-P4-010` | planned | `P3-070` | package manifests、native 制品脚本、兼容说明 | 无 `file:` 发布依赖，host 版本/OS/arch 可核验，制品扫描 |
-| `SL-P4-020` | planned | `010` | packed-consumer script/fixture | 仓库外安装运行参考 Case 并生成报告，不访问源码树 |
-| `SL-P4-030` | planned | `020` | 外部 adapter example、conformance、release notes | 小型自有 adapter 接入；扩展点、版本和验证范围一致 |
+| `SL-P4-010` | planned | `SL-P3-070` | package manifests、native 制品脚本、兼容说明 | 无 `file:` 发布依赖，host 版本/OS/arch 可核验，制品扫描 |
+| `SL-P4-020` | planned | `SL-P4-010` | packed-consumer script/fixture | 仓库外安装运行参考 Case 并生成报告，不访问源码树 |
+| `SL-P4-030` | planned | `SL-P4-020` | 外部 adapter example、conformance、release notes | 小型自有 adapter 接入；扩展点、版本和验证范围一致 |
 
 ## 9. 并行施工规则
 
@@ -224,6 +224,7 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | taskId | sourceRevision | changedPaths | command / exitCode | platform | executed / skipped | evidencePath | remainingLimitations |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `SL-P0-001` | `0230973e9539838f9393509b7b32681fde4c2c1b` | `docs/FRAMEWORK_SSOT.md` | `git diff --check` / 0 | macOS | 1 document contract / 0 | `docs/FRAMEWORK_SSOT.md` | 账本自动检查器由 `SL-P0-020` 交付；规划能力均未计为实现。 |
+| `SL-P0-020` | `aebb24c43af1c664f39bce9ab0b705c517a1d0c2` | `scripts/check-framework-ssot.mjs`、`scripts/lib/framework-ssot.mjs`、`scripts/tests/framework-ssot.test.mjs` | `node --test scripts/tests/framework-ssot.test.mjs && node scripts/check-framework-ssot.mjs` / 0 | macOS | 2 tests / 0 | `scripts/tests/framework-ssot.test.mjs` | 只验证账本结构，不调度任务，也不替代人工能力证据审查。 |
 
 ## 12. 变更记录
 
