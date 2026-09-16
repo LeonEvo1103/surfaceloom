@@ -12,7 +12,7 @@ const packageDirectory = path.join(root, "packages/agent-loop");
 const temporary = await mkdtemp(path.join(tmpdir(), "surfaceloom-external-adapter-"));
 
 try {
-  const packed = await run("npm", ["pack", "--json", "--pack-destination", temporary], { cwd: packageDirectory });
+  const packed = await runNpm(["pack", "--json", "--pack-destination", temporary], { cwd: packageDirectory });
   const packResult = JSON.parse(packed.stdout);
   const packedPaths = packResult[0].files.map((file) => file.path);
   const unexpectedBuiltInAdapters = packedPaths.filter((file) =>
@@ -38,7 +38,7 @@ try {
     compilerOptions: { target: "ES2022", module: "NodeNext", moduleResolution: "NodeNext", strict: true, noEmit: true },
     include: ["adapter.ts"],
   }, null, 2)}\n`, "utf8");
-  await run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: consumer });
+  await runNpm(["install", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: consumer });
   await run(process.execPath, ["adapter.mjs"], { cwd: consumer });
   const typescript = path.join(packageDirectory, "node_modules/typescript/bin/tsc");
   await run(process.execPath, [typescript, "-p", "tsconfig.json"], { cwd: consumer });
@@ -47,6 +47,12 @@ try {
   process.stdout.write("External adapter package contract passed.\n");
 } finally {
   await rm(temporary, { recursive: true, force: true });
+}
+
+function runNpm(arguments_, options) {
+  const npmCli = process.env.npm_execpath;
+  if (npmCli !== undefined && npmCli !== "") return run(process.execPath, [npmCli, ...arguments_], options);
+  return run(process.platform === "win32" ? "npm.cmd" : "npm", arguments_, options);
 }
 
 function runtimeSource() {
