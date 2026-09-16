@@ -2,11 +2,11 @@
 
 > 状态：Active
 >
-> 当前验收 revision：`2f89ea71e981a67c9ac8e0afff529cd77fd89da5`
+> 当前验收 revision：`2ebc6ccae2ce97e373f09d8abb2c97e9c5755a1a`
 >
-> 审计日期：2026-09-16
+> 审计日期：2026-09-17
 >
-> 当前阶段：P1 已完成；P2 shared protocol 与 P3 report/v3 可进入下一并行波次
+> 当前阶段：P1、P2 shared protocol 与 P3 report/v3 已完成；进入 Windows host/client/fixture 并行波次
 
 本文档是 SurfaceLoom 框架执行模型、实施顺序和完成证据的唯一事实源（SSOT）。
 `ARCHITECTURE_V2.md` 描述已有分层；两者冲突时，以本文明确列出的新决策为准，并由负责该任务的
@@ -177,10 +177,10 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
-| `SL-P2-010` | ready | `SL-P0-010`,`SL-P1-080` | 新 native package 协议 schema/vectors | 版本、ownership、deadline、错误、operation outcome、句柄范围 |
-| `SL-P2-020` | planned | `SL-P2-010` | `native/windows-host/**` | host 对齐协议且明确 0.2 兼容/停用策略，unknown 不重发 |
-| `SL-P2-030` | planned | `SL-P2-010` | native TS client/transport/tests | host 生命周期；错误版本、断线、超时、stale session、payload 边界 |
-| `SL-P2-040` | planned | `SL-P2-010` | 新 `native/windows-fixture/**` | 中性 UIA app：invoke/setValue/歧义/消失元素/owned lifecycle |
+| `SL-P2-010` | done | `SL-P0-010`,`SL-P1-080` | 新 native package 协议 schema/vectors | 版本、ownership、deadline、错误、operation outcome、句柄范围 |
+| `SL-P2-020` | ready | `SL-P2-010` | `native/windows-host/**` | host 对齐协议且明确 0.2 兼容/停用策略，unknown 不重发 |
+| `SL-P2-030` | ready | `SL-P2-010` | native TS client/transport/tests | host 生命周期；错误版本、断线、超时、stale session、payload 边界 |
+| `SL-P2-040` | ready | `SL-P2-010` | 新 `native/windows-fixture/**` | 中性 UIA app：invoke/setValue/歧义/消失元素/owned lifecycle |
 | `SL-P2-050` | planned | `SL-P2-020`,`SL-P2-030`,`SL-P2-040` | Windows live tests/scripts/workflow | 真实 conformance，记录 OS/host/revision/Case 数，禁止全 skip |
 
 ### P3：macOS 与 multi-surface
@@ -188,10 +188,10 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
 | `SL-P3-010` | planned | `SL-P2-010`,`SL-P2-050` | Package.swift、新 macOS host/tests | 同协议 stdio host，复用现有 AX/ownership，不新造 wire 语义 |
-| `SL-P3-020` | planned | `SL-P2-010` | 新 macOS fixture | 与 Windows 同一行为契约的中性 app |
+| `SL-P3-020` | ready | `SL-P2-010` | 新 macOS fixture | 与 Windows 同一行为契约的中性 app |
 | `SL-P3-030` | planned | `SL-P3-010` | native package macOS binding/tests | typed desktop session 和显式平台专属 capability |
-| `SL-P3-040` | ready | `SL-P1-080` | reporter package | report/v3 host/surface/attempt 和 v2 importer；不静默降级 |
-| `SL-P3-050` | planned | `SL-P3-040` | Core evidence context、agent-loop/tests | 显式 correlation；时间相邻不冒充因果，trace 不改 verdict |
+| `SL-P3-040` | done | `SL-P1-080` | reporter package | report/v3 host/surface/attempt 和 v2 importer；不静默降级 |
+| `SL-P3-050` | ready | `SL-P3-040` | Core evidence context、agent-loop/tests | 显式 correlation；时间相邻不冒充因果，trace 不改 verdict |
 | `SL-P3-060` | planned | `SL-P3-010`,`SL-P3-020`,`SL-P3-030` | macOS live tests/scripts/CI | 同一行为集真实 conformance；TCC 不足明确报告且不自动授权 |
 | `SL-P3-070` | planned | `SL-P2-050`,`SL-P3-040`,`SL-P3-050`,`SL-P3-060` | mixed-surface example 与 lease tests | browser + native Case，跨面动作、证据、租约和清理，报告列两面 |
 
@@ -205,10 +205,10 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 
 ## 9. 并行施工规则
 
-下一并行波次为：`SL-P2-010` 与 `SL-P3-040`。前者独占新 native package 的协议 schema/vectors，
-后者独占 Reporter v3 与 v2 importer；两者不得修改 SSOT、根 scripts/CI 或对方目录。
-共享 exports/package manifest 仍由主 Agent 集成。P2 host/client/fixture 在协议冻结后再并行，P3
-correlation 必须等待 report/v3 契约完成。
+下一并行波次为：`SL-P2-020`、`SL-P2-030` 与 `SL-P2-040`。三者分别独占 Windows host、
+native TS client 和 Windows fixture；不得修改 SSOT、根 scripts/CI、共享 exports 或现有 execution
+kernel。共享接线仍由主 Agent 集成。P3 macOS fixture 与 evidence correlation 已 ready，但等待本波次
+释放并发位后再施工。
 
 即使源码目录互斥，`core/dist` 等生成物仍共享。实现 Agent 只运行 scoped typecheck/test；主 Agent
 串行运行全量构建。`packages/*/src/index.ts`、package manifest/lock、Package.swift、Reporter
@@ -243,6 +243,8 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | `SL-P1-060` | `2f89ea71e981a67c9ac8e0afff529cd77fd89da5` | `examples/reference-agent/adapter/**`、`cases/**`、`tests/e2e/**` 与使用说明 | `npm test && npm run test:e2e` / 0 | macOS / Node 22 / Chrome | 11 fixture tests + 4 live browser E2E / 0 | `examples/reference-agent/tests/e2e/approval.e2e.test.mjs` | live 证据限受控 browser fixture；无真实模型、native surface 或外部 effect。 |
 | `SL-P1-070` | `2f89ea71e981a67c9ac8e0afff529cd77fd89da5` | `packages/test/src/cli/**`、`src/report/**`、对应 tests、exports/bin/manifest | `npm run typecheck && npm test && npm pack --dry-run` / 0 | macOS / Node 22 | 13 scoped CLI/report tests（186 package total）/ 0 | `packages/test/tests/cli/**`、`packages/test/tests/report/**` | 顺序执行；无 worker pool、sharding、watch、插件加载或未编译 TypeScript Case loader。 |
 | `SL-P1-080` | `2f89ea71e981a67c9ac8e0afff529cd77fd89da5` | `scripts/run-framework-p1-tests.sh`、CI、README 与共享接线 | `./scripts/run-framework-p1-tests.sh && ./scripts/check-architecture.sh && node scripts/check-license-contract.mjs` / 0 | macOS / Node 22 / Chrome | 6 package suites + 68 repository contracts + 11 fixture tests + 4 required live E2E / 3 optional browser smoke skips，required E2E 0 skip | `scripts/run-framework-p1-tests.sh`、`.github/workflows/ci.yml` | P1 只交付 browser 纵向切片；native parity、强隔离通用 Case、并行 runner 和 report/v3 留在后续阶段。 |
+| `SL-P2-010` | `2ebc6ccae2ce97e373f09d8abb2c97e9c5755a1a` | `packages/native/**`、TS 根测试/CI 接线 | `npm run typecheck && npm test && npm pack --dry-run` / 0 | macOS / Node 22 | 26 protocol tests / 0；45 packed files | `packages/native/tests`、`packages/native/vectors/v1` | 只有共享 wire contract；尚无 TS transport、已迁移 host 或真实 native conformance。Windows 0.2 明确不是共享协议别名。 |
+| `SL-P3-040` | `2ebc6ccae2ce97e373f09d8abb2c97e9c5755a1a` | `packages/reporter/src/v3/**`、`tests/v3/**`、公开 export | `npm run typecheck && npm test && npm pack --dry-run` / 0 | macOS / Node 22 | 18 v3 tests（54 reporter total）/ 0；111 packed files | `packages/reporter/tests/v3` | CLI 仍输出 report/v2；v3 需要 runner 提供真实 host/surface/attempt/executionPlatforms，不自动伪造。 |
 
 ## 12. 变更记录
 
@@ -251,3 +253,4 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | 2026-09-16 | 主 Agent 与 GPT-6 Xhigh 达成 framework 共识；采用 CaseExecution 中心、可嵌入 kernel、Windows-first native、P1 Agent approval showcase 和 P0–P4 验收路线。 |
 | 2026-09-16 | 将生命周期任务拆为 deadline（051）、resource cleanup（052）、worker/stop semantics（053）和最终 kernel integration（050），允许 GPT-6 Xhigh 在互斥目录并行施工。 |
 | 2026-09-16 | 完成 P1：真实浏览器审批 showcase、独立完整工具账本、顺序 CLI/逐 Case Reporter 与根验收门禁；显式跨平台 filter 命中 fail closed。 |
+| 2026-09-17 | 冻结 `surfaceloom.native/1.0` 协议与 report/v3：副作用 receipt/unknown-no-retry、method intent/scope、multi-host surfaces、最高 ordinal 最终 attempt、保守 v2 import 均有契约回归。 |

@@ -36,7 +36,8 @@ macOS Accessibility 和 Windows UI Automation 后端负责定位、动作、窗�
 | 层 | 已实现 |
 |---|---|
 | Core | 跨平台 Driver/Session/Locator 契约、CaseSpec、actionability、fixture runtime、doctor、trace 脱敏 |
-| Reporter | v2 CaseSpec/result JSON、中文 AI Markdown/浅色 HTML、截图/录屏附件、失败保留策略与证据 hash |
+| Reporter | v2 单平台兼容报告；v3 host/surface/attempt/executionPlatforms、保守 v2 importer、中文 AI Markdown/浅色 HTML 与证据 hash |
+| Native Protocol | `surfaceloom.native/1.0` schema、NDJSON framing、deadline/cancel、ownership、operation outcome 与 golden vectors；尚无统一 TS client |
 | Component Catalog | 37 个桌面/System Surface/Agent 组件 manifest，7 个 fixture manifest；目录声明不等于行为实现 |
 | Browser | 可选 Playwright Core backend、语义 DOM locator、严格单目标动作、截图与 trace；浏览器按需安装 |
 | Agent Loop | 可扩展 TraceAdapter、统一 trace schema、Codex/原生/第三方 trace 导入、跨时钟合并与静态 HTML 时间线 |
@@ -61,6 +62,7 @@ packages/
 ├── agent-loop/                   # 通用 Agent loop schema、adapter 与静态可视化
 ├── component-catalog/            # 机器可读组件和 fixture manifest
 ├── reporter/                     # 机器/AI/人工三种测试报告视图
+├── native/                       # 共享 native wire contract 与 golden vectors
 └── test/                         # 可嵌入 Case execution kernel 与作者 API
 Sources/SurfaceLoomMacOS/      # Swift + Accessibility/AppKit backend
 Tests/SurfaceLoomMacOSTests/   # macOS backend contract tests
@@ -116,8 +118,8 @@ npm --prefix packages/reporter run example -- artifacts/reporter-example
 npm --prefix packages/reporter run repository-report
 ```
 
-macOS 会运行六个 TypeScript package、架构守卫和根 Swift contracts；Windows 会运行六个
-TypeScript package与 .NET host contracts。这里汇总的是命令级检查，不是逐用例 importer。
+macOS 会运行七个 TypeScript package、架构守卫和根 Swift contracts；Windows 会运行七个
+TypeScript package 与 .NET host contracts。这里汇总的是命令级检查，不是逐用例 importer。
 HTML 默认使用浅色界面。输出目录会打印在命令末尾，且 Reporter 仍拒绝覆盖已存在的报告目录。
 
 报告目录包含 `complete.json`、`report.json`、`ai-review.md`、`index.html` 和相对路径的
@@ -229,6 +231,8 @@ npm --prefix .\packages\browser-playwright ci
 npm --prefix .\packages\browser-playwright test
 npm --prefix .\packages\agent-loop ci
 npm --prefix .\packages\agent-loop test
+npm --prefix .\packages\native ci
+npm --prefix .\packages\native test
 ```
 
 ## macOS 产品接入示例
@@ -298,7 +302,7 @@ const safeAgentComponents = listComponentManifests({
 });
 ```
 
-这是仓库内 API；六个 TypeScript package 当前标记为 `private`，尚不能从 npm registry 安装。
+这是仓库内 API；七个 TypeScript package 当前标记为 `private`，尚不能从 npm registry 安装。
 不执行 TypeScript 的工具也可以在 build 后读取 `dist/catalog.json` 与 `dist/fixtures.json`。
 
 推荐修改顺序：

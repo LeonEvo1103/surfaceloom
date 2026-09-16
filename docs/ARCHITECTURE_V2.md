@@ -64,6 +64,8 @@ criterion、deadline、策略、证据和清理语义；browser、desktop、syst
     packages/agent-loop/            通用 Agent loop schema、adapter 与 viewer
     packages/component-catalog/     机器可读组件 manifest
     packages/reporter/              结果 schema、证据归档与 AI/HTML 报告
+    packages/native/                共享 native wire schema、framing 与 golden vectors
+    packages/test/                  可嵌入 execution kernel 与 CLI
     Sources/SurfaceLoomMacOS/    Swift + AX/AppKit backend
     native/windows-host/            .NET + Windows UI Automation host
     projects/                       可选产品适配器接入约定

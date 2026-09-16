@@ -6,7 +6,9 @@
 >
 > P1 增量验收 revision：`2f89ea71e981a67c9ac8e0afff529cd77fd89da5`
 >
-> 审计日期：2026-09-16
+> P2/P3 契约验收 revision：`2ebc6ccae2ce97e373f09d8abb2c97e9c5755a1a`
+>
+> 审计日期：2026-09-17
 
 本文记录基线审计及后续明确列出的验收 revision 中可由源码和测试证明的能力。规划中的跨语言协议、
 TypeScript native client、macOS stdio host、中性 native fixture App 和 fluent SDK 不计为已实现。
@@ -39,12 +41,14 @@ TypeScript native client、macOS stdio host、中性 native fixture App 和 flue
 | browser backend | [`backend.ts`](../../packages/browser-playwright/src/backend.ts)、[`session.ts`](../../packages/browser-playwright/src/session.ts) | contract：[`backend.test.ts`](../../packages/browser-playwright/tests/backend.test.ts)、[`session.test.ts`](../../packages/browser-playwright/tests/session.test.ts)；live slice：[`approval.e2e.test.mjs`](../../examples/reference-agent/tests/e2e/approval.e2e.test.mjs) | `live-fixture-tested`（审批切片） | reference-agent E2E 无 skip 启动真实 owned Chrome/Chromium；截图、trace、storage 等更宽能力仍以 contract 或显式 local smoke 为主。 |
 | macOS backend | [`SurfaceLoomMacOS`](../../Sources/SurfaceLoomMacOS) | [`SurfaceLoomMacOSTests`](../../Tests/SurfaceLoomMacOSTests) | `contract-tested` | Swift library 直接提供 AX/AppKit/CGEvent API；没有中性 fixture conformance、stdio host 或 TS bridge。 |
 | Windows backend | [`SurfaceLoom.WindowsHost`](../../native/windows-host/src/SurfaceLoom.WindowsHost) | [`SurfaceLoom.WindowsHost.ContractTests`](../../native/windows-host/tests/SurfaceLoom.WindowsHost.ContractTests) | `contract-tested` | .NET NDJSON 0.2 host；没有中性 fixture App、Windows live conformance 或 TS client。 |
+| shared native wire protocol | [`packages/native/src`](../../packages/native/src)、[`README.md`](../../packages/native/README.md) | [`packages/native/tests`](../../packages/native/tests)、[`vectors/v1`](../../packages/native/vectors/v1) | `contract-tested` | `surfaceloom.native/1.0` 已冻结 framing、deadline、ownership、scope、method descriptor 与 operation outcome；没有 host/client live conformance，Windows 0.2 不是兼容别名。 |
 | report/v2 | [`model.ts`](../../packages/reporter/src/model.ts)、[`write-report.ts`](../../packages/reporter/src/write-report.ts) | [`report-validation.contract.test.ts`](../../packages/reporter/tests/report-validation.contract.test.ts)、[`reporter.test.ts`](../../packages/reporter/tests/reporter.test.ts) | `contract-tested` | 校验/归档/派生 HTML 和 Markdown；不执行 Case、不采集 UI、不决定 runner cleanup。单 run 只有一个 `platform`，没有 surface/attempt。 |
+| report/v3 | [`packages/reporter/src/v3`](../../packages/reporter/src/v3) | [`packages/reporter/tests/v3`](../../packages/reporter/tests/v3) | `contract-tested` | 保留 host、surface、attempt 与实际 executionPlatforms；最高 ordinal final 决定 verdict，v2 importer 不伪造缺失事实。现有 CLI 尚未切换到 v3。 |
 | Agent-loop trace | [`adapter.ts`](../../packages/agent-loop/src/adapter.ts)、[`merge.ts`](../../packages/agent-loop/src/merge.ts) | [`adapters.test.ts`](../../packages/agent-loop/tests/adapters.test.ts)、[`merge-render.test.ts`](../../packages/agent-loop/tests/merge-render.test.ts) | `contract-tested` | 导入、脱敏、合并和静态展示；不运行 Agent、不证明 ledger completeness、不产生 authoritative verdict。 |
 | execution kernel | [`execute.ts`](../../packages/test/src/execute.ts)、[`contracts.ts`](../../packages/test/src/contracts.ts) | [`execution-lifecycle.test.ts`](../../packages/test/tests/execution-lifecycle.test.ts)、[`approval.e2e.test.mjs`](../../examples/reference-agent/tests/e2e/approval.e2e.test.mjs) | `live-fixture-tested`（审批切片） | deadline 能结束等待但不强停任意 in-process JavaScript；native backend 尚未接入。 |
 | `sl-test` 顺序 CLI/report 接线 | [`cli`](../../packages/test/src/cli)、[`report`](../../packages/test/src/report) | [`cli`](../../packages/test/tests/cli)、[`report`](../../packages/test/tests/report) | `contract-tested` | 支持发现编译后 JS Case、过滤、顺序执行、Reporter v2 与 exit code；无 worker pool、sharding 或 watch。 |
 | reference-agent 审批 fixture/ledger | [`examples/reference-agent`](../../examples/reference-agent) | [`approval.test.mjs`](../../examples/reference-agent/test/approval.test.mjs)、[`approval.e2e.test.mjs`](../../examples/reference-agent/tests/e2e/approval.e2e.test.mjs) | `live-fixture-tested` | 确定性本地 fixture；拒绝 0、批准 1、错误执行和不完整 ledger 均覆盖；无真实模型或外部服务。 |
-| native TS client / shared wire conformance | — | — | — | `@surfaceloom/native`、共享 schema/golden vectors 尚不存在。 |
+| native TS client / shared wire conformance | — | — | — | schema/golden vectors 已存在；transport、host 接线与真实 fixture conformance 尚未实现。 |
 
 ## 3. Core capability registry 与 backend 事实
 
