@@ -76,19 +76,99 @@ Reporter v2 不增加字段：最早观察到的错误保存在 `result.error`�
 生命周期和自动 criterion 步骤使用保留的 `kernel.` ID 前缀。最终结果由 Reporter 自身验证；
 内部验证 envelope 不作为实际 run 发布。上层报告 run 的时间区间应包含整个 executeCase 调用。
 
+## 自动 observation 与 assertion
+
+`assertObservation` 每次重试都会重新调用 reader，不接受已经求值的 snapshot 或 Promise。
+`unknown`、`read-failed` 与 `absent` 是不同状态；否定断言还必须由 provider 给出完整观察边界，
+不能把短暂空结果当成“从未发生”。
+
+```ts
+import { assertObservation, observationAvailable } from "@surfaceloom/test";
+
+await context.criterion("run-completed", () =>
+  assertObservation(
+    async () => observationAvailable(await agent.readRun()),
+    {
+      criterionId: "run-completed",
+      expectation: { kind: "matches", predicate: (run) => run.state === "completed" },
+      timeoutMs: 5_000,
+    },
+  ),
+);
+```
+
+超时使用单调时钟，迟到的 read 不能反过来通过 deadline。失败诊断会保留 expected、actual、
+最后一次有效 observation、最后一次读取错误、deadline、criterion 与 evidence，并通过标准
+`context.criterion` 写入 Reporter 的结构化 diagnostic。
+
+## ExecutionPlan 与 effect policy
+
+`defineExecutionPlan` 声明 Case 所需 host、surface、capability 和精确 effect；
+`preflightExecution` 在副作用前做能力与授权检查，`ExecutionPolicyGate.dispatch` 保证被拒绝的
+回调零次执行、获准回调只调度一次。外部影响、安全敏感操作、未知恢复方式都需要独立显式授权，
+旧 `sideEffect` 只作为粗粒度上限，不能伪装成精确资源声明。
+
+```ts
+import {
+  defineEffect,
+  defineExecutionPlan,
+  preflightExecution,
+} from "@surfaceloom/test";
+
+const outputEffect = defineEffect({
+  resource: "fixture.output",
+  operation: "write",
+  boundary: "local",
+  securitySensitive: false,
+  recovery: "resettable",
+});
+const plan = defineExecutionPlan({
+  spec: {
+    ...example.spec,
+    id: "example.write-case",
+    name: "写入测试输出",
+    sideEffect: "reversible",
+  },
+  requirements: {
+    host: { os: ["macos", "windows", "linux"] },
+    surfaces: { page: { kind: "browser", capabilities: ["browser.dom.inspect"] } },
+  },
+  effects: [outputEffect],
+});
+
+const gate = preflightExecution(
+  plan,
+  {
+    platform: "web",
+    host: { os: "macos" },
+    surfaces: { page: { kind: "browser", capabilities: ["browser.dom.inspect"] } },
+  },
+  {
+    maximumSideEffect: "reversible",
+    grants: [{ resource: "fixture.output", operations: ["write"] }],
+  },
+);
+
+await gate.dispatch(outputEffect, async () => writeFixtureOutput());
+```
+
+当前 `ExecutionPlan` 仍是独立入口，尚未接入 `executeCase` 的生命周期；在 `SL-P1-050` 完成前，
+调用方必须在创建 fixture 或执行动作前显式 preflight/dispatch，不能把 plan 仅作为文档元数据。
+
 ## 当前边界
 
-本包尚无 CLI、发现/过滤器、browser/native adapter、自动等待 assertion、observation 轮询、
-deadline、强制取消、跨进程资源租约、capability 预检、policy/effects 门禁或证据采集。
-`platform` 只验证报告平台与 CaseSpec 一致，`sideEffect` 只是声明，前置条件不会自动执行。
-调用方必须自行确保环境与副作用已获准；本包还不能作为这些能力的安全边界。
+本包尚无 CLI、发现/过滤器、browser/native adapter、执行生命周期 deadline、强制取消、
+跨进程资源租约或自动证据采集。observation assertion 已有自己的等待 deadline；
+capability preflight 与 policy/effects 门禁也已提供，但尚未由 `executeCase` 自动调用。
+`platform` 目前只验证报告平台与 CaseSpec 一致，前置条件不会自动执行。
 
 永不完成的 setup、正文、步骤或 teardown 会令执行一直等待。没有 `Promise.race` 超时或
 “已经停止”的保证；脱离上下文 API 的异步任务不受追踪。返回的上下文方法会拒绝迟到调用，
 但不能撤销 fixture 已返回给正文的对象，也不能停止外部副作用。隔离与取消由后续
 `SL-P1-050` 验收。当前仅产生 `passed`/`failed`，不声称支持 timedOut/skipped/unsupported 调度。
 fixture 快照固定定义和函数引用，不冻结回调闭包中的外部状态或返回的资源对象；不返回的恶意
-getter 与其他不合作 JavaScript 一样，不能由此内核强制终止。
+getter 与其他不合作 JavaScript 一样，不能由此内核强制终止。policy gate 是调用前授权边界，
+不是 JavaScript sandbox；回调启动后的外部副作用仍需由 ownership、取消与清理协议约束。
 
 ## 本地验证与打包
 
