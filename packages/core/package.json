@@ -1,7 +1,7 @@
 {
   "name": "@surfaceloom/core",
   "version": "0.1.0",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "private": true,
   "repository": {
     "type": "git",
@@ -21,7 +21,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node ../../scripts/clean-package-dist.mjs && tsc -p tsconfig.json && node ../../scripts/copy-package-license.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node ../../scripts/run-typescript-package-tests.mjs"
   },

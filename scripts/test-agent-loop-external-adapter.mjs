@@ -23,7 +23,7 @@ try {
   if (packedPaths.some((file) => /(?:^|\/)(?:node_modules|\.env)(?:\/|$)/.test(file))) {
     throw new Error("Packed artifact contains a forbidden generated or environment path.");
   }
-  if (!packedPaths.includes("dist/LICENSE")) throw new Error("Packed artifact is missing its Apache-2.0 license.");
+  if (!packedPaths.includes("dist/LICENSE")) throw new Error("Packed artifact is missing its MIT license.");
   const tarball = path.join(temporary, packResult[0].filename);
   const consumer = path.join(temporary, "consumer");
   await mkdir(consumer);
