@@ -6,7 +6,7 @@
 >
 > 审计日期：2026-09-16
 >
-> 当前阶段：P1，execution kernel 与确定性 Agent fixture 已完成，等待/策略并行施工
+> 当前阶段：P1，等待/策略契约已完成，deadline、资源与停止语义并行施工
 
 本文档是 SurfaceLoom 框架执行模型、实施顺序和完成证据的唯一事实源（SSOT）。
 `ARCHITECTURE_V2.md` 描述已有分层；两者冲突时，以本文明确列出的新决策为准，并由负责该任务的
@@ -165,7 +165,10 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P1-020` | done | `SL-P0-001` | 新 `examples/reference-agent/**` | 审批 HTTP fixture、确定性 run、独立工具账本、故障注入；拒绝 0、批准 1、重复批准不重复执行 |
 | `SL-P1-030` | done | `SL-P1-010` | test package observation/assertion 子模块 | 自动重读、deadline、结构化 assertion/criterion；读取失败不等于 absent |
 | `SL-P1-040` | done | `SL-P1-010` | test package plan/policy/effects 子模块 | capability 预检、effect descriptor/旧 enum 兼容；副作用前 fail closed |
-| `SL-P1-050` | ready | `SL-P1-030`,`SL-P1-040` | test package execution/deadline/resources/worker 子模块 | 迟到 setup、挂起正文、cleanup 失败；区分 stopped/unconfirmed/tainted，不以 Promise.race 冒充停止 |
+| `SL-P1-051` | in_progress | `SL-P1-030`,`SL-P1-040` | `packages/test/src/deadline*` 与对应 tests | 单调 deadline、合作取消信号和任务 settle receipt；等待结束不冒充任务停止 |
+| `SL-P1-052` | in_progress | `SL-P1-030`,`SL-P1-040` | `packages/test/src/resources*` 与对应 tests | 显式 ownership、逆序 cleanup、全部清理尝试与结构化 cleanup outcome；首因不被覆盖 |
+| `SL-P1-053` | in_progress | `SL-P1-030`,`SL-P1-040` | `packages/test/src/worker*` 与对应 tests | 隔离执行/停止状态契约；明确 cooperative stopped、worker terminated、unconfirmed 与 tainted |
+| `SL-P1-050` | planned | `SL-P1-051`,`SL-P1-052`,`SL-P1-053` | test package execution 集成、现有 kernel tests/exports | plan/policy 在 fixture 前；迟到 setup、挂起正文、cleanup 失败闭环；不能以 `Promise.race` 冒充停止 |
 | `SL-P1-060` | planned | `SL-P1-020`,`SL-P1-030`,`SL-P1-040`,`SL-P1-050` | reference-agent adapter/cases/e2e | 真浏览器拒绝 0、批准 1、拒绝后错误执行必失败 |
 | `SL-P1-070` | planned | `SL-P1-030`,`SL-P1-040`,`SL-P1-050` | test package CLI/report 子模块、bin/exports | CLI 与嵌入入口使用同一 kernel；逐 Case 报告和 exit code |
 | `SL-P1-080` | planned | `SL-P1-060`,`SL-P1-070` | 根 scripts/CI 与 SSOT 证据 | showcase + 普通非 Agent Case；全量 TS/架构/e2e，不能全 skip |
@@ -202,8 +205,9 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 
 ## 9. 并行施工规则
 
-第一波固定为：`SL-P0-010`、`SL-P1-010`、`SL-P1-020`。三个实现 Agent 不得修改 SSOT、
-README、AGENTS、根 scripts/CI、共享 package exports/lockfile；这些由主 Agent 独占集成。
+当前并行波次为：`SL-P1-051`、`SL-P1-052`、`SL-P1-053`。三个实现 Agent 不得修改 SSOT、
+README、根 scripts/CI、共享 package exports/lockfile 或现有 `executeCase`；这些由主 Agent 在
+`SL-P1-050` 独占集成。每个子任务只定义一种可独立测试的 primitive，不自行宣称 Case 已支持强制取消。
 
 即使源码目录互斥，`core/dist` 等生成物仍共享。实现 Agent 只运行 scoped typecheck/test；主 Agent
 串行运行全量构建。`packages/*/src/index.ts`、package manifest/lock、Package.swift、Reporter
@@ -237,3 +241,4 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | 日期 | 决策 |
 | --- | --- |
 | 2026-09-16 | 主 Agent 与 GPT-6 Xhigh 达成 framework 共识；采用 CaseExecution 中心、可嵌入 kernel、Windows-first native、P1 Agent approval showcase 和 P0–P4 验收路线。 |
+| 2026-09-16 | 将生命周期任务拆为 deadline（051）、resource cleanup（052）、worker/stop semantics（053）和最终 kernel integration（050），允许 GPT-6 Xhigh 在互斥目录并行施工。 |
