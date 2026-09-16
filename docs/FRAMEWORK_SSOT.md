@@ -6,7 +6,7 @@
 >
 > 审计日期：2026-09-16
 >
-> 当前阶段：P0，第一波 P0/P1 基础施工
+> 当前阶段：P1，execution kernel 与确定性 Agent fixture 已完成，等待/策略并行施工
 
 本文档是 SurfaceLoom 框架执行模型、实施顺序和完成证据的唯一事实源（SSOT）。
 `ARCHITECTURE_V2.md` 描述已有分层；两者冲突时，以本文明确列出的新决策为准，并由负责该任务的
@@ -163,8 +163,8 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | --- | --- | --- | --- | --- |
 | `SL-P1-010` | done | `SL-P0-001` | 新 `packages/test/**` | 可嵌入 executeCase、注册、step/criterion、正常 fixture 生命周期；成功、正文/setup/teardown 失败均生成合法结果且不覆盖首因 |
 | `SL-P1-020` | done | `SL-P0-001` | 新 `examples/reference-agent/**` | 审批 HTTP fixture、确定性 run、独立工具账本、故障注入；拒绝 0、批准 1、重复批准不重复执行 |
-| `SL-P1-030` | ready | `SL-P1-010` | test package observation/assertion 子模块 | 自动重读、deadline、结构化 assertion/criterion；读取失败不等于 absent |
-| `SL-P1-040` | ready | `SL-P1-010` | test package plan/policy/effects 子模块 | capability 预检、effect descriptor/旧 enum 兼容；副作用前 fail closed |
+| `SL-P1-030` | in_progress | `SL-P1-010` | test package observation/assertion 子模块 | 自动重读、deadline、结构化 assertion/criterion；读取失败不等于 absent |
+| `SL-P1-040` | in_progress | `SL-P1-010` | test package plan/policy/effects 子模块 | capability 预检、effect descriptor/旧 enum 兼容；副作用前 fail closed |
 | `SL-P1-050` | planned | `SL-P1-030`,`SL-P1-040` | test package execution/deadline/resources/worker 子模块 | 迟到 setup、挂起正文、cleanup 失败；区分 stopped/unconfirmed/tainted，不以 Promise.race 冒充停止 |
 | `SL-P1-060` | planned | `SL-P1-020`,`SL-P1-030`,`SL-P1-040`,`SL-P1-050` | reference-agent adapter/cases/e2e | 真浏览器拒绝 0、批准 1、拒绝后错误执行必失败 |
 | `SL-P1-070` | planned | `SL-P1-030`,`SL-P1-040`,`SL-P1-050` | test package CLI/report 子模块、bin/exports | CLI 与嵌入入口使用同一 kernel；逐 Case 报告和 exit code |

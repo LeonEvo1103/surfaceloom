@@ -142,7 +142,7 @@ AI 只验收存在 `complete.json` 且其中 `files` hash 与三个视图一致�
 仓库自身提供一条最小的 runner→Reporter 参考接线：
 
 ```bash
-./scripts/run-typescript-tests.sh  # 首次运行时安装并验证五个 package
+./scripts/run-typescript-tests.sh  # 首次运行时安装并验证六个 package
 npm --prefix packages/reporter run repository-report
 ```
 

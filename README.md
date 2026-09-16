@@ -59,7 +59,8 @@ packages/
 ├── browser-playwright/           # 可选 Playwright DOM backend，不污染 Core
 ├── agent-loop/                   # 通用 Agent loop schema、adapter 与静态可视化
 ├── component-catalog/            # 机器可读组件和 fixture manifest
-└── reporter/                     # 机器/AI/人工三种测试报告视图
+├── reporter/                     # 机器/AI/人工三种测试报告视图
+└── test/                         # 可嵌入 Case execution kernel 与作者 API
 Sources/SurfaceLoomMacOS/      # Swift + Accessibility/AppKit backend
 Tests/SurfaceLoomMacOSTests/   # macOS backend contract tests
 native/windows-host/              # C# + UI Automation/Win32 NDJSON host
@@ -105,7 +106,7 @@ npm --prefix packages/reporter run example -- artifacts/reporter-example
 npm --prefix packages/reporter run repository-report
 ```
 
-macOS 会运行五个 TypeScript package、架构守卫和根 Swift contracts；Windows 会运行五个
+macOS 会运行六个 TypeScript package、架构守卫和根 Swift contracts；Windows 会运行六个
 TypeScript package与 .NET host contracts。这里汇总的是命令级检查，不是逐用例 importer。
 HTML 默认使用浅色界面。输出目录会打印在命令末尾，且 Reporter 仍拒绝覆盖已存在的报告目录。
 
@@ -287,7 +288,7 @@ const safeAgentComponents = listComponentManifests({
 });
 ```
 
-这是仓库内 API；五个 TypeScript package 当前标记为 `private`，尚不能从 npm registry 安装。
+这是仓库内 API；六个 TypeScript package 当前标记为 `private`，尚不能从 npm registry 安装。
 不执行 TypeScript 的工具也可以在 build 后读取 `dist/catalog.json` 与 `dist/fixtures.json`。
 
 推荐修改顺序：
