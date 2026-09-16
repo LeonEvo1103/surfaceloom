@@ -2,11 +2,13 @@
 
 > 审计任务：`SL-P0-010`
 >
-> 审计 revision：`aebb24c32f3dec0e7b51c369656cd2d27430dabb`
+> 基线审计 revision：`aebb24c32f3dec0e7b51c369656cd2d27430dabb`
+>
+> P1 增量验收 revision：`2f89ea71e981a67c9ac8e0afff529cd77fd89da5`
 >
 > 审计日期：2026-09-16
 
-本文只记录上述 revision 中可由源码和测试证明的能力。规划中的 execution kernel、跨语言协议、
+本文记录基线审计及后续明确列出的验收 revision 中可由源码和测试证明的能力。规划中的跨语言协议、
 TypeScript native client、macOS stdio host、中性 native fixture App 和 fluent SDK 不计为已实现。
 
 ## 1. 验证级别
@@ -34,12 +36,14 @@ TypeScript native client、macOS stdio host、中性 native fixture App 和 flue
 | doctor schema/summary | [`doctor.ts`](../../packages/core/src/doctor.ts) | [`runtime.test.ts`](../../packages/core/tests/runtime.test.ts) | `contract-tested` | 只解析/汇总报告；平台 doctor 仍各自实现。 |
 | Core trace recorder | [`trace.ts`](../../packages/core/src/trace.ts) | [`runtime.test.ts`](../../packages/core/tests/runtime.test.ts) | `contract-tested` | 内存事件与脱敏；不是持久化 trace、Case verdict 或跨 surface 因果模型。 |
 | component/fixture catalog | [`catalog.ts`](../../packages/component-catalog/src/catalog.ts)、[`fixtures.ts`](../../packages/component-catalog/src/fixtures.ts) | [`catalog.test.ts`](../../packages/component-catalog/tests/catalog.test.ts) | `contract-tested`（仅目录数据） | 测试证明 37 个 manifest 和 7 个 fixture metadata 自洽，不证明对应行为或 fixture setup 可执行。 |
-| browser backend | [`backend.ts`](../../packages/browser-playwright/src/backend.ts)、[`session.ts`](../../packages/browser-playwright/src/session.ts) | [`backend.test.ts`](../../packages/browser-playwright/tests/backend.test.ts)、[`session.test.ts`](../../packages/browser-playwright/tests/session.test.ts) | `contract-tested` | 默认套件使用 fake Playwright。真实 Chrome smoke 受环境变量门禁，见第 4 节。 |
+| browser backend | [`backend.ts`](../../packages/browser-playwright/src/backend.ts)、[`session.ts`](../../packages/browser-playwright/src/session.ts) | contract：[`backend.test.ts`](../../packages/browser-playwright/tests/backend.test.ts)、[`session.test.ts`](../../packages/browser-playwright/tests/session.test.ts)；live slice：[`approval.e2e.test.mjs`](../../examples/reference-agent/tests/e2e/approval.e2e.test.mjs) | `live-fixture-tested`（审批切片） | reference-agent E2E 无 skip 启动真实 owned Chrome/Chromium；截图、trace、storage 等更宽能力仍以 contract 或显式 local smoke 为主。 |
 | macOS backend | [`SurfaceLoomMacOS`](../../Sources/SurfaceLoomMacOS) | [`SurfaceLoomMacOSTests`](../../Tests/SurfaceLoomMacOSTests) | `contract-tested` | Swift library 直接提供 AX/AppKit/CGEvent API；没有中性 fixture conformance、stdio host 或 TS bridge。 |
 | Windows backend | [`SurfaceLoom.WindowsHost`](../../native/windows-host/src/SurfaceLoom.WindowsHost) | [`SurfaceLoom.WindowsHost.ContractTests`](../../native/windows-host/tests/SurfaceLoom.WindowsHost.ContractTests) | `contract-tested` | .NET NDJSON 0.2 host；没有中性 fixture App、Windows live conformance 或 TS client。 |
 | report/v2 | [`model.ts`](../../packages/reporter/src/model.ts)、[`write-report.ts`](../../packages/reporter/src/write-report.ts) | [`report-validation.contract.test.ts`](../../packages/reporter/tests/report-validation.contract.test.ts)、[`reporter.test.ts`](../../packages/reporter/tests/reporter.test.ts) | `contract-tested` | 校验/归档/派生 HTML 和 Markdown；不执行 Case、不采集 UI、不决定 runner cleanup。单 run 只有一个 `platform`，没有 surface/attempt。 |
 | Agent-loop trace | [`adapter.ts`](../../packages/agent-loop/src/adapter.ts)、[`merge.ts`](../../packages/agent-loop/src/merge.ts) | [`adapters.test.ts`](../../packages/agent-loop/tests/adapters.test.ts)、[`merge-render.test.ts`](../../packages/agent-loop/tests/merge-render.test.ts) | `contract-tested` | 导入、脱敏、合并和静态展示；不运行 Agent、不证明 ledger completeness、不产生 authoritative verdict。 |
-| execution kernel / `sl test` | — | — | — | `@surfaceloom/test` 尚不存在。 |
+| execution kernel | [`execute.ts`](../../packages/test/src/execute.ts)、[`contracts.ts`](../../packages/test/src/contracts.ts) | [`execution-lifecycle.test.ts`](../../packages/test/tests/execution-lifecycle.test.ts)、[`approval.e2e.test.mjs`](../../examples/reference-agent/tests/e2e/approval.e2e.test.mjs) | `live-fixture-tested`（审批切片） | deadline 能结束等待但不强停任意 in-process JavaScript；native backend 尚未接入。 |
+| `sl-test` 顺序 CLI/report 接线 | [`cli`](../../packages/test/src/cli)、[`report`](../../packages/test/src/report) | [`cli`](../../packages/test/tests/cli)、[`report`](../../packages/test/tests/report) | `contract-tested` | 支持发现编译后 JS Case、过滤、顺序执行、Reporter v2 与 exit code；无 worker pool、sharding 或 watch。 |
+| reference-agent 审批 fixture/ledger | [`examples/reference-agent`](../../examples/reference-agent) | [`approval.test.mjs`](../../examples/reference-agent/test/approval.test.mjs)、[`approval.e2e.test.mjs`](../../examples/reference-agent/tests/e2e/approval.e2e.test.mjs) | `live-fixture-tested` | 确定性本地 fixture；拒绝 0、批准 1、错误执行和不完整 ledger 均覆盖；无真实模型或外部服务。 |
 | native TS client / shared wire conformance | — | — | — | `@surfaceloom/native`、共享 schema/golden vectors 尚不存在。 |
 
 ## 3. Core capability registry 与 backend 事实

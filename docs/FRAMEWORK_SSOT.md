@@ -2,11 +2,11 @@
 
 > 状态：Active
 >
-> 基线 revision：`0230973e9539838f9393509b7b32681fde4c2c1b`
+> 当前验收 revision：`2f89ea71e981a67c9ac8e0afff529cd77fd89da5`
 >
 > 审计日期：2026-09-16
 >
-> 当前阶段：P1，execution lifecycle 已完成，browser showcase 与 CLI/report 接线已就绪
+> 当前阶段：P1 已完成；P2 shared protocol 与 P3 report/v3 可进入下一并行波次
 
 本文档是 SurfaceLoom 框架执行模型、实施顺序和完成证据的唯一事实源（SSOT）。
 `ARCHITECTURE_V2.md` 描述已有分层；两者冲突时，以本文明确列出的新决策为准，并由负责该任务的
@@ -169,15 +169,15 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P1-052` | done | `SL-P1-030`,`SL-P1-040` | `packages/test/src/resources*` 与对应 tests | 显式 ownership、逆序 cleanup、全部清理尝试与结构化 cleanup outcome；首因不被覆盖 |
 | `SL-P1-053` | done | `SL-P1-030`,`SL-P1-040` | `packages/test/src/worker*` 与对应 tests | 隔离执行/停止状态契约；明确 cooperative stopped、worker terminated、unconfirmed 与 tainted |
 | `SL-P1-050` | done | `SL-P1-051`,`SL-P1-052`,`SL-P1-053` | test package execution 集成、现有 kernel tests/exports | plan/policy 在 fixture 前；迟到 setup、挂起正文、cleanup 失败闭环；不能以 `Promise.race` 冒充停止 |
-| `SL-P1-060` | ready | `SL-P1-020`,`SL-P1-030`,`SL-P1-040`,`SL-P1-050` | reference-agent adapter/cases/e2e | 真浏览器拒绝 0、批准 1、拒绝后错误执行必失败 |
-| `SL-P1-070` | ready | `SL-P1-030`,`SL-P1-040`,`SL-P1-050` | test package CLI/report 子模块、bin/exports | CLI 与嵌入入口使用同一 kernel；逐 Case 报告和 exit code |
-| `SL-P1-080` | planned | `SL-P1-060`,`SL-P1-070` | 根 scripts/CI 与 SSOT 证据 | showcase + 普通非 Agent Case；全量 TS/架构/e2e，不能全 skip |
+| `SL-P1-060` | done | `SL-P1-020`,`SL-P1-030`,`SL-P1-040`,`SL-P1-050` | reference-agent adapter/cases/e2e | 真浏览器拒绝 0、批准 1、拒绝后错误执行必失败 |
+| `SL-P1-070` | done | `SL-P1-030`,`SL-P1-040`,`SL-P1-050` | test package CLI/report 子模块、bin/exports | CLI 与嵌入入口使用同一 kernel；逐 Case 报告和 exit code |
+| `SL-P1-080` | done | `SL-P1-060`,`SL-P1-070` | 根 scripts/CI 与 SSOT 证据 | showcase + 普通非 Agent Case；全量 TS/架构/e2e，不能全 skip |
 
 ### P2：Windows native 垂直切片
 
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
-| `SL-P2-010` | planned | `SL-P0-010`,`SL-P1-080` | 新 native package 协议 schema/vectors | 版本、ownership、deadline、错误、operation outcome、句柄范围 |
+| `SL-P2-010` | ready | `SL-P0-010`,`SL-P1-080` | 新 native package 协议 schema/vectors | 版本、ownership、deadline、错误、operation outcome、句柄范围 |
 | `SL-P2-020` | planned | `SL-P2-010` | `native/windows-host/**` | host 对齐协议且明确 0.2 兼容/停用策略，unknown 不重发 |
 | `SL-P2-030` | planned | `SL-P2-010` | native TS client/transport/tests | host 生命周期；错误版本、断线、超时、stale session、payload 边界 |
 | `SL-P2-040` | planned | `SL-P2-010` | 新 `native/windows-fixture/**` | 中性 UIA app：invoke/setValue/歧义/消失元素/owned lifecycle |
@@ -190,7 +190,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P3-010` | planned | `SL-P2-010`,`SL-P2-050` | Package.swift、新 macOS host/tests | 同协议 stdio host，复用现有 AX/ownership，不新造 wire 语义 |
 | `SL-P3-020` | planned | `SL-P2-010` | 新 macOS fixture | 与 Windows 同一行为契约的中性 app |
 | `SL-P3-030` | planned | `SL-P3-010` | native package macOS binding/tests | typed desktop session 和显式平台专属 capability |
-| `SL-P3-040` | planned | `SL-P1-080` | reporter package | report/v3 host/surface/attempt 和 v2 importer；不静默降级 |
+| `SL-P3-040` | ready | `SL-P1-080` | reporter package | report/v3 host/surface/attempt 和 v2 importer；不静默降级 |
 | `SL-P3-050` | planned | `SL-P3-040` | Core evidence context、agent-loop/tests | 显式 correlation；时间相邻不冒充因果，trace 不改 verdict |
 | `SL-P3-060` | planned | `SL-P3-010`,`SL-P3-020`,`SL-P3-030` | macOS live tests/scripts/CI | 同一行为集真实 conformance；TCC 不足明确报告且不自动授权 |
 | `SL-P3-070` | planned | `SL-P2-050`,`SL-P3-040`,`SL-P3-050`,`SL-P3-060` | mixed-surface example 与 lease tests | browser + native Case，跨面动作、证据、租约和清理，报告列两面 |
@@ -205,9 +205,10 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 
 ## 9. 并行施工规则
 
-下一并行波次为：`SL-P1-060` 与 `SL-P1-070`。前者独占 reference-agent adapter/cases/e2e，
-后者独占 test package CLI/report 子模块；两者不得修改 SSOT、根 scripts/CI 或对方目录。
-共享 exports/package manifest 由主 Agent 集成，最终 `SL-P1-080` 串行验收。
+下一并行波次为：`SL-P2-010` 与 `SL-P3-040`。前者独占新 native package 的协议 schema/vectors，
+后者独占 Reporter v3 与 v2 importer；两者不得修改 SSOT、根 scripts/CI 或对方目录。
+共享 exports/package manifest 仍由主 Agent 集成。P2 host/client/fixture 在协议冻结后再并行，P3
+correlation 必须等待 report/v3 契约完成。
 
 即使源码目录互斥，`core/dist` 等生成物仍共享。实现 Agent 只运行 scoped typecheck/test；主 Agent
 串行运行全量构建。`packages/*/src/index.ts`、package manifest/lock、Package.swift、Reporter
@@ -238,7 +239,10 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | `SL-P1-051` | `28cae810d8f8b40b06b783a12387b4e7461b742a` | `packages/test/src/deadline*` 与对应 tests | `npm run typecheck && npm test` / 0 | macOS / Node 22 | 23 scoped tests（160 package total）/ 0 | `packages/test/tests/deadline*.test.ts` | 只能合作取消异步任务；不能抢占同步 JavaScript 或 detached 工作；Node 20 API 兼容但实测为 Node 22。 |
 | `SL-P1-052` | `28cae810d8f8b40b06b783a12387b4e7461b742a` | `packages/test/src/resources*` 与对应 tests | `npm run typecheck && npm test` / 0 | macOS / Node 22 | 32 scoped tests（160 package total）/ 0 | `packages/test/tests/resources*.test.ts` | cleanup 超时只证明回执未确认；同步阻塞与恶意 Promise species 仍需隔离层兜底。 |
 | `SL-P1-053` | `28cae810d8f8b40b06b783a12387b4e7461b742a` | `packages/test/src/worker*` 与对应 tests | `npm run typecheck && npm test` / 0 | macOS / Node 22 | 28 scoped tests（160 package total）/ 0 | `packages/test/tests/worker*.test.ts` | 现有 Case 闭包不自动迁入 Worker；Node 入口只管理调用方 owned Worker，不能证明 detached/external effects 已回滚。 |
-| `SL-P1-050` | `ef80f1b4abe879ffc406e42dee34954ee22a957f` | `packages/test/src/contracts.ts`、`execute.ts`、`execution-*`、resources contract/tests、exports 与 README | `npm run typecheck && npm test && npm pack --dry-run && git diff --check` / 0 | macOS / Node 22 | 12 scoped integration tests（173 package total）/ 0 | `packages/test/tests/execution-lifecycle.test.ts`、`execution-dispatch.test.ts` | in-process 同步阻塞与 detached JavaScript 不可强停；timeout 只结束等待并保守标记 unconfirmed/tainted；Node Worker 强制终止不证明外部副作用已回滚。 |
+| `SL-P1-050` | `5aaa8a1e3800b0b5d1d5353dee90f58d20575b87` | `packages/test/src/contracts.ts`、`execute.ts`、`execution-*`、resources contract/tests、exports 与 README | `npm run typecheck && npm test && npm pack --dry-run && git diff --check` / 0 | macOS / Node 22 | 12 scoped integration tests（173 package total）/ 0 | `packages/test/tests/execution-lifecycle.test.ts`、`execution-dispatch.test.ts` | in-process 同步阻塞与 detached JavaScript 不可强停；timeout 只结束等待并保守标记 unconfirmed/tainted；Node Worker 强制终止不证明外部副作用已回滚。 |
+| `SL-P1-060` | `2f89ea71e981a67c9ac8e0afff529cd77fd89da5` | `examples/reference-agent/adapter/**`、`cases/**`、`tests/e2e/**` 与使用说明 | `npm test && npm run test:e2e` / 0 | macOS / Node 22 / Chrome | 11 fixture tests + 4 live browser E2E / 0 | `examples/reference-agent/tests/e2e/approval.e2e.test.mjs` | live 证据限受控 browser fixture；无真实模型、native surface 或外部 effect。 |
+| `SL-P1-070` | `2f89ea71e981a67c9ac8e0afff529cd77fd89da5` | `packages/test/src/cli/**`、`src/report/**`、对应 tests、exports/bin/manifest | `npm run typecheck && npm test && npm pack --dry-run` / 0 | macOS / Node 22 | 13 scoped CLI/report tests（186 package total）/ 0 | `packages/test/tests/cli/**`、`packages/test/tests/report/**` | 顺序执行；无 worker pool、sharding、watch、插件加载或未编译 TypeScript Case loader。 |
+| `SL-P1-080` | `2f89ea71e981a67c9ac8e0afff529cd77fd89da5` | `scripts/run-framework-p1-tests.sh`、CI、README 与共享接线 | `./scripts/run-framework-p1-tests.sh && ./scripts/check-architecture.sh && node scripts/check-license-contract.mjs` / 0 | macOS / Node 22 / Chrome | 6 package suites + 68 repository contracts + 11 fixture tests + 4 required live E2E / 3 optional browser smoke skips，required E2E 0 skip | `scripts/run-framework-p1-tests.sh`、`.github/workflows/ci.yml` | P1 只交付 browser 纵向切片；native parity、强隔离通用 Case、并行 runner 和 report/v3 留在后续阶段。 |
 
 ## 12. 变更记录
 
@@ -246,3 +250,4 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | --- | --- |
 | 2026-09-16 | 主 Agent 与 GPT-6 Xhigh 达成 framework 共识；采用 CaseExecution 中心、可嵌入 kernel、Windows-first native、P1 Agent approval showcase 和 P0–P4 验收路线。 |
 | 2026-09-16 | 将生命周期任务拆为 deadline（051）、resource cleanup（052）、worker/stop semantics（053）和最终 kernel integration（050），允许 GPT-6 Xhigh 在互斥目录并行施工。 |
+| 2026-09-16 | 完成 P1：真实浏览器审批 showcase、独立完整工具账本、顺序 CLI/逐 Case Reporter 与根验收门禁；显式跨平台 filter 命中 fail closed。 |
