@@ -1,0 +1,22 @@
+{
+  "name": "handshake response",
+  "valid": true,
+  "message": {
+    "protocol": "surfaceloom.native",
+    "version": "1.0",
+    "type": "response",
+    "id": "request.handshake.1",
+    "ok": true,
+    "result": {
+      "hostInstanceId": "host-7f3d",
+      "platform": "windows",
+      "backend": "uia",
+      "methods": [
+        { "name": "host.handshake", "intent": "observe", "scopeKinds": ["bootstrap"] },
+        { "name": "session.launch", "intent": "lifecycle", "scopeKinds": ["host"] }
+      ],
+      "maxMessageBytes": 1048576
+    },
+    "operation": null
+  }
+}

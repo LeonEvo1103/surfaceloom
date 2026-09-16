@@ -1,0 +1,22 @@
+{
+  "name": "handle-scoped observation",
+  "valid": true,
+  "message": {
+    "protocol": "surfaceloom.native",
+    "version": "1.0",
+    "type": "request",
+    "id": "request.read.1",
+    "deadline": { "timeoutMs": 2500 },
+    "call": {
+      "name": "accessibility.snapshot",
+      "intent": "observe",
+      "scope": {
+        "kind": "handle",
+        "hostInstanceId": "host-7f3d",
+        "sessionId": "session-42",
+        "handleId": "element-9"
+      },
+      "payload": {}
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "deadline cancellation request",
+  "valid": true,
+  "message": {
+    "protocol": "surfaceloom.native",
+    "version": "1.0",
+    "type": "cancel",
+    "id": "cancel.action.2",
+    "requestId": "request.action.2",
+    "reason": "deadline"
+  }
+}

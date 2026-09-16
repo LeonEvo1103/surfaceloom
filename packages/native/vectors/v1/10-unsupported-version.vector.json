@@ -1,0 +1,18 @@
+{
+  "name": "unsupported shared protocol version",
+  "valid": false,
+  "errorCode": "unsupported_version",
+  "message": {
+    "protocol": "surfaceloom.native",
+    "version": "2.0",
+    "type": "request",
+    "id": "request.future.1",
+    "deadline": { "timeoutMs": 1000 },
+    "call": {
+      "name": "host.handshake",
+      "intent": "observe",
+      "scope": { "kind": "bootstrap" },
+      "payload": {}
+    }
+  }
+}

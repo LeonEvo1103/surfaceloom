@@ -5,3 +5,4 @@ export * from "./sanitize.js";
 export * from "./summary.js";
 export * from "./validate.js";
 export * from "./write-report.js";
+export * from "./v3/index.js";

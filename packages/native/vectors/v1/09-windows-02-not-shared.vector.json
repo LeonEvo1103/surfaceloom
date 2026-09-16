@@ -1,0 +1,11 @@
+{
+  "name": "Windows 0.2 is not the shared protocol",
+  "valid": false,
+  "errorCode": "invalid_message",
+  "message": {
+    "protocolVersion": "0.2",
+    "id": "legacy",
+    "method": "host.handshake",
+    "params": {}
+  }
+}

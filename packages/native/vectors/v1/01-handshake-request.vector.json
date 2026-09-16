@@ -1,0 +1,17 @@
+{
+  "name": "bootstrap handshake request",
+  "valid": true,
+  "message": {
+    "protocol": "surfaceloom.native",
+    "version": "1.0",
+    "type": "request",
+    "id": "request.handshake.1",
+    "deadline": { "timeoutMs": 1000 },
+    "call": {
+      "name": "host.handshake",
+      "intent": "observe",
+      "scope": { "kind": "bootstrap" },
+      "payload": { "client": "contract-tests", "supportedVersions": ["1.0"] }
+    }
+  }
+}
