@@ -1,7 +1,37 @@
 # @surfaceloom/native protocol contract
 
-This package owns the product-neutral native wire protocol schema and golden vectors for `SL-P2-010`.
-It deliberately contains no host launcher, transport client, UIA/AX implementation, or live conformance claim.
+This package owns the product-neutral native wire protocol schema, golden vectors, and transport-neutral
+TypeScript client. It deliberately contains no host launcher, UIA/AX implementation, or live conformance claim.
+
+## TypeScript client
+
+`NativeClient` negotiates one immutable host connection over an injected byte transport. The transport owns
+process or socket I/O; the client owns framing, correlation, deadlines, cancellation requests, capability
+checks, and host/session/handle identity. Platform packages provide result codecs and method payloads rather
+than adding UIA, AX, or DOM semantics here.
+
+```ts
+import { NativeClient, jsonResultCodec } from "@surfaceloom/native";
+
+const client = new NativeClient({ transport });
+const host = await client.connect();
+
+const result = await client.invoke({
+  name: "example.observe",
+  intent: "observe",
+  scope: { kind: "host", hostInstanceId: host.hostInstanceId },
+  payload: {},
+  timeoutMs: 1_000,
+  codec: jsonResultCodec,
+});
+
+await client.close();
+```
+
+The client never automatically replays a request. A cancellation frame is best effort and does not prove
+that native work stopped. Request, operation, and cancellation identifiers are not reused within a client
+lifetime; late terminal responses therefore remain recognizable. The current evidence is contract testing
+against fake transports. Real host conformance is tracked separately.
 
 ## Version and frame boundary
 

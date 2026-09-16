@@ -17,3 +17,4 @@ export {
   assertHandleScope, validateCallAgainstHost, validateHostDescriptor, validateNativeHandle, validateSessionDescriptor,
   validateWireMessage,
 } from "./schema.js";
+export * from "./client/index.js";
