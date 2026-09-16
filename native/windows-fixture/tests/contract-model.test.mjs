@@ -33,7 +33,6 @@ test("contract declares a product-neutral Windows WPF fixture", () => {
   assert.equal(contract.productNeutral, true);
   assert.equal(contract.liveEvidenceRequired, true);
 });
-
 test("stable automation ids are unique", () => {
   const ids = [contract.root.automationId, ...contract.controls.map((control) => control.automationId)];
   assert.equal(new Set(ids).size, ids.length);
@@ -71,4 +70,3 @@ test("modeled transitions produce the declared postconditions", () => {
     }
   }
 });
-

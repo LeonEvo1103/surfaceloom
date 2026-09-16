@@ -42,4 +42,3 @@ test proves the state object used by the WPF event handlers. Neither proves Wind
 behavior, pattern availability, process ownership, process exit, or native protocol integration.
 Those claims remain blocked until a Windows live run records OS, host revision, fixture revision,
 executed case count, skipped case count, and artifacts.
-

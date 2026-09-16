@@ -14,4 +14,3 @@
     <ProjectReference Include="..\SurfaceLoom.WindowsFixture.Model\SurfaceLoom.WindowsFixture.Model.csproj" />
   </ItemGroup>
 </Project>
-

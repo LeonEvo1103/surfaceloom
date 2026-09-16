@@ -101,4 +101,3 @@ public sealed class FixtureState : INotifyPropertyChanged
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
-
