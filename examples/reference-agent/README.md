@@ -1,12 +1,13 @@
 # Deterministic reference agent
 
-This local fixture implements the `SL-P1-020` approval behavior from
-[the framework SSOT](../../docs/FRAMEWORK_SSOT.md). It has no model, browser, framework
-package, external service, or third-party dependency. The predetermined agent requests
-one `append-note` tool call and waits for an explicit approval decision.
+This local fixture implements the `SL-P1-020` approval behavior and the `SL-P1-060`
+browser showcase from [the framework SSOT](../../docs/FRAMEWORK_SSOT.md). The fixture
+itself has no model or external service. Its E2E Cases use the repository's Playwright
+backend and execution kernel against a real owned Chrome/Chromium process.
 
 ```sh
 npm --prefix examples/reference-agent test
+npm --prefix examples/reference-agent run test:e2e
 ```
 
 ```js
@@ -64,7 +65,10 @@ does not cryptographically authenticate arbitrary fabricated ledgers.
 | `deny-but-execute` | Run claims denied but the tool executes; ledger and effects prove one |
 | `incomplete-ledger` | Run ends but no ledger completion barrier is emitted; counts stay unknown |
 
-The tests exercise real loopback HTTP and in-memory execution, including duplicate
-approvals, corrupt observations, and cleanup. They do not claim live-browser coverage;
-the browser adapter and end-to-end Case are the separate `SL-P1-060` task. No background
-poller, real model, file write, external API, or detached child process is involved.
+The unit tests exercise real loopback HTTP and in-memory execution, including duplicate
+approvals, corrupt observations, and cleanup. The E2E lane starts an owned browser and
+uses semantic DOM locators for deny, approve, injected `deny-but-execute`, and
+`incomplete-ledger` Cases. It
+fails instead of skipping when no Chromium browser is available; set
+`SURFACELOOM_BROWSER_EXECUTABLE` when auto-discovery is insufficient. No real model,
+file write, external API, or detached child process is involved.

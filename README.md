@@ -40,12 +40,12 @@ macOS Accessibility 和 Windows UI Automation 后端负责定位、动作、窗�
 | Component Catalog | 37 个桌面/System Surface/Agent 组件 manifest，7 个 fixture manifest；目录声明不等于行为实现 |
 | Browser | 可选 Playwright Core backend、语义 DOM locator、严格单目标动作、截图与 trace；浏览器按需安装 |
 | Agent Loop | 可扩展 TraceAdapter、统一 trace schema、Codex/原生/第三方 trace 导入、跨时钟合并与静态 HTML 时间线 |
-| Execution Kernel | 可嵌入 Case 注册/执行、fixture/resource 生命周期、step/criterion、observation 自动等待、capability/effect preflight、deadline 与合作取消；CLI、强隔离执行和 backend 接线待补 |
+| Execution Kernel | 可嵌入 Case 注册/执行、fixture/resource 生命周期、step/criterion、observation 自动等待、capability/effect preflight、deadline 与合作取消；最小顺序 CLI、过滤与 Reporter v2 bundle |
 | macOS | Swift、Accessibility API、AppKit、窗口/菜单/文本/集合/文件面板、owned launch 与 non-owning attach |
 | Windows | .NET 8、UI Automation/Win32、NDJSON host、进程 ownership、窗口与常用 UIA Pattern；真实 Windows conformance 待补 |
 
 当前尚没有统一的 TypeScript native client、macOS stdio host、跨平台 native live conformance，
-也没有已完成的 `sl test` CLI。具体实现与证据边界见[能力事实矩阵](docs/framework/capabilities.md)。
+也没有并行、sharding、watch 等完整 runner。具体实现与证据边界见[能力事实矩阵](docs/framework/capabilities.md)。
 
 组件 manifest `desktop.agent.computer-control` 与 `desktop.agent.emergency-stop` 表示“测试
 Agent 客户端自身显示的 Computer Use 状态和停止入口”。它们不等于让测试框架依靠
@@ -96,6 +96,15 @@ cd surfaceloom
 每个产品在自己的 `contracts` 中按 CaseSpec 的正式 `platforms` 校验原生测试名双向映射，并可通过
 `projects/<product>/repository-checks.mjs` 自注册仓库报告检查；共享脚本不硬编码产品。生成一份不操作桌面的
 确定性报告示例：
+
+首个 Agent 审批 showcase 还会启动本机 Chrome/Chromium，执行真实 DOM 动作，并验证独立工具账本：
+
+```bash
+./scripts/run-framework-p1-tests.sh
+```
+
+该命令不会在缺少浏览器时静默 skip；可用 `SURFACELOOM_BROWSER_EXECUTABLE` 显式指定 Chromium
+可执行文件。
 
 ```bash
 npm --prefix packages/reporter run example -- artifacts/reporter-example

@@ -1,7 +1,8 @@
 # @surfaceloom/test
 
-可嵌入的 Case 执行内核，对应框架任务 `SL-P1-010` 至 `SL-P1-050`。当前验证级别为
-**contract-tested**；不代表 browser/native 的真实交互式 conformance。
+可嵌入的 Case 执行内核与最小顺序 CLI，对应框架任务 `SL-P1-010` 至 `SL-P1-070`。
+内核与 CLI 当前为 **contract-tested**；reference-agent 另有真实浏览器 fixture E2E，仍不代表
+native backend 的真实交互式 conformance。
 
 ## 作者入口
 
@@ -167,11 +168,33 @@ await executeCase(example, {
 不匹配、缺 capability 或 effect 未授权都会在创建 fixture runtime 和调用 setup 前失败。Case 内的动作
 应走 `context.dispatch(effect, action)`，以复用已经预检的 gate 并进入生命周期 drain。
 
+## 顺序 Suite 与 CLI
+
+`executeCaseSuite` 是 CLI 和嵌入调用共享的顺序执行入口。它发现并筛选 Case 后，逐个调用同一个
+`executeCase` kernel；某个 Case 失败不会阻止后续 Case。`runCaseSuite` 再把逐 Case 结果交给
+Reporter v2 生成 `report.json`、HTML 与 AI review。能力缺失记录为 `unsupported`，执行策略未授权
+记录为 `skipped`，两者都不会产生绿色退出码。
+
+编译后的 JavaScript Case 模块需导出 named `cases` 或等价的 default 数组/`CaseRegistry`：
+
+```bash
+sl-test \
+  --platform web \
+  --output artifacts/case-run \
+  --case-id example.value-case \
+  ./cases
+```
+
+CLI 退出码为：全部 Case 通过时 `0`，任一 `failed`、`timedOut`、`skipped` 或 `unsupported` 时
+`1`，参数、发现或报告写入错误时 `2`。当前只发现 `*.case.js`、`*.case.mjs` 与 `*.case.cjs`；
+TypeScript Case 应先由调用方编译。未提供 ID/filter 时，Suite 按 `--platform` 分区；显式 ID 或
+filter 一旦命中不支持该平台的 Case，整次运行会在任何 Case 执行前拒绝，避免静默漏测后假绿。
+
 ## 当前边界
 
-本包尚无 CLI、发现/过滤器、browser/native adapter、跨进程资源租约或自动证据采集。
-前置条件不会自动执行。当前 kernel 会产生 `passed`、`failed` 和 `timedOut`；
-`skipped`/`unsupported` 仍留给后续 runner 调度。
+本包尚无并行 worker pool、sharding、watch、browser/native adapter、跨进程资源租约或自动证据采集。
+前置条件不会自动执行。kernel 直接产生 `passed`、`failed` 和 `timedOut`；Suite 层只把明确的
+capability 缺失映射为 `unsupported`、明确的 policy 拒绝映射为 `skipped`，其他入口异常保持失败。
 
 生命周期 deadline 能有界结束对异步 setup、正文、step/action 和 cleanup 的等待，但 timeout
 不等于底层工作已经停止。合作取消需要 signal acknowledgment 与真实 settlement；非合作的

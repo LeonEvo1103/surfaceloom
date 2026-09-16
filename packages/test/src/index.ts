@@ -53,3 +53,5 @@ export type {
 } from "./worker-contracts.js";
 export { trackInProcessTask } from "./worker.js";
 export { trackNodeWorker } from "./worker-node.js";
+export * from "./cli/index.js";
+export * from "./report/index.js";
