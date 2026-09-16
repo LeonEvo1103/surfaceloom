@@ -1,0 +1,27 @@
+.build/
+.swiftpm/
+.DS_Store
+
+# Generated .NET build trees (self-contained publishes can exceed 100 MB)
+**/bin/
+**/obj/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Local automation evidence (may contain UI or user data)
+*.log
+*.trace
+*.trace.zip
+*.core
+artifacts/
+recordings/
+screenshots/
+test-results/
+traces/

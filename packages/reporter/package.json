@@ -1,0 +1,42 @@
+{
+  "name": "@surfaceloom/reporter",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LeonEvo1103/surfaceloom.git",
+    "directory": "packages/reporter"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build:core": "tsc -p ../core/tsconfig.json",
+    "build": "npm run build:core && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node ../../scripts/run-typescript-package-tests.mjs",
+    "example": "npm run build && tsx examples/generate-example.ts",
+    "repository-report": "npm run build && node ../../scripts/run-repository-tests-with-report.mjs"
+  },
+  "dependencies": {
+    "@surfaceloom/core": "file:../core"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

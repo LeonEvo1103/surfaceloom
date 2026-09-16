@@ -1,0 +1,21 @@
+import SurfaceLoomMacOS
+
+// Place this in projects/<product>. Product labels and native roles stay here.
+public struct __FEATURE__Component {
+	public let driver: MacOSApplicationDriver
+
+	private static let primaryControl = MacOSAXLocator(
+		"__FEATURE__ primary control",
+		identifiers: ["__STABLE_TEST_ID__"],
+		labels: ["English label", "中文名称"],
+		roles: [MacOSAXRole.button]
+	)
+
+	public init(driver: MacOSApplicationDriver) {
+		self.driver = driver
+	}
+
+	public func performPrimaryAction() throws {
+		try driver.press(Self.primaryControl)
+	}
+}

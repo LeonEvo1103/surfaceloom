@@ -1,0 +1,18 @@
+import Testing
+@testable import __PRODUCT__TestAdapter
+
+// Swift display name 是上游 runner 的映射键，必须精确等于
+// projects/<product>/cases/... 对应 sidecar 的 sourceName。中文主名、原始语义、前置条件和验收项都进入 CaseSpec。
+@Suite("__FEATURE__ native UI", .serialized)
+struct __FEATURE__Tests {
+	@Test(
+		"__UPSTREAM_TEST_NAME__",
+		.disabled(if: !__PRODUCT__TestEnvironment.liveUIEnabled, "Enable the product live runner")
+	)
+	func __TEST_FUNCTION__() throws {
+		try __PRODUCT__TestEnvironment.withApplication { app in
+			try app.__FEATURE__.performPrimaryAction()
+			// Assert an observable product outcome through a component.
+		}
+	}
+}

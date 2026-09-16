@@ -1,0 +1,26 @@
+{
+  "id": "__CASE_ID__",
+  "locale": "zh-CN",
+  "platforms": ["__PLATFORM__"],
+  "suite": {
+    "id": "__SUITE_ID__",
+    "name": "__SUITE_NAME_ZH__"
+  },
+  "name": "__CASE_NAME_ZH__",
+  "sourceName": "__UPSTREAM_TEST_NAME__",
+  "intent": "__ORIGINAL_INTENT_ZH__",
+  "preconditions": [
+    {
+      "id": "__PRECONDITION_ID__",
+      "text": "__PRECONDITION_ZH__"
+    }
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "__CRITERION_ID__",
+      "text": "__OBSERVABLE_OUTCOME_ZH__"
+    }
+  ],
+  "sideEffect": "readOnly",
+  "tags": ["__DOMAIN__"]
+}
