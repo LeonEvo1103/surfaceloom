@@ -1,6 +1,6 @@
 # SurfaceLoom
 
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 面向 Agent 应用的跨 surface 语义化自动化测试框架实验。它把模型/工具 loop 与 macOS、
 Windows 和浏览器 UI 的行为放进同一套测试与证据模型。目标应用可以使用

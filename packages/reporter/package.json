@@ -1,7 +1,7 @@
 {
   "name": "@surfaceloom/reporter",
   "version": "0.1.0",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "private": true,
   "repository": {
     "type": "git",
@@ -22,7 +22,7 @@
   ],
   "scripts": {
     "build:core": "tsc -p ../core/tsconfig.json",
-    "build": "npm run build:core && tsc -p tsconfig.json",
+    "build": "npm run build:core && node ../../scripts/clean-package-dist.mjs && tsc -p tsconfig.json && node ../../scripts/copy-package-license.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node ../../scripts/run-typescript-package-tests.mjs",
     "example": "npm run build && tsx examples/generate-example.ts",
