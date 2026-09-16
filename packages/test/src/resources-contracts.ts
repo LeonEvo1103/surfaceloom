@@ -42,6 +42,11 @@ export type ResourceCleanupOutcome =
     readonly failure: ResourceFailure;
   };
 
+export interface ResourceCleanupRemaining {
+  readonly id: string;
+  readonly ownership: ResourceRegistration["ownership"];
+}
+
 export interface ResourceCleanupResult {
   readonly state: "open" | "closing" | "closed";
   readonly status: "pending" | "passed" | "failed";
@@ -49,6 +54,8 @@ export interface ResourceCleanupResult {
   readonly tainted: boolean;
   /** In reverse registration order, including borrowed entries. */
   readonly outcomes: readonly ResourceCleanupOutcome[];
+  /** Accepted resources without an outcome yet, in next-cleanup order. */
+  readonly remaining: readonly ResourceCleanupRemaining[];
   /** Chronological; a body/setup failure recorded before close stays first. */
   readonly failures: readonly ResourceFailure[];
   readonly primaryFailure?: ResourceFailure;

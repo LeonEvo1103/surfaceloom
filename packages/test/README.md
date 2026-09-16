@@ -1,6 +1,6 @@
 # @surfaceloom/test
 
-可嵌入的最小 Case 执行内核，对应框架任务 `SL-P1-010`。当前验证级别为
+可嵌入的 Case 执行内核，对应框架任务 `SL-P1-010` 至 `SL-P1-050`。当前验证级别为
 **contract-tested**；不代表 browser/native 的真实交互式 conformance。
 
 ## 作者入口
@@ -65,8 +65,17 @@ const reportCase = await executeCase(registry.require("example.value-case"), {
 setup 自己在返回资源前获得的未注册资源，仍由 fixture provider 负责回滚。
 
 所有被调用的 step/criterion 都等待完成后才清理 fixture，包括正文提前失败时尚未完成的步骤。
-失败步骤即使被正文捕获也会阻止通过。必须覆盖所有验收条件，并完成清理，才能得到 `passed`；
-空正文或只记录动作会因缺少验收而失败。
+通过 `context.dispatch()` 启动的授权动作也进入同一 drain；即使作者漏写 `await`，迟到失败仍会
+被记录。`context.registerResource()` 明确登记 owned/borrowed 资源，owned 资源按逆序清理，
+并要求显式 `released` 或 `unconfirmed` 回执。失败步骤即使被正文捕获也会阻止通过。
+必须覆盖所有验收条件，并完成清理，才能得到 `passed`；空正文或只记录动作会因缺少验收而失败。
+
+整个 setup、正文、pending step/action 和 cleanup 默认共享 30 秒生命周期 deadline，可用
+`timeoutMs`、`cancellationGraceMs` 和外部 `signal` 配置。Case 可通过 `context.signal`、
+`throwIfCancelled()` 与 `acknowledgeCancellation()` 合作停止。deadline 到达会返回 `timedOut`；
+只有回调真实 settle 后才会记录 `cooperativeStopped`，单纯结束等待不会冒充任务已停止。
+cleanup 中已确认的 outcome 和尚未处理的 `remaining` 资源都会进入 `kernel.cleanup` diagnostic；
+迟到注册即使被 provider 捕获，也会留下 sticky taint 并阻止绿色结果。
 
 Reporter v2 不增加字段：最早观察到的错误保存在 `result.error`，每个失败阶段/步骤的
 `diagnostic` 包含 JSON `{ category, errors }`，保留后续错误。Core 的 setup/rollback
@@ -115,60 +124,66 @@ import {
   preflightExecution,
 } from "@surfaceloom/test";
 
-const outputEffect = defineEffect({
+const readEffect = defineEffect({
   resource: "fixture.output",
-  operation: "write",
+  operation: "read",
   boundary: "local",
   securitySensitive: false,
-  recovery: "resettable",
+  recovery: "notNeeded",
 });
 const plan = defineExecutionPlan({
-  spec: {
-    ...example.spec,
-    id: "example.write-case",
-    name: "写入测试输出",
-    sideEffect: "reversible",
-  },
+  spec: example.spec,
   requirements: {
     host: { os: ["macos", "windows", "linux"] },
     surfaces: { page: { kind: "browser", capabilities: ["browser.dom.inspect"] } },
   },
-  effects: [outputEffect],
+  effects: [readEffect],
 });
 
-const gate = preflightExecution(
-  plan,
-  {
-    platform: "web",
-    host: { os: "macos" },
-    surfaces: { page: { kind: "browser", capabilities: ["browser.dom.inspect"] } },
-  },
-  {
-    maximumSideEffect: "reversible",
-    grants: [{ resource: "fixture.output", operations: ["write"] }],
-  },
-);
+const environment = {
+  platform: "web" as const,
+  host: { os: "macos" as const },
+  surfaces: { page: { kind: "browser" as const, capabilities: ["browser.dom.inspect" as const] } },
+};
+const policy = {
+  maximumSideEffect: "readOnly" as const,
+  grants: [{ resource: "fixture.output", operations: ["read" as const] }],
+};
 
-await gate.dispatch(outputEffect, async () => writeFixtureOutput());
+// 独立调用时可显式 preflight；executeCase 内部也会在创建 fixture runtime 前执行同一门禁。
+const gate = preflightExecution(plan, environment, policy);
+await gate.dispatch(readEffect, async () => 42);
+
+await executeCase(example, {
+  platform: "web",
+  plan,
+  environment,
+  policy,
+  timeoutMs: 5_000,
+});
 ```
 
-当前 `ExecutionPlan` 仍是独立入口，尚未接入 `executeCase` 的生命周期；在 `SL-P1-050` 完成前，
-调用方必须在创建 fixture 或执行动作前显式 preflight/dispatch，不能把 plan 仅作为文档元数据。
+`executeCase` 要求 plan 的完整 CaseSpec 与执行定义一致，并要求 environment platform 与报告平台一致；
+不匹配、缺 capability 或 effect 未授权都会在创建 fixture runtime 和调用 setup 前失败。Case 内的动作
+应走 `context.dispatch(effect, action)`，以复用已经预检的 gate 并进入生命周期 drain。
 
 ## 当前边界
 
-本包尚无 CLI、发现/过滤器、browser/native adapter、执行生命周期 deadline、强制取消、
-跨进程资源租约或自动证据采集。observation assertion 已有自己的等待 deadline；
-capability preflight 与 policy/effects 门禁也已提供，但尚未由 `executeCase` 自动调用。
-`platform` 目前只验证报告平台与 CaseSpec 一致，前置条件不会自动执行。
+本包尚无 CLI、发现/过滤器、browser/native adapter、跨进程资源租约或自动证据采集。
+前置条件不会自动执行。当前 kernel 会产生 `passed`、`failed` 和 `timedOut`；
+`skipped`/`unsupported` 仍留给后续 runner 调度。
 
-永不完成的 setup、正文、步骤或 teardown 会令执行一直等待。没有 `Promise.race` 超时或
-“已经停止”的保证；脱离上下文 API 的异步任务不受追踪。返回的上下文方法会拒绝迟到调用，
-但不能撤销 fixture 已返回给正文的对象，也不能停止外部副作用。隔离与取消由后续
-`SL-P1-050` 验收。当前仅产生 `passed`/`failed`，不声称支持 timedOut/skipped/unsupported 调度。
-fixture 快照固定定义和函数引用，不冻结回调闭包中的外部状态或返回的资源对象；不返回的恶意
-getter 与其他不合作 JavaScript 一样，不能由此内核强制终止。policy gate 是调用前授权边界，
-不是 JavaScript sandbox；回调启动后的外部副作用仍需由 ownership、取消与清理协议约束。
+生命周期 deadline 能有界结束对异步 setup、正文、step/action 和 cleanup 的等待，但 timeout
+不等于底层工作已经停止。合作取消需要 signal acknowledgment 与真实 settlement；非合作的
+in-process 异步任务会明确返回 `unconfirmed + tainted`。同步死循环会阻塞 JavaScript event loop，
+无法由本进程内 deadline 抢占；脱离 context API 的 detached 工作也不受追踪。真实强制终止只适用于
+调用方 owned 的 Node Worker，并要求 `terminate()` 与实际 exit 事件双回执，仍不能证明外部副作用已回滚。
+
+返回的上下文方法会拒绝迟到调用，但不能撤销 fixture 已交给正文的对象。partial cleanup 会保留
+已完成 outcome 和 remaining 资源，不能当成 released。fixture 快照固定定义和函数引用，
+不冻结回调闭包中的外部状态或返回的资源对象；不返回的恶意 getter 与其他不合作 JavaScript 一样，
+不能由此内核强制终止。policy gate 是调用前授权边界，不是 JavaScript sandbox；回调启动后的
+外部副作用仍需由 ownership、取消、独立 ledger 与清理协议约束。
 
 ## 本地验证与打包
 

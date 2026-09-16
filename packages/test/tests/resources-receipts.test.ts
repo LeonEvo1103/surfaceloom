@@ -2,6 +2,28 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ResourceScope, type ResourceCleanupReceipt } from "../src/resources.js";
 
+test("closing snapshots retain completed outcomes and remaining cleanup order", async () => {
+  const scope = new ResourceScope();
+  let release!: (receipt: ResourceCleanupReceipt) => void;
+  let pendingStarted!: () => void;
+  const started = new Promise<void>((resolve) => { pendingStarted = resolve; });
+  const pending = new Promise<ResourceCleanupReceipt>((resolve) => { release = resolve; });
+  scope.register({ id: "pending", ownership: "owned", cleanup: () => {
+    pendingStarted(); return pending;
+  } });
+  scope.register({ id: "completed", ownership: "owned", cleanup: () => ({ status: "released" }) });
+  const closing = scope.close();
+  await started;
+  const snapshot = scope.snapshot();
+  assert.equal(snapshot.state, "closing");
+  assert.deepEqual(snapshot.outcomes, [{ id: "completed", ownership: "owned", status: "released" }]);
+  assert.deepEqual(snapshot.remaining, [{ id: "pending", ownership: "owned" }]);
+  assert.ok(Object.isFrozen(snapshot.remaining));
+  assert.ok(Object.isFrozen(snapshot.remaining[0]));
+  release({ status: "released" });
+  assert.deepEqual((await closing).remaining, []);
+});
+
 test("unconfirmed release is tainted even when the cleanup callback fulfills", async () => {
   const scope = new ResourceScope();
   scope.register({ id: "app", ownership: "owned", cleanup: async () => ({ status: "unconfirmed", reason: "exit not observed" }) });

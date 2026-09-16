@@ -9,7 +9,11 @@ test("owned resources close in reverse order and borrowed resources remain borro
     scope.register({ id, ownership: "owned", cleanup: () => { calls.push(id); return { status: "released" }; } });
   }
   scope.register({ id: "existing-app", ownership: "borrowed" });
-  assert.equal(scope.snapshot().status, "pending");
+  assert.deepEqual(scope.snapshot().remaining, [
+    { id: "existing-app", ownership: "borrowed" },
+    { id: "context", ownership: "owned" },
+    { id: "host", ownership: "owned" },
+  ]);
   const result = await scope.close();
   assert.deepEqual(calls, ["context", "host"]);
   assert.deepEqual(result.outcomes, [
@@ -19,6 +23,7 @@ test("owned resources close in reverse order and borrowed resources remain borro
   ]);
   assert.equal(result.status, "passed");
   assert.equal(result.tainted, false);
+  assert.deepEqual(result.remaining, []);
 });
 
 test("every cleanup is attempted and early body failure stays primary", async () => {
@@ -107,8 +112,10 @@ test("all result arrays, outcomes, and failure records are frozen snapshots", as
   const result = await scope.close();
   assert.equal(before.state, "open");
   assert.equal(before.outcomes.length, 0);
+  assert.deepEqual(before.remaining, [{ id: "unknown", ownership: "owned" }]);
   assert.equal(result.primaryFailure?.message, "original");
-  for (const value of [result, result.outcomes, result.failures, ...result.outcomes, ...result.failures]) {
+  for (const value of [result, result.outcomes, result.remaining, result.failures,
+    ...result.outcomes, ...result.remaining, ...result.failures]) {
     assert.ok(Object.isFrozen(value));
   }
   assert.throws(() => (result.failures as unknown[]).push("mutation"));

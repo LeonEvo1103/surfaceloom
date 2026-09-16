@@ -8,7 +8,7 @@ import { requireExecutionPlan, snapshotEnvironment } from "./plan.js";
 import type { ExecutionEffectPolicy, ResolvedEffectPolicy } from "./policy-contracts.js";
 import { snapshotEffectPolicy } from "./policy-validation.js";
 
-/** Preflight before setup/dispatch. This API is not yet wired into executeCase. */
+/** Preflight before setup/dispatch. executeCase uses the same gate before creating fixture runtimes. */
 export function preflightExecution(
   plan: ExecutionPlan,
   environment: ExecutionEnvironment,

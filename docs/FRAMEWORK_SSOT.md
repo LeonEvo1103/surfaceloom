@@ -6,7 +6,7 @@
 >
 > 审计日期：2026-09-16
 >
-> 当前阶段：P1，deadline、资源与停止 primitive 已完成，execution kernel 主集成施工中
+> 当前阶段：P1，execution lifecycle 已完成，browser showcase 与 CLI/report 接线已就绪
 
 本文档是 SurfaceLoom 框架执行模型、实施顺序和完成证据的唯一事实源（SSOT）。
 `ARCHITECTURE_V2.md` 描述已有分层；两者冲突时，以本文明确列出的新决策为准，并由负责该任务的
@@ -168,9 +168,9 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P1-051` | done | `SL-P1-030`,`SL-P1-040` | `packages/test/src/deadline*` 与对应 tests | 单调 deadline、合作取消信号和任务 settle receipt；等待结束不冒充任务停止 |
 | `SL-P1-052` | done | `SL-P1-030`,`SL-P1-040` | `packages/test/src/resources*` 与对应 tests | 显式 ownership、逆序 cleanup、全部清理尝试与结构化 cleanup outcome；首因不被覆盖 |
 | `SL-P1-053` | done | `SL-P1-030`,`SL-P1-040` | `packages/test/src/worker*` 与对应 tests | 隔离执行/停止状态契约；明确 cooperative stopped、worker terminated、unconfirmed 与 tainted |
-| `SL-P1-050` | in_progress | `SL-P1-051`,`SL-P1-052`,`SL-P1-053` | test package execution 集成、现有 kernel tests/exports | plan/policy 在 fixture 前；迟到 setup、挂起正文、cleanup 失败闭环；不能以 `Promise.race` 冒充停止 |
-| `SL-P1-060` | planned | `SL-P1-020`,`SL-P1-030`,`SL-P1-040`,`SL-P1-050` | reference-agent adapter/cases/e2e | 真浏览器拒绝 0、批准 1、拒绝后错误执行必失败 |
-| `SL-P1-070` | planned | `SL-P1-030`,`SL-P1-040`,`SL-P1-050` | test package CLI/report 子模块、bin/exports | CLI 与嵌入入口使用同一 kernel；逐 Case 报告和 exit code |
+| `SL-P1-050` | done | `SL-P1-051`,`SL-P1-052`,`SL-P1-053` | test package execution 集成、现有 kernel tests/exports | plan/policy 在 fixture 前；迟到 setup、挂起正文、cleanup 失败闭环；不能以 `Promise.race` 冒充停止 |
+| `SL-P1-060` | ready | `SL-P1-020`,`SL-P1-030`,`SL-P1-040`,`SL-P1-050` | reference-agent adapter/cases/e2e | 真浏览器拒绝 0、批准 1、拒绝后错误执行必失败 |
+| `SL-P1-070` | ready | `SL-P1-030`,`SL-P1-040`,`SL-P1-050` | test package CLI/report 子模块、bin/exports | CLI 与嵌入入口使用同一 kernel；逐 Case 报告和 exit code |
 | `SL-P1-080` | planned | `SL-P1-060`,`SL-P1-070` | 根 scripts/CI 与 SSOT 证据 | showcase + 普通非 Agent Case；全量 TS/架构/e2e，不能全 skip |
 
 ### P2：Windows native 垂直切片
@@ -205,9 +205,9 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 
 ## 9. 并行施工规则
 
-当前并行波次为：`SL-P1-051`、`SL-P1-052`、`SL-P1-053`。三个实现 Agent 不得修改 SSOT、
-README、根 scripts/CI、共享 package exports/lockfile 或现有 `executeCase`；这些由主 Agent 在
-`SL-P1-050` 独占集成。每个子任务只定义一种可独立测试的 primitive，不自行宣称 Case 已支持强制取消。
+下一并行波次为：`SL-P1-060` 与 `SL-P1-070`。前者独占 reference-agent adapter/cases/e2e，
+后者独占 test package CLI/report 子模块；两者不得修改 SSOT、根 scripts/CI 或对方目录。
+共享 exports/package manifest 由主 Agent 集成，最终 `SL-P1-080` 串行验收。
 
 即使源码目录互斥，`core/dist` 等生成物仍共享。实现 Agent 只运行 scoped typecheck/test；主 Agent
 串行运行全量构建。`packages/*/src/index.ts`、package manifest/lock、Package.swift、Reporter
@@ -238,6 +238,7 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | `SL-P1-051` | `28cae810d8f8b40b06b783a12387b4e7461b742a` | `packages/test/src/deadline*` 与对应 tests | `npm run typecheck && npm test` / 0 | macOS / Node 22 | 23 scoped tests（160 package total）/ 0 | `packages/test/tests/deadline*.test.ts` | 只能合作取消异步任务；不能抢占同步 JavaScript 或 detached 工作；Node 20 API 兼容但实测为 Node 22。 |
 | `SL-P1-052` | `28cae810d8f8b40b06b783a12387b4e7461b742a` | `packages/test/src/resources*` 与对应 tests | `npm run typecheck && npm test` / 0 | macOS / Node 22 | 32 scoped tests（160 package total）/ 0 | `packages/test/tests/resources*.test.ts` | cleanup 超时只证明回执未确认；同步阻塞与恶意 Promise species 仍需隔离层兜底。 |
 | `SL-P1-053` | `28cae810d8f8b40b06b783a12387b4e7461b742a` | `packages/test/src/worker*` 与对应 tests | `npm run typecheck && npm test` / 0 | macOS / Node 22 | 28 scoped tests（160 package total）/ 0 | `packages/test/tests/worker*.test.ts` | 现有 Case 闭包不自动迁入 Worker；Node 入口只管理调用方 owned Worker，不能证明 detached/external effects 已回滚。 |
+| `SL-P1-050` | `ef80f1b4abe879ffc406e42dee34954ee22a957f` | `packages/test/src/contracts.ts`、`execute.ts`、`execution-*`、resources contract/tests、exports 与 README | `npm run typecheck && npm test && npm pack --dry-run && git diff --check` / 0 | macOS / Node 22 | 12 scoped integration tests（173 package total）/ 0 | `packages/test/tests/execution-lifecycle.test.ts`、`execution-dispatch.test.ts` | in-process 同步阻塞与 detached JavaScript 不可强停；timeout 只结束等待并保守标记 unconfirmed/tainted；Node Worker 强制终止不证明外部副作用已回滚。 |
 
 ## 12. 变更记录
 

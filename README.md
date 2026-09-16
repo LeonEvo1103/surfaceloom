@@ -40,7 +40,7 @@ macOS Accessibility 和 Windows UI Automation 后端负责定位、动作、窗�
 | Component Catalog | 37 个桌面/System Surface/Agent 组件 manifest，7 个 fixture manifest；目录声明不等于行为实现 |
 | Browser | 可选 Playwright Core backend、语义 DOM locator、严格单目标动作、截图与 trace；浏览器按需安装 |
 | Agent Loop | 可扩展 TraceAdapter、统一 trace schema、Codex/原生/第三方 trace 导入、跨时钟合并与静态 HTML 时间线 |
-| Execution Kernel | 可嵌入 Case 注册/执行、fixture 生命周期、step/criterion、observation 自动等待、capability 预检与 effect policy；CLI、执行取消和 backend 接线待补 |
+| Execution Kernel | 可嵌入 Case 注册/执行、fixture/resource 生命周期、step/criterion、observation 自动等待、capability/effect preflight、deadline 与合作取消；CLI、强隔离执行和 backend 接线待补 |
 | macOS | Swift、Accessibility API、AppKit、窗口/菜单/文本/集合/文件面板、owned launch 与 non-owning attach |
 | Windows | .NET 8、UI Automation/Win32、NDJSON host、进程 ownership、窗口与常用 UIA Pattern；真实 Windows conformance 待补 |
 

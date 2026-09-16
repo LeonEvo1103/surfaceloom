@@ -7,7 +7,7 @@ import { resourceErrorMessage, resourceTimeout, snapshotResource } from "./resou
 
 export type {
   ResourceCleanupOutcome, ResourceCleanupReceipt, ResourceCleanupResult, ResourceFailure,
-  ResourceFailureCode, ResourceRegistration, ResourceScopeOptions,
+  ResourceCleanupRemaining, ResourceFailureCode, ResourceRegistration, ResourceScopeOptions,
 } from "./resources-contracts.js";
 
 /**
@@ -68,11 +68,15 @@ export class ResourceScope {
    */
   snapshot(): ResourceCleanupResult {
     const primaryFailure = this.#failures[0];
+    const cleanupOrder = [...this.#resources].reverse();
+    const remaining = cleanupOrder.slice(this.#outcomes.length).map(({ id, ownership }) =>
+      Object.freeze({ id, ownership }));
     return Object.freeze({ state: this.#state,
       status: primaryFailure !== undefined || this.#tainted ? "failed"
         : this.#state === "closed" ? "passed" : "pending",
       tainted: this.#tainted,
-      outcomes: Object.freeze([...this.#outcomes]), failures: Object.freeze([...this.#failures]),
+      outcomes: Object.freeze([...this.#outcomes]), remaining: Object.freeze(remaining),
+      failures: Object.freeze([...this.#failures]),
       ...(primaryFailure === undefined ? {} : { primaryFailure }) });
   }
 
