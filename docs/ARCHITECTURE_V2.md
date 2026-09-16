@@ -69,6 +69,7 @@ criterion、deadline、策略、证据和清理语义；browser、desktop、syst
     Sources/SurfaceLoomMacOS/    Swift + AX/AppKit backend
     native/windows-host/            .NET + Windows UI Automation host
     native/windows-fixture/         产品无关的 WPF/UIA conformance fixture
+    native/macos-fixture/           产品无关的 AppKit/AX conformance fixture
     projects/                       可选产品适配器接入约定
     Tests/SurfaceLoomMacOSTests/ macOS backend contract
     docs/                            架构与平台说明

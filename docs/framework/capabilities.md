@@ -10,6 +10,8 @@
 >
 > P2 native client / Windows source revision：`b0aa7fe`
 >
+> P3 fixture / evidence revision：`2dad348`
+>
 > 审计日期：2026-09-17
 
 本文记录基线审计及后续明确列出的验收 revision 中可由源码和测试证明的能力。macOS stdio host、
@@ -47,11 +49,13 @@ native live conformance 和 fluent desktop SDK 仍不计为已实现。
 | report/v2 | [`model.ts`](../../packages/reporter/src/model.ts)、[`write-report.ts`](../../packages/reporter/src/write-report.ts) | [`report-validation.contract.test.ts`](../../packages/reporter/tests/report-validation.contract.test.ts)、[`reporter.test.ts`](../../packages/reporter/tests/reporter.test.ts) | `contract-tested` | 校验/归档/派生 HTML 和 Markdown；不执行 Case、不采集 UI、不决定 runner cleanup。单 run 只有一个 `platform`，没有 surface/attempt。 |
 | report/v3 | [`packages/reporter/src/v3`](../../packages/reporter/src/v3) | [`packages/reporter/tests/v3`](../../packages/reporter/tests/v3) | `contract-tested` | 保留 host、surface、attempt 与实际 executionPlatforms；最高 ordinal final 决定 verdict，v2 importer 不伪造缺失事实。现有 CLI 尚未切换到 v3。 |
 | Agent-loop trace | [`adapter.ts`](../../packages/agent-loop/src/adapter.ts)、[`merge.ts`](../../packages/agent-loop/src/merge.ts) | [`adapters.test.ts`](../../packages/agent-loop/tests/adapters.test.ts)、[`merge-render.test.ts`](../../packages/agent-loop/tests/merge-render.test.ts) | `contract-tested` | 导入、脱敏、合并和静态展示；不运行 Agent、不证明 ledger completeness、不产生 authoritative verdict。 |
+| explicit evidence correlation | [`evidence-context.ts`](../../packages/core/src/evidence-context.ts)、[`correlation`](../../packages/agent-loop/src/correlation) | [`evidence-context.test.ts`](../../packages/core/tests/evidence-context.test.ts)、[`correlation tests`](../../packages/agent-loop/tests/correlation) | `contract-tested` | 只接受显式、有来源的关系与 event binding；时间/相邻事件不产生因果，输出没有 verdict/status；尚未物化进 report/v3。 |
 | execution kernel | [`execute.ts`](../../packages/test/src/execute.ts)、[`contracts.ts`](../../packages/test/src/contracts.ts) | [`execution-lifecycle.test.ts`](../../packages/test/tests/execution-lifecycle.test.ts)、[`approval.e2e.test.mjs`](../../examples/reference-agent/tests/e2e/approval.e2e.test.mjs) | `live-fixture-tested`（审批切片） | deadline 能结束等待但不强停任意 in-process JavaScript；native backend 尚未接入。 |
 | `sl-test` 顺序 CLI/report 接线 | [`cli`](../../packages/test/src/cli)、[`report`](../../packages/test/src/report) | [`cli`](../../packages/test/tests/cli)、[`report`](../../packages/test/tests/report) | `contract-tested` | 支持发现编译后 JS Case、过滤、顺序执行、Reporter v2 与 exit code；无 worker pool、sharding 或 watch。 |
 | reference-agent 审批 fixture/ledger | [`examples/reference-agent`](../../examples/reference-agent) | [`approval.test.mjs`](../../examples/reference-agent/test/approval.test.mjs)、[`approval.e2e.test.mjs`](../../examples/reference-agent/tests/e2e/approval.e2e.test.mjs) | `live-fixture-tested` | 确定性本地 fixture；拒绝 0、批准 1、错误执行和不完整 ledger 均覆盖；无真实模型或外部服务。 |
 | native TS client / shared wire conformance | [`client`](../../packages/native/src/client) | [`client tests`](../../packages/native/tests/client) | `contract-tested` | 56 个 package tests 覆盖 fake transport、连接竞态、deadline/cancel、断线 outcome、迟到响应、scope identity 与 frame boundary；尚无具体 process transport 或真实 host conformance。 |
 | Windows neutral UIA fixture | [`windows-fixture`](../../native/windows-fixture) | [`portable tests`](../../native/windows-fixture/tests) | `contract-tested`（model/static） | WPF 项目可交叉编译，portable model 16 checks、Node 8 tests；尚未在 Windows 启动并通过 UIA 操作。 |
+| macOS neutral AX fixture | [`macos-fixture`](../../native/macos-fixture) | [`fixture tests`](../../native/macos-fixture/Tests) | `contract-tested`（model/static） | 8 Swift model + 10 Node parity/static tests 且 AppKit Release 可构建；未启动 GUI、未请求 TCC、未执行 live AX。 |
 
 ## 3. Core capability registry 与 backend 事实
 

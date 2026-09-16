@@ -2,11 +2,11 @@
 
 > 状态：Active
 >
-> 当前验收 revision：`b0aa7fe`
+> 当前验收 revision：`2dad348`
 >
 > 审计日期：2026-09-17
 >
-> 当前阶段：P1、P2 shared protocol/client/fixture 与 P3 report/v3 已完成；Windows host 等待 Windows contract run
+> 当前阶段：P1、P2 shared protocol/client/fixture、P3 中性 macOS fixture/evidence correlation/report-v3 已完成；Windows host 等待 Windows contract run
 
 本文档是 SurfaceLoom 框架执行模型、实施顺序和完成证据的唯一事实源（SSOT）。
 `ARCHITECTURE_V2.md` 描述已有分层；两者冲突时，以本文明确列出的新决策为准，并由负责该任务的
@@ -188,10 +188,10 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
 | `SL-P3-010` | planned | `SL-P2-010`,`SL-P2-050` | Package.swift、新 macOS host/tests | 同协议 stdio host，复用现有 AX/ownership，不新造 wire 语义 |
-| `SL-P3-020` | ready | `SL-P2-010` | 新 macOS fixture | 与 Windows 同一行为契约的中性 app |
+| `SL-P3-020` | done | `SL-P2-010` | 新 macOS fixture | 与 Windows 同一行为契约的中性 app |
 | `SL-P3-030` | planned | `SL-P3-010` | native package macOS binding/tests | typed desktop session 和显式平台专属 capability |
 | `SL-P3-040` | done | `SL-P1-080` | reporter package | report/v3 host/surface/attempt 和 v2 importer；不静默降级 |
-| `SL-P3-050` | ready | `SL-P3-040` | Core evidence context、agent-loop/tests | 显式 correlation；时间相邻不冒充因果，trace 不改 verdict |
+| `SL-P3-050` | done | `SL-P3-040` | Core evidence context、agent-loop/tests | 显式 correlation；时间相邻不冒充因果，trace 不改 verdict |
 | `SL-P3-060` | planned | `SL-P3-010`,`SL-P3-020`,`SL-P3-030` | macOS live tests/scripts/CI | 同一行为集真实 conformance；TCC 不足明确报告且不自动授权 |
 | `SL-P3-070` | planned | `SL-P2-050`,`SL-P3-040`,`SL-P3-050`,`SL-P3-060` | mixed-surface example 与 lease tests | browser + native Case，跨面动作、证据、租约和清理，报告列两面 |
 
@@ -205,10 +205,10 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 
 ## 9. 并行施工规则
 
-Windows host/client/fixture 并行波次已经收口；其中 `SL-P2-020` 只差 Windows 上实际运行 contract
-executable，不能用 Linux 交叉编译冒充。下一波可并行施工 `SL-P3-020` 与 `SL-P3-050`，分别独占
-macOS fixture 和 evidence correlation；`SL-P2-050` 必须在 Windows 10+ 交互式 runner 上完成，不得
-以 fake、portable model 或全 skip workflow 替代。
+Windows host/client/fixture 与 P3 macOS fixture/evidence correlation 波次已经收口；其中
+`SL-P2-020` 只差 Windows 上实际运行 contract executable，不能用 Linux 交叉编译冒充。
+`SL-P2-050` 必须在 Windows 10+ 交互式 runner 上完成，不得以 fake、portable model 或全 skip
+workflow 替代；依赖它的 macOS host/binding/mixed-surface 任务不能越过该门槛提前标记 ready。
 
 即使源码目录互斥，`core/dist` 等生成物仍共享。实现 Agent 只运行 scoped typecheck/test；主 Agent
 串行运行全量构建。`packages/*/src/index.ts`、package manifest/lock、Package.swift、Reporter
@@ -247,7 +247,9 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | `SL-P2-020` | `b0aa7fe` | `native/windows-host/**` | Docker `.NET 8` `dotnet build SurfaceLoom.WindowsHost.sln -c Release`、`git diff --check` / 0 | Linux ARM64 container targeting Windows | 2 projects compiled，0 warnings/errors / Windows contract executable not run | `native/windows-host/tests/SurfaceLoom.WindowsHost.ContractTests` | 状态保留 review：Linux 缺 `Microsoft.WindowsDesktop.App`；52 个已登记 contract cases 和真实 UIA 均需 Windows runner 执行。legacy 0.2 与 1.0 严格隔离。 |
 | `SL-P2-030` | `8db8418` | `packages/native/src/client/**`、`tests/client/**`、export/README | `npm test && npm run typecheck && npm pack --dry-run && git diff --check` / 0 | macOS / Node 22 | 30 client tests（56 package total）/ 0；69 packed files | `packages/native/tests/client` | transport-neutral fake contract；未提供 host process transport，不宣称真实 native conformance。连接生命周期内 request/operation/tombstone 账本按协议不淘汰。 |
 | `SL-P2-040` | `8d047c7` | `native/windows-fixture/**` | Node tests + Docker WPF Release build + portable .NET model run + `git diff --check` / 0 | macOS + Linux ARM64 container targeting Windows | 8 Node tests + 16 model checks，WPF build 0 warnings/errors / 0 | `native/windows-fixture/tests`、`fixture-contract.v1.json` | 证明源码、XAML 与 portable model；没有在 Windows 启动 GUI、查询 UIA pattern 或验证 process exit，live 责任仍属于 `SL-P2-050`。 |
+| `SL-P3-020` | `b4d53d6` | `native/macos-fixture/**` | `./scripts/verify.sh && git diff --check` / 0 | macOS / Swift 6 / Node 22 | 8 Swift model tests + 10 Node parity/static tests + AppKit Release build / 0 | `native/macos-fixture/Tests`、`fixture-contract.v1.json` | 未启动 GUI、未请求 TCC、未执行 live AX；只证明模型、源码、Windows 行为 parity 与可构建性。 |
 | `SL-P3-040` | `2ebc6ccae2ce97e373f09d8abb2c97e9c5755a1a` | `packages/reporter/src/v3/**`、`tests/v3/**`、公开 export | `npm run typecheck && npm test && npm pack --dry-run` / 0 | macOS / Node 22 | 18 v3 tests（54 reporter total）/ 0；111 packed files | `packages/reporter/tests/v3` | CLI 仍输出 report/v2；v3 需要 runner 提供真实 host/surface/attempt/executionPlatforms，不自动伪造。 |
+| `SL-P3-050` | `2dad348` | Core evidence context、agent-loop correlation、exports/peer/外部消费脚本 | Core/agent-loop test+typecheck+pack，external adapter，`git diff --check` / 0 | macOS / Node 22 | 10 Core evidence tests（53 total）+ 10 correlation tests（30 agent-loop total）/ 0；63/87 packed files | `packages/core/tests/evidence-context.test.ts`、`packages/agent-loop/tests/correlation` | 只接受显式 binding，不自动从时间/相邻事件/correlationId 猜因果；尚未物化为 report/v3 artifact，不能修改 authoritative verdict。 |
 
 ## 12. 变更记录
 
@@ -258,3 +260,4 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | 2026-09-16 | 完成 P1：真实浏览器审批 showcase、独立完整工具账本、顺序 CLI/逐 Case Reporter 与根验收门禁；显式跨平台 filter 命中 fail closed。 |
 | 2026-09-17 | 冻结 `surfaceloom.native/1.0` 协议与 report/v3：副作用 receipt/unknown-no-retry、method intent/scope、multi-host surfaces、最高 ordinal 最终 attempt、保守 v2 import 均有契约回归。 |
 | 2026-09-17 | 完成 transport-neutral TS native client 与中性 Windows WPF fixture；Windows host 1.0 双栈实现通过 Docker Release 编译和三轮对抗审查，但在 Windows contract executable 实跑前保持 review。 |
+| 2026-09-17 | 完成中性 macOS AppKit fixture 与显式 evidence correlation graph；两个 fixture 都不把 build/model tests 冒充 live AX/UIA，trace correlation 不拥有 verdict。 |
