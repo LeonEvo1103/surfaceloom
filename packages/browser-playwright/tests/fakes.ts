@@ -1,47 +1,20 @@
+import { chmod, writeFile } from "node:fs/promises";
+
 import type {
   PlaywrightBrowserLike,
   PlaywrightBrowserTypeLike,
   PlaywrightContextLike,
+  PlaywrightElementHandleLike,
   PlaywrightLocatorLike,
   PlaywrightModuleLike,
   PlaywrightPageLike,
   PlaywrightTracingLike,
 } from "../src/playwright-shapes.js";
 
-export class FakeLocator implements PlaywrightLocatorLike {
-  public matches = 1;
-  public content: string | null = "fixture text";
-  public waitFailure: unknown;
-  public readonly calls: string[] = [];
-
-  public first(): FakeLocator {
-    this.calls.push("first");
-    return this;
-  }
-
-  public async count(): Promise<number> {
-    this.calls.push("count");
-    return this.matches;
-  }
-
-  public async waitFor(options: { readonly state: string }): Promise<void> {
-    this.calls.push(`wait:${options.state}`);
-    if (this.waitFailure !== undefined) throw this.waitFailure;
-  }
-
-  public async click(): Promise<void> {
-    this.calls.push("click");
-  }
-
-  public async fill(value: string): Promise<void> {
-    this.calls.push(`fill:${value}`);
-  }
-
-  public async textContent(): Promise<string | null> {
-    this.calls.push("text");
-    return this.content;
-  }
-}
+import { FakeEmitter } from "./event-fakes.js";
+import { FakeLocator } from "./dom-fakes.js";
+export { FakeEmitter } from "./event-fakes.js";
+export { FakeElementHandle, FakeLocator } from "./dom-fakes.js";
 
 export class FakePage implements PlaywrightPageLike {
   public current = "about:blank";
@@ -50,10 +23,37 @@ export class FakePage implements PlaywrightPageLike {
   public readonly target = new FakeLocator();
   public readonly resolutions: string[] = [];
   public screenshotPath: string | undefined;
+  public readonly events = new FakeEmitter();
+  /** Emitted while goto() runs, so tests can drive events from inside an action. */
+  public readonly gotoEmissions: Array<{
+    readonly event: string;
+    readonly payload: unknown;
+  }> = [];
 
   public async goto(url: string): Promise<{ status(): number }> {
     this.current = url;
+    for (const emission of this.gotoEmissions) {
+      this.events.emit(emission.event, emission.payload);
+    }
     return { status: () => this.responseStatus };
+  }
+
+  /** Makes a single listener registration fail, mid-way through attaching. */
+  public onFailure: { readonly event: string; readonly error: unknown } | undefined;
+
+  public on(event: string, handler: (payload: unknown) => void): void {
+    if (this.onFailure !== undefined && this.onFailure.event === event) {
+      throw this.onFailure.error;
+    }
+    this.events.on(event, handler);
+  }
+
+  public off(event: string, handler: (payload: unknown) => void): void {
+    this.events.off(event, handler);
+  }
+
+  public emit(event: string, payload: unknown): void {
+    this.events.emit(event, payload);
   }
 
   public async title(): Promise<string> {
@@ -100,7 +100,20 @@ export class FakePage implements PlaywrightPageLike {
 
   public async screenshot(options: { readonly path: string }): Promise<void> {
     this.screenshotPath = options.path;
+    await writeUnrestrictedArtifact(options.path, "fake-png-bytes");
   }
+}
+
+/**
+ * playwright-core writes screenshots, traces, and storage state with a plain
+ * `fs.promises.writeFile(path, ...)` - no mode, no chmod - so the file lands at the
+ * ambient umask. The fakes reproduce that by writing real bytes and then forcing
+ * 0o644, which keeps the permission assertions umask-independent instead of letting
+ * a strict umask on the test machine hide a missing restriction.
+ */
+async function writeUnrestrictedArtifact(target: string, contents: string): Promise<void> {
+  await writeFile(target, contents);
+  if (process.platform !== "win32") await chmod(target, 0o644);
 }
 
 export class FakeTracing implements PlaywrightTracingLike {
@@ -113,22 +126,45 @@ export class FakeTracing implements PlaywrightTracingLike {
 
   public async stop(options: { readonly path: string }): Promise<void> {
     this.stopPath = options.path;
+    await writeUnrestrictedArtifact(options.path, "fake-trace-bytes");
   }
 }
 
 export class FakeContext implements PlaywrightContextLike {
+  public async storageState(): Promise<unknown> {
+    return { cookies: [], origins: [] };
+  }
   public readonly tracing = new FakeTracing();
   public readonly page = new FakePage();
+  public readonly events = new FakeEmitter();
   public closeCount = 0;
   public newPageFailure: unknown;
+  public readonly storageStateCalls: Record<string, unknown>[] = [];
+  /** Returned verbatim, so suites can assert what actually reached disk. */
+  public storageStateResult: unknown = { cookies: [], origins: [] };
 
   public async newPage(): Promise<FakePage> {
     if (this.newPageFailure !== undefined) throw this.newPageFailure;
     return this.page;
   }
 
+  public async storageState(
+    options: { readonly indexedDB?: boolean },
+  ): Promise<unknown> {
+    this.storageStateCalls.push({ ...options });
+    return this.storageStateResult;
+  }
+
   public async close(): Promise<void> {
     this.closeCount += 1;
+  }
+
+  public on(event: string, handler: (payload: unknown) => void): void {
+    this.events.on(event, handler);
+  }
+
+  public off(event: string, handler: (payload: unknown) => void): void {
+    this.events.off(event, handler);
   }
 }
 

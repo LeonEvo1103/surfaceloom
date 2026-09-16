@@ -1,10 +1,26 @@
+/**
+ * One resolved DOM node, as opposed to a locator, which re-runs its query on
+ * every call. Two reads taken through the same handle describe the same
+ * element; two reads taken through the same locator need not.
+ */
+export interface PlaywrightElementHandleLike {
+  isVisible(): Promise<boolean>;
+  isEnabled(): Promise<boolean>;
+  dispose(): Promise<void>;
+}
+
 export interface PlaywrightLocatorLike {
   first(): PlaywrightLocatorLike;
   count(): Promise<number>;
+  elementHandle(
+    options: { readonly timeout?: number },
+  ): Promise<PlaywrightElementHandleLike | null>;
   waitFor(options: { readonly state: string; readonly timeout?: number }): Promise<void>;
   click(options: { readonly timeout?: number }): Promise<void>;
   fill(value: string, options: { readonly timeout?: number }): Promise<void>;
   textContent(options: { readonly timeout?: number }): Promise<string | null>;
+  isVisible(options: { readonly timeout?: number }): Promise<boolean>;
+  isEnabled(options: { readonly timeout?: number }): Promise<boolean>;
 }
 
 export interface PlaywrightResponseLike {
@@ -37,6 +53,9 @@ export interface PlaywrightPageLike {
     readonly type: "png";
     readonly fullPage: boolean;
   }): Promise<unknown>;
+  /** Event payloads stay `unknown`; normalization happens in the session. */
+  on(event: string, handler: (payload: unknown) => void): void;
+  off(event: string, handler: (payload: unknown) => void): void;
 }
 
 export interface PlaywrightTracingLike {
@@ -52,6 +71,11 @@ export interface PlaywrightContextLike {
   readonly tracing: PlaywrightTracingLike;
   newPage(): Promise<PlaywrightPageLike>;
   close(): Promise<void>;
+  /** Returns state to our atomic writer; never writes the destination itself. */
+  storageState(options: { readonly indexedDB?: boolean }): Promise<unknown>;
+  /** Event payloads stay `unknown`; normalization happens in the session. */
+  on(event: string, handler: (payload: unknown) => void): void;
+  off(event: string, handler: (payload: unknown) => void): void;
 }
 
 export interface PlaywrightBrowserLike {

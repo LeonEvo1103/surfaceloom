@@ -60,7 +60,10 @@ try {
 Role, label, text, and test-id locators are preferred. CSS is an explicit adapter
 escape hatch. Actions fail when a target resolves to more than one element.
 
-Screenshot and trace results are marked `sensitive: true`. A runner can translate
+Screenshot and trace results are marked `sensitive: true`; their files are restricted
+to `0o600` after capture on POSIX. The shared capture helper reports permission
+failures explicitly. Windows protection depends on the destination's inherited NTFS
+ACLs; a POSIX mode does not establish an owner-only Windows ACL. A runner can translate
 them to Reporter `SourceArtifact` records and let the existing evidence policy decide
 whether to retain them. The backend never attaches to or closes a user-owned browser;
 its current launch API owns every browser process that it creates.
@@ -73,3 +76,27 @@ validation diagnostics; Playwright does not support authenticated SOCKS5 proxies
 When any proxy is configured, raw Playwright launch errors are not retained as a
 public `cause`, because they may echo proxy details. `browserCapabilities` declares both proxy and screenshot
 support for callers that gate features through the public capability contract.
+
+`session.elementState(locator)` returns presence, visibility and enablement from
+one resolved node. Missing targets return `present: false`; ambiguous targets and
+automation failures throw. Reads are sequential, not an atomic DOM snapshot.
+`clickable` does not guarantee stability or absence of an overlay.
+
+`session.observe({ limit: 5000 })` subscribes to console, page errors and request
+lifecycle signals. Its idempotent `stop()` returns `{ observations, dropped }`.
+Request IDs distinguish concurrent requests to one URL, and bounded retention makes
+lost entries explicit. Closing the owned session stops all subscriptions. Raw
+observations are sensitive; callers own redaction, retention and verdict policies.
+
+`session.saveStorageState(absoluteJsonPath, { indexedDB: true })` exports cookies
+and localStorage, with IndexedDB only on explicit opt-in. It does not export
+sessionStorage. The destination is replaced atomically from an exclusive owner-only
+partial file; a pre-existing partial is not overwritten. Reuse the result through
+`context.storageStatePath`. These files are credential-equivalent and must not be
+committed or treated as ordinary public evidence.
+
+This package remains private to npm publication. Consumers can check out a pinned
+framework commit, run `npm ci && npm run build && npm pack` in this package, and
+install the resulting archive. No npm registry publication is implied.
+`npm run test:packed` verifies an isolated consumer without source-directory links.
+Contribution attribution is preserved in the repository commit metadata.

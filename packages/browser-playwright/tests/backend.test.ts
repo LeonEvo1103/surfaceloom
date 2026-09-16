@@ -96,3 +96,44 @@ test("rejects invalid launch options before loading Playwright", async () => {
   );
   assert.equal(loads, 0);
 });
+
+test("rejects non-object option containers before loading Playwright", async () => {
+  let loads = 0;
+  const backend = new PlaywrightBrowserBackend(async () => {
+    loads += 1;
+    return fakePlaywright();
+  });
+
+  const secretText = "leaked-option-value";
+  const secretNumber = 4711;
+  const containers: readonly unknown[] = [
+    null,
+    [],
+    [secretText],
+    secretText,
+    secretNumber,
+    true,
+  ];
+  const wrappers: readonly ((value: unknown) => unknown)[] = [
+    (value) => value,
+    (value) => ({ context: value }),
+    (value) => ({ context: { viewport: value } }),
+  ];
+
+  for (const container of containers) {
+    for (const wrap of wrappers) {
+      await assert.rejects(
+        backend.launch(wrap(container) as never),
+        (error: unknown) =>
+          error instanceof BrowserAutomationError &&
+          error.code === "invalidArgument" &&
+          error.message.endsWith("must be an object.") &&
+          !error.message.includes(secretText) &&
+          !error.message.includes(String(secretNumber)),
+        `expected invalidArgument for ${wrap === wrappers[0] ? "options" : "nested"} container ${String(container)}`,
+      );
+    }
+  }
+
+  assert.equal(loads, 0);
+});

@@ -1,3 +1,6 @@
+import type { BrowserObservationHandle, BrowserObservationOptions } from "./observation-contracts.js";
+export * from "./observation-contracts.js";
+
 export const browserEngines = ["chromium", "firefox", "webkit"] as const;
 
 export type BrowserEngine = (typeof browserEngines)[number];
@@ -99,13 +102,40 @@ export interface BrowserNavigationResult {
   readonly status?: number;
 }
 
+/** One resolved node's readiness. Reads are sequential, not an atomic DOM snapshot.
+ * Missing targets return present:false; ambiguous targets and automation errors throw.
+ * Clickable covers presence, visibility and enablement, not stability or occlusion.
+ */
+export interface DomElementState {
+  /** Exactly one matching element is attached to the DOM. */
+  readonly present: boolean;
+  /** The element is attached and not hidden. False whenever `present` is false. */
+  readonly visible: boolean;
+  /** The element is attached and not disabled. False whenever `present` is false. */
+  readonly enabled: boolean;
+  /** `present && visible && enabled`. */
+  readonly clickable: boolean;
+}
+
 export interface BrowserArtifact {
-  readonly kind: "screenshot" | "trace";
+  readonly kind: "screenshot" | "trace" | "storageState";
   readonly sourcePath: string;
-  readonly contentType: "image/png" | "application/zip";
+  readonly contentType: "image/png" | "application/zip" | "application/json";
   readonly capturedAt: string;
   /** Browser evidence can contain credentials, page content, or user data. */
   readonly sensitive: true;
+}
+
+export interface BrowserStorageStateOptions {
+  /**
+   * Includes IndexedDB in the export, which some sites use to hold their session
+   * tokens. Defaults to `false` because IndexedDB is also a general-purpose local
+   * cache: enabling it unconditionally would pull an unbounded amount of site data
+   * into a file that is already credential-equivalent, widening the exposure this
+   * package deliberately minimises. Turn it on only for products whose login
+   * actually lives there.
+   */
+  readonly indexedDB?: boolean;
 }
 
 export interface BrowserSession {
@@ -121,11 +151,33 @@ export interface BrowserSession {
     state: DomWaitState,
     options?: BrowserOperationOptions,
   ): Promise<void>;
+  /**
+   * Reports whether a target is currently interactable. Returns an absent
+   * snapshot instead of throwing when the target never attaches within the
+   * timeout; still throws `ambiguousTarget` when the locator matches more than
+   * one element, because an ambiguous probe is a checker defect rather than an
+   * observation about the product.
+   */
+  elementState(
+    locator: DomLocator,
+    options?: BrowserOperationOptions,
+  ): Promise<DomElementState>;
   title(): Promise<string>;
   currentURL(): string;
   screenshot(outputPath: string, fullPage?: boolean): Promise<BrowserArtifact>;
+  /**
+   * Exports the live cookies and origin localStorage so one real login can seed
+   * later sessions through `BrowserContextOptions.storageStatePath`. sessionStorage
+   * is never included because Playwright has no API to persist it. IndexedDB is
+   * opt-in through `options.indexedDB`; see `BrowserStorageStateOptions`.
+   */
+  saveStorageState(
+    outputPath: string,
+    options?: BrowserStorageStateOptions,
+  ): Promise<BrowserArtifact>;
   startTrace(): Promise<void>;
   stopTrace(outputPath: string): Promise<BrowserArtifact>;
+  observe(options?: BrowserObservationOptions): BrowserObservationHandle;
   close(): Promise<void>;
 }
 
