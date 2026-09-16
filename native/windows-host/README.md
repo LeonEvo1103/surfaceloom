@@ -25,9 +25,81 @@ dotnet run --project .\src\SurfaceLoom.WindowsHost -c Release
 
 contract tests 是无第三方测试框架依赖的可执行程序，失败时返回非零退出码，适合先验证协议和安全能力声明。
 
-## NDJSON 协议
+## NDJSON 协议与迁移边界
 
-每行一个请求，每行一个响应。当前协议版本为 `0.2`。
+host 现在原生支持共享协议 `surfaceloom.native/1.0`。它使用 UTF-8 NDJSON，每个 frame 最多
+1 MiB（包含实际的 LF 或 CRLF；末行没有 delimiter 时仍按一个 LF 计入上限）。完整 frame 到达即开始
+计算相对 deadline，协议/结构校验、排队、UIA 操作和响应构造共同消耗同一预算。
+
+旧 Windows `0.2` 仅作为显式、已弃用的 legacy boundary 暂时保留，方便早期 client 迁移：
+
+- `{"protocol":"surfaceloom.native","version":"1.0",...}` 只进入共享 v1 parser/dispatcher；
+- `{"protocolVersion":"0.2",...}` 只进入 legacy dispatcher，响应继续明确标记 `0.2`；
+- 缺少 marker、同时出现两个 marker、未知 marker、解析前已超限或无效 JSON 都会关闭当前输入连接并只写
+  安全诊断，不会猜测协议并制造一个 v1/0.2 error envelope；
+- host 不会把 0.2 frame 政名、补字段或伪装成 1.0，也不会在一次 request 内混用两套 scope/result；
+- 新 client 必须使用 v1；0.2 不获得新的跨平台能力，并将在独立迁移版本中移除。
+
+v1 handshake 示例：
+
+```json
+{"protocol":"surfaceloom.native","version":"1.0","type":"request","id":"handshake-1","deadline":{"timeoutMs":1000},"call":{"name":"host.handshake","intent":"observe","scope":{"kind":"bootstrap"},"payload":{"client":"example","supportedVersions":["1.0"]}}}
+```
+
+handshake 返回本次进程唯一的 `hostInstanceId`，以及每个 method 固定的 `intent` 和允许的
+`scopeKinds`。除 handshake 外，所有 scope 都必须携带该 host id；session/handle scope 继续携带
+`sessionId`，handle scope 再携带 `handleId`。host 在进入 UIA dispatch 前核对完整 tuple，不存在 stale
+handle 向 session root 或 desktop root 降级的路径。
+
+### v1 method payload
+
+v1 的 session/handle identity 只来自 `call.scope`，不会在 payload 中重复：
+
+- `session.launch`：`{"executable":{"path":"C:\\...\\app.exe","arguments":[]},"workingDirectory":null,"environment":{},"desktop":"default","waitForWindow":true,"window":null,"wait":{"timeoutMs":5000,"pollIntervalMs":100}}`
+- `session.attach`：沿用平台 method-owned 的 `processId`、`desktop`、`window`、`wait` 字段；
+- `session.desktop`：可选 `desktop`；`session.release` 的 payload 必须为空；`session.close/terminate` 只含可选 `wait`；
+- `element.find/findAll`：`locator` 与可选 `wait`；若 scope 是 handle，该 handle 就是 search root；
+- `element.queryBatch`：`clauses`；`element.get` payload 必须为空；
+- `element.action`：`action`、可选 `value`、必需的 `expectedTarget`。动作目标就是 handle scope。
+
+返回的 session descriptor 使用 `owned | borrowed`；desktop/system session 永远是 borrowed。
+`release` 可作用于两类 session，`close/terminate` 在 dispatch 前拒绝 borrowed session。元素结果同时返回
+完整 `(hostInstanceId, sessionId, handleId)` identity 和 Windows UIA snapshot。
+
+### deadline、cancel 与 operation receipt
+
+stdin reader 与 UIA dispatcher 分离：reader 可以在一个长 UIA 调用期间继续接收 v1 `cancel`，UIA 调用
+仍在单一 STA 消费路径串行执行，stdout 也只通过一个锁写入。cancel 只是请求，不伪装成后端已经停止；
+原 request 仍拥有唯一 terminal response。
+
+Ctrl+C/host cancellation 会立即完成内部输入队列并唤醒主消费循环；host 不会尝试在另一个线程 Dispose
+可能正持锁阻塞的 `Console.In`，也不会为了等待不支持 cancellation 的同步 `TextReader` 永久阻塞 cleanup。
+reader 在每次 read 返回后、发布 frame 前重新检查 token；若 stdin 保持打开并继续阻塞，它会在 bounded
+grace period 后被安全脱离，不能再 dispatch 请求。随后 v1/legacy dispatcher 都会 Dispose，owned process
+的 best-effort cleanup 仍可达；CLI 进程退出时后台 reader 随进程结束。
+
+每个 v1 response 在接触 stdout 前先通过固定容量 buffer 完成 UTF-8 serialization；JSON 加 LF 不得超过
+1 MiB。serialization 与 fallback 构造仍消耗原 request 的 deadline。backend result 过大或不可序列化时，
+host 返回一个小型 `response_too_large` failure，而不是让 client 只看到断线；若 side effect 已有
+`executed` 或 `unknown` 证据，fallback 原样保留该 receipt 和 `retry: never`。
+
+一个 outstanding request id 从登记到 terminal frame 写完期间独占该 id。第二个同 id request，或带同 id
+但 schema 已损坏的 frame，会使当前输入连接 fail closed，不会再产生第二个同 id terminal response。
+request registration 与 dispatcher Dispose 共用同一个状态锁：Dispose 清空登记并返回后，任何延迟恢复的
+reader 都只能得到 disposed rejection，不能重新登记 CTS；未能进入消费队列的 prepared request 也会无条件
+释放其登记。
+
+`mutate/lifecycle` 必须携带唯一 `operationId`，terminal response 必须回同一 id：
+
+- method/scope/ownership/payload/deadline/cancel 在真实 dispatch 前拒绝：`notExecuted`；
+- UIA/lifecycle dispatch 返回成功：`executed`，即使随后发现 response deadline 已过；
+- 一旦进入 legacy UIA dispatch，任何不能证明提交边界的 error、timeout 或 cancel：`unknown`；
+- `element.action` 的真实 submission 在 target guard 之后。v1 adapter 在进入 legacy dispatch 前做保守边界，
+  所以后续 precheck failure 也可能报告 `unknown`，但绝不会把 post-action snapshot failure 错报为
+  `notExecuted`；
+- 只有 `notExecuted` 可以标记 `retry: safe`。`executed/unknown` 永远 `retry: never`，host 不自动重放。
+
+下面是仅供旧 client 迁移的 0.2 示例：
 
 ```json
 {"protocolVersion":"0.2","id":"1","method":"host.handshake","params":{}}
