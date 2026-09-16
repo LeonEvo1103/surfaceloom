@@ -14,6 +14,10 @@ macOS Accessibility 和 Windows UI Automation 后端负责定位、动作、窗�
 > 当前状态：可运行的工程实验，尚未发布稳定 API。适合验证架构、接入产品适配器和
 > 执行受控 smoke；不应把它理解成完整替代 XCUITest、Appium 或人工验收的成熟产品。
 
+框架化执行路线、原子任务状态和完成证据以 [Framework SSOT](docs/FRAMEWORK_SSOT.md) 为准；
+[能力事实矩阵](docs/framework/capabilities.md) 区分接口声明、contract test、live fixture 和真实
+目标应用证据。SSOT 中处于 `planned`、`ready` 或 `in_progress` 的能力均不是当前已交付能力。
+
 本仓库只包含产品无关的框架、平台后端和模板，不内置任何具体产品适配器。框架不会修改
 被测产品源码，也不会把测试生成物写回产品仓库。
 
@@ -33,11 +37,14 @@ macOS Accessibility 和 Windows UI Automation 后端负责定位、动作、窗�
 |---|---|
 | Core | 跨平台 Driver/Session/Locator 契约、CaseSpec、actionability、fixture runtime、doctor、trace 脱敏 |
 | Reporter | v2 CaseSpec/result JSON、中文 AI Markdown/浅色 HTML、截图/录屏附件、失败保留策略与证据 hash |
-| Component Catalog | 37 个桌面/System Surface/Agent 组件 manifest，7 个确定性 fixture manifest |
+| Component Catalog | 37 个桌面/System Surface/Agent 组件 manifest，7 个 fixture manifest；目录声明不等于行为实现 |
 | Browser | 可选 Playwright Core backend、语义 DOM locator、严格单目标动作、截图与 trace；浏览器按需安装 |
 | Agent Loop | 可扩展 TraceAdapter、统一 trace schema、Codex/原生/第三方 trace 导入、跨时钟合并与静态 HTML 时间线 |
 | macOS | Swift、Accessibility API、AppKit、窗口/菜单/文本/集合/文件面板、owned launch 与 non-owning attach |
 | Windows | .NET 8、UI Automation/Win32、NDJSON host、进程 ownership、窗口与常用 UIA Pattern；真实 Windows conformance 待补 |
+
+当前尚没有统一的 TypeScript native client、macOS stdio host、跨平台 native live conformance，
+也没有已完成的 `sl test` CLI。具体实现与证据边界见[能力事实矩阵](docs/framework/capabilities.md)。
 
 组件 manifest `desktop.agent.computer-control` 与 `desktop.agent.emergency-stop` 表示“测试
 Agent 客户端自身显示的 Computer Use 状态和停止入口”。它们不等于让测试框架依靠

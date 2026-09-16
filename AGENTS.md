@@ -3,6 +3,14 @@
 这是独立的跨平台桌面自动化实验仓库。不得修改、复制生成物到或提交内容到任何被测产品
 源码仓库；产品差异只能进入 `projects/<product>`。
 
+## 框架 SSOT
+
+- 框架执行模型、P0–P4 原子任务、依赖、状态和验收证据以 `docs/FRAMEWORK_SSOT.md` 为唯一事实源。
+- 当前能力必须按 `docs/framework/capabilities.md` 的 `declared`、`contract-tested`、
+  `live-fixture-tested`、`target-app-tested` 分级描述；manifest、接口或默认跳过的 smoke 不能冒充 live 实现。
+- 实现 Agent 只能把任务交付到 `review`；只有主集成人运行任务 DoD 并写入验收记录后才能置 `done`。
+- 修改执行语义时先更新或引用稳定任务 ID；不要在 README、架构文档或代码注释中另建冲突路线。
+
 ## 分层规则
 
 - `packages/core`：平台无关的 app/session/locator/capability 契约。
@@ -95,6 +103,12 @@ macOS/Swift：
 
 ```bash
 ./scripts/check-architecture.sh
+```
+
+SSOT 账本完整性：
+
+```bash
+node scripts/check-framework-ssot.mjs
 ```
 
 Windows 的命令以子目录 README 为准。单个源文件尽量保持

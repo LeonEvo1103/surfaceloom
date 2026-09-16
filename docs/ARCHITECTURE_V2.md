@@ -4,6 +4,10 @@
 > C# Windows UIA host、可选 Playwright DOM backend 与独立产品适配器均已有代码；fixture app、双平台 conformance 和
 > 完整组件实现仍按本文路线增量建设。
 
+> 框架 execution kernel、任务状态、阶段门槛和验收证据以 [Framework SSOT](FRAMEWORK_SSOT.md)
+> 为准；当前实现级别以[能力事实矩阵](framework/capabilities.md)为准。本文描述长期分层，示例中的
+> 目标接口不代表各 backend 已实现；如旧阶段文字与 SSOT 冲突，以 SSOT 为准并同步修正文档。
+
 ## 1. 决策摘要
 
 SurfaceLoom 不绑定某个产品，也不把 macOS 或 Windows 的原生 API 暴露给场景测试。动作执行栈分为五层：
@@ -14,6 +18,11 @@ SurfaceLoom 不绑定某个产品，也不把 macOS 或 Windows 的原生 API �
 4. **驱动契约层**定义跨平台动作、查询、等待和诊断协议。
 5. **原生后端层**当前分别使用 macOS AX/AppKit/CGEvent 和 Windows UIA/Win32。
    XCUITest 是后续发布候选专用测试层，不是现有日常 backend。
+
+测试框架的中心是可嵌入的 **CaseExecution kernel**：它负责 Case 生命周期、fixture、step、
+criterion、deadline、策略、证据和清理语义；browser、desktop、system 和 Agent probe 向它提供
+类型化能力。它不把 DOM click、AXPress、UIA Invoke 和真实鼠标注入伪装成同一个动作。
+该 kernel 按 SSOT 原子任务增量落地，未标记 `done` 的部分仍是设计契约。
 
 横切的 **Agent loop pipeline** 通过可插拔 TraceAdapter 归一模型、工具、审批、桌面和浏览器
 事件；它消费各层 trace，但不进入动作调用链。viewer 只依赖通用 schema，不依赖具体 runtime。
@@ -220,7 +229,7 @@ Manifest 至少包含：
 允许的 profile、optional capability 和逐 backend 验证状态仍属于后续 schema 演进项，
 不能把它们当成当前 manifest 已有字段。
 
-组件目录和 P0 计划见 COMPONENT_CATALOG_V2.md。
+组件目录设计见 COMPONENT_CATALOG_V2.md；框架阶段和任务状态只在 FRAMEWORK_SSOT.md 维护。
 
 ## 7. Fixture 与副作用门禁
 
@@ -338,7 +347,10 @@ Agent 流程默认使用确定性的 fake model/tool server：
 
 如果产品 UI 变更但找不到任何受影响组件，CI 应提示“测试影响未声明”，由开发 Agent 明确标记 no-test-impact 或补测试。
 
-## 12. 分阶段落地
+## 12. 历史平台建设阶段
+
+本节保留平台骨架形成过程，不再作为当前执行计划。当前 P0–P4 门槛、依赖和施工状态见
+FRAMEWORK_SSOT.md，避免把这里的 Phase A–E 与 SSOT 阶段混用。
 
 ### Phase A：去产品绑定
 
