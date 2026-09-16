@@ -8,10 +8,12 @@
 >
 > P2/P3 契约验收 revision：`2ebc6ccae2ce97e373f09d8abb2c97e9c5755a1a`
 >
+> P2 native client / Windows source revision：`b0aa7fe`
+>
 > 审计日期：2026-09-17
 
-本文记录基线审计及后续明确列出的验收 revision 中可由源码和测试证明的能力。规划中的跨语言协议、
-TypeScript native client、macOS stdio host、中性 native fixture App 和 fluent SDK 不计为已实现。
+本文记录基线审计及后续明确列出的验收 revision 中可由源码和测试证明的能力。macOS stdio host、
+native live conformance 和 fluent desktop SDK 仍不计为已实现。
 
 ## 1. 验证级别
 
@@ -40,7 +42,7 @@ TypeScript native client、macOS stdio host、中性 native fixture App 和 flue
 | component/fixture catalog | [`catalog.ts`](../../packages/component-catalog/src/catalog.ts)、[`fixtures.ts`](../../packages/component-catalog/src/fixtures.ts) | [`catalog.test.ts`](../../packages/component-catalog/tests/catalog.test.ts) | `contract-tested`（仅目录数据） | 测试证明 37 个 manifest 和 7 个 fixture metadata 自洽，不证明对应行为或 fixture setup 可执行。 |
 | browser backend | [`backend.ts`](../../packages/browser-playwright/src/backend.ts)、[`session.ts`](../../packages/browser-playwright/src/session.ts) | contract：[`backend.test.ts`](../../packages/browser-playwright/tests/backend.test.ts)、[`session.test.ts`](../../packages/browser-playwright/tests/session.test.ts)；live slice：[`approval.e2e.test.mjs`](../../examples/reference-agent/tests/e2e/approval.e2e.test.mjs) | `live-fixture-tested`（审批切片） | reference-agent E2E 无 skip 启动真实 owned Chrome/Chromium；截图、trace、storage 等更宽能力仍以 contract 或显式 local smoke 为主。 |
 | macOS backend | [`SurfaceLoomMacOS`](../../Sources/SurfaceLoomMacOS) | [`SurfaceLoomMacOSTests`](../../Tests/SurfaceLoomMacOSTests) | `contract-tested` | Swift library 直接提供 AX/AppKit/CGEvent API；没有中性 fixture conformance、stdio host 或 TS bridge。 |
-| Windows backend | [`SurfaceLoom.WindowsHost`](../../native/windows-host/src/SurfaceLoom.WindowsHost) | [`SurfaceLoom.WindowsHost.ContractTests`](../../native/windows-host/tests/SurfaceLoom.WindowsHost.ContractTests) | `contract-tested` | .NET NDJSON 0.2 host；没有中性 fixture App、Windows live conformance 或 TS client。 |
+| Windows backend | [`SurfaceLoom.WindowsHost`](../../native/windows-host/src/SurfaceLoom.WindowsHost) | [`SurfaceLoom.WindowsHost.ContractTests`](../../native/windows-host/tests/SurfaceLoom.WindowsHost.ContractTests) | `contract-tested`（0.2）；`build-verified`（1.0） | host 明确隔离 legacy 0.2 与 `surfaceloom.native/1.0`；1.0 Release 编译 0 warning/error，但本轮未在 Windows 运行新增 contract executable 或 live UIA。 |
 | shared native wire protocol | [`packages/native/src`](../../packages/native/src)、[`README.md`](../../packages/native/README.md) | [`packages/native/tests`](../../packages/native/tests)、[`vectors/v1`](../../packages/native/vectors/v1) | `contract-tested` | `surfaceloom.native/1.0` 已冻结 framing、deadline、ownership、scope、method descriptor 与 operation outcome；没有 host/client live conformance，Windows 0.2 不是兼容别名。 |
 | report/v2 | [`model.ts`](../../packages/reporter/src/model.ts)、[`write-report.ts`](../../packages/reporter/src/write-report.ts) | [`report-validation.contract.test.ts`](../../packages/reporter/tests/report-validation.contract.test.ts)、[`reporter.test.ts`](../../packages/reporter/tests/reporter.test.ts) | `contract-tested` | 校验/归档/派生 HTML 和 Markdown；不执行 Case、不采集 UI、不决定 runner cleanup。单 run 只有一个 `platform`，没有 surface/attempt。 |
 | report/v3 | [`packages/reporter/src/v3`](../../packages/reporter/src/v3) | [`packages/reporter/tests/v3`](../../packages/reporter/tests/v3) | `contract-tested` | 保留 host、surface、attempt 与实际 executionPlatforms；最高 ordinal final 决定 verdict，v2 importer 不伪造缺失事实。现有 CLI 尚未切换到 v3。 |
@@ -48,7 +50,8 @@ TypeScript native client、macOS stdio host、中性 native fixture App 和 flue
 | execution kernel | [`execute.ts`](../../packages/test/src/execute.ts)、[`contracts.ts`](../../packages/test/src/contracts.ts) | [`execution-lifecycle.test.ts`](../../packages/test/tests/execution-lifecycle.test.ts)、[`approval.e2e.test.mjs`](../../examples/reference-agent/tests/e2e/approval.e2e.test.mjs) | `live-fixture-tested`（审批切片） | deadline 能结束等待但不强停任意 in-process JavaScript；native backend 尚未接入。 |
 | `sl-test` 顺序 CLI/report 接线 | [`cli`](../../packages/test/src/cli)、[`report`](../../packages/test/src/report) | [`cli`](../../packages/test/tests/cli)、[`report`](../../packages/test/tests/report) | `contract-tested` | 支持发现编译后 JS Case、过滤、顺序执行、Reporter v2 与 exit code；无 worker pool、sharding 或 watch。 |
 | reference-agent 审批 fixture/ledger | [`examples/reference-agent`](../../examples/reference-agent) | [`approval.test.mjs`](../../examples/reference-agent/test/approval.test.mjs)、[`approval.e2e.test.mjs`](../../examples/reference-agent/tests/e2e/approval.e2e.test.mjs) | `live-fixture-tested` | 确定性本地 fixture；拒绝 0、批准 1、错误执行和不完整 ledger 均覆盖；无真实模型或外部服务。 |
-| native TS client / shared wire conformance | — | — | — | schema/golden vectors 已存在；transport、host 接线与真实 fixture conformance 尚未实现。 |
+| native TS client / shared wire conformance | [`client`](../../packages/native/src/client) | [`client tests`](../../packages/native/tests/client) | `contract-tested` | 56 个 package tests 覆盖 fake transport、连接竞态、deadline/cancel、断线 outcome、迟到响应、scope identity 与 frame boundary；尚无具体 process transport 或真实 host conformance。 |
+| Windows neutral UIA fixture | [`windows-fixture`](../../native/windows-fixture) | [`portable tests`](../../native/windows-fixture/tests) | `contract-tested`（model/static） | WPF 项目可交叉编译，portable model 16 checks、Node 8 tests；尚未在 Windows 启动并通过 UIA 操作。 |
 
 ## 3. Core capability registry 与 backend 事实
 
@@ -181,21 +184,23 @@ Core [`FixtureRegistry`](../../packages/core/src/fixture-registry.ts) 能在消�
 
 ### Windows
 
-- [`HostProtocol.cs`](../../native/windows-host/src/SurfaceLoom.WindowsHost/Protocol/HostProtocol.cs) 固定为
-  NDJSON `0.2`，方法包含 handshake/doctor/capabilities、session lifecycle、element query/action。
+- [`HostProtocol.cs`](../../native/windows-host/src/SurfaceLoom.WindowsHost/Protocol/HostProtocol.cs) 保留显式
+  legacy NDJSON `0.2`；[`NativeV1Dispatcher.cs`](../../native/windows-host/src/SurfaceLoom.WindowsHost/Host/NativeV1Dispatcher.cs)
+  实现严格隔离的 `surfaceloom.native/1.0` 路由、scope/ownership、deadline/cancel 与 operation receipt。
 - [`AutomationContracts.cs`](../../native/windows-host/src/SurfaceLoom.WindowsHost/Protocol/AutomationContracts.cs)
   定义 UIA locator、session ownership、element snapshot 和 action；
   [`RequestDispatcher.cs`](../../native/windows-host/src/SurfaceLoom.WindowsHost/Host/RequestDispatcher.cs)
   在单进程内路由请求。
-- 合同可执行程序覆盖 38 个协议/安全 client 检查，但没有中性 GUI fixture 的 launch → find → action →
-  postcondition 纵向测试，故仍是 `contract-tested`。
-- `element.action` 成功返回 snapshot，失败返回 error；协议没有可信 receipt，也没有标准化
-  `notExecuted/executed/unknown`。因此断线后不能从现有 wire 证明动作是否已经提交，更不能自动重试。
-- host feature 名称（例如 `uia.semanticActions`）不是 Core capability registry 的直接实现声明；当前没有
-  TypeScript transport/client 把二者映射起来。Windows 0.2 也不是已冻结的跨平台协议。
+- 合同可执行程序现登记 52 个协议/安全检查；本轮 Linux 容器能编译但缺 WindowsDesktop runtime，
+  所以新增 1.0 cases 仍需 Windows runner 执行。中性 GUI fixture 也尚未完成 launch → find → action →
+  postcondition live 纵向测试。
+- 1.0 `element.action` 用 `notExecuted/executed/unknown` receipt 保守表达提交边界，超限响应与 deadline
+  fallback 保留 outcome；legacy 0.2 不获得这些语义，也不被重标为 1.0。
+- host feature 名称（例如 `uia.semanticActions`）不是 Core capability registry 的直接实现声明；已有
+  transport-neutral TypeScript client，但尚无 process transport 和 typed desktop facade 把它接进 kernel。
 
-结论：当前跨平台共用的是部分设计词汇和目录数据，不是一条 `TypeScript → shared protocol → native`
-的可执行链路。
+结论：shared protocol、TS client 与 Windows 1.0 host 已分别落地，但尚未有真实 process transport 与
+Windows live fixture 证据，因此不能宣称 `TypeScript → shared protocol → native UI` 纵向链路完成。
 
 ## 7. Reporter 与 Agent loop 的权威边界
 

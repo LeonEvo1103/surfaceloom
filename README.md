@@ -37,15 +37,15 @@ macOS Accessibility 和 Windows UI Automation 后端负责定位、动作、窗�
 |---|---|
 | Core | 跨平台 Driver/Session/Locator 契约、CaseSpec、actionability、fixture runtime、doctor、trace 脱敏 |
 | Reporter | v2 单平台兼容报告；v3 host/surface/attempt/executionPlatforms、保守 v2 importer、中文 AI Markdown/浅色 HTML 与证据 hash |
-| Native Protocol | `surfaceloom.native/1.0` schema、NDJSON framing、deadline/cancel、ownership、operation outcome 与 golden vectors；尚无统一 TS client |
+| Native Protocol | `surfaceloom.native/1.0` schema、NDJSON framing、deadline/cancel、ownership、operation outcome、golden vectors 与 transport-neutral TS client |
 | Component Catalog | 37 个桌面/System Surface/Agent 组件 manifest，7 个 fixture manifest；目录声明不等于行为实现 |
 | Browser | 可选 Playwright Core backend、语义 DOM locator、严格单目标动作、截图与 trace；浏览器按需安装 |
 | Agent Loop | 可扩展 TraceAdapter、统一 trace schema、Codex/原生/第三方 trace 导入、跨时钟合并与静态 HTML 时间线 |
 | Execution Kernel | 可嵌入 Case 注册/执行、fixture/resource 生命周期、step/criterion、observation 自动等待、capability/effect preflight、deadline 与合作取消；最小顺序 CLI、过滤与 Reporter v2 bundle |
 | macOS | Swift、Accessibility API、AppKit、窗口/菜单/文本/集合/文件面板、owned launch 与 non-owning attach |
-| Windows | .NET 8、UI Automation/Win32、NDJSON host、进程 ownership、窗口与常用 UIA Pattern；真实 Windows conformance 待补 |
+| Windows | .NET 8、UI Automation/Win32、0.2/1.0 双栈 NDJSON host、中性 WPF fixture、进程 ownership、窗口与常用 UIA Pattern；真实 Windows conformance 待补 |
 
-当前尚没有统一的 TypeScript native client、macOS stdio host、跨平台 native live conformance，
+当前已有 transport-neutral TypeScript native client，但尚没有具体 host process transport、macOS stdio host、跨平台 native live conformance，
 也没有并行、sharding、watch 等完整 runner。具体实现与证据边界见[能力事实矩阵](docs/framework/capabilities.md)。
 
 组件 manifest `desktop.agent.computer-control` 与 `desktop.agent.emergency-stop` 表示“测试
@@ -62,11 +62,12 @@ packages/
 ├── agent-loop/                   # 通用 Agent loop schema、adapter 与静态可视化
 ├── component-catalog/            # 机器可读组件和 fixture manifest
 ├── reporter/                     # 机器/AI/人工三种测试报告视图
-├── native/                       # 共享 native wire contract 与 golden vectors
+├── native/                       # 共享 native wire contract、client 与 golden vectors
 └── test/                         # 可嵌入 Case execution kernel 与作者 API
 Sources/SurfaceLoomMacOS/      # Swift + Accessibility/AppKit backend
 Tests/SurfaceLoomMacOSTests/   # macOS backend contract tests
 native/windows-host/              # C# + UI Automation/Win32 NDJSON host
+native/windows-fixture/           # 产品无关的 WPF/UIA conformance fixture
 projects/                         # 可选产品 adapter 的接入约定，不内置具体产品
 Templates/                        # 新组件和场景模板
 docs/                             # 架构、组件、Windows 和接入说明

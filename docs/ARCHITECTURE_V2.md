@@ -1,7 +1,7 @@
 # SurfaceLoom V2 架构
 
 > 状态：首个跨平台骨架已落地。TypeScript 契约/组件 manifest、Swift macOS backend、
-> C# Windows UIA host、可选 Playwright DOM backend 与独立产品适配器均已有代码；fixture app、双平台 conformance 和
+> C# Windows UIA host、中性 Windows fixture、可选 Playwright DOM backend 与独立产品适配器均已有代码；macOS fixture、双平台 live conformance 和
 > 完整组件实现仍按本文路线增量建设。
 
 > 框架 execution kernel、任务状态、阶段门槛和验收证据以 [Framework SSOT](FRAMEWORK_SSOT.md)
@@ -64,15 +64,16 @@ criterion、deadline、策略、证据和清理语义；browser、desktop、syst
     packages/agent-loop/            通用 Agent loop schema、adapter 与 viewer
     packages/component-catalog/     机器可读组件 manifest
     packages/reporter/              结果 schema、证据归档与 AI/HTML 报告
-    packages/native/                共享 native wire schema、framing 与 golden vectors
+    packages/native/                共享 native wire schema、framing、TS client 与 golden vectors
     packages/test/                  可嵌入 execution kernel 与 CLI
     Sources/SurfaceLoomMacOS/    Swift + AX/AppKit backend
     native/windows-host/            .NET + Windows UI Automation host
+    native/windows-fixture/         产品无关的 WPF/UIA conformance fixture
     projects/                       可选产品适配器接入约定
     Tests/SurfaceLoomMacOSTests/ macOS backend contract
     docs/                            架构与平台说明
 
-后续再增加 macOS/Windows fixture app、共享 conformance、Appium bridge 和发布候选专用的
+后续再增加 macOS fixture app、共享 live conformance、Appium bridge 和发布候选专用的
 XCUITest/system-surface suites。目录可以演进，但层间依赖方向不可反转。
 
 Reporter 是横切消费者，不在 Scenario → Component → Core → backend 的动作依赖链中。平台
@@ -81,8 +82,9 @@ backend/runner 产生截图、录屏、trace 和诊断，Reporter 只归档并�
 
 ## 3. 驱动契约
 
-驱动契约是跨语言、可版本化的数据协议。TypeScript SDK 面向场景作者；当前 Windows
-.NET host 使用本地 stdio NDJSON，Swift/macOS backend 先保留直接 API，待 conformance
+驱动契约是跨语言、可版本化的数据协议。transport-neutral TypeScript native client 已实现 framing、
+correlation、deadline、capability 与 identity 合同；当前 Windows .NET host 使用本地 stdio NDJSON，
+但具体进程 transport 与真实 Windows 纵向 conformance 尚未接通。Swift/macOS backend 先保留直接 API，待 conformance
 稳定后再增加相同 sidecar 协议。默认不启动常驻高权限服务。
 
 目标驱动契约如下。TypeScript Core 已定义这些语义；各原生 backend 仍按 capability 渐进实现，

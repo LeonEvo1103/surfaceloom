@@ -2,11 +2,11 @@
 
 > 状态：Active
 >
-> 当前验收 revision：`2ebc6ccae2ce97e373f09d8abb2c97e9c5755a1a`
+> 当前验收 revision：`b0aa7fe`
 >
 > 审计日期：2026-09-17
 >
-> 当前阶段：P1、P2 shared protocol 与 P3 report/v3 已完成；进入 Windows host/client/fixture 并行波次
+> 当前阶段：P1、P2 shared protocol/client/fixture 与 P3 report/v3 已完成；Windows host 等待 Windows contract run
 
 本文档是 SurfaceLoom 框架执行模型、实施顺序和完成证据的唯一事实源（SSOT）。
 `ARCHITECTURE_V2.md` 描述已有分层；两者冲突时，以本文明确列出的新决策为准，并由负责该任务的
@@ -178,9 +178,9 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
 | `SL-P2-010` | done | `SL-P0-010`,`SL-P1-080` | 新 native package 协议 schema/vectors | 版本、ownership、deadline、错误、operation outcome、句柄范围 |
-| `SL-P2-020` | ready | `SL-P2-010` | `native/windows-host/**` | host 对齐协议且明确 0.2 兼容/停用策略，unknown 不重发 |
-| `SL-P2-030` | ready | `SL-P2-010` | native TS client/transport/tests | host 生命周期；错误版本、断线、超时、stale session、payload 边界 |
-| `SL-P2-040` | ready | `SL-P2-010` | 新 `native/windows-fixture/**` | 中性 UIA app：invoke/setValue/歧义/消失元素/owned lifecycle |
+| `SL-P2-020` | review | `SL-P2-010` | `native/windows-host/**` | host 对齐协议且明确 0.2 兼容/停用策略，unknown 不重发 |
+| `SL-P2-030` | done | `SL-P2-010` | native TS client/transport/tests | host 生命周期；错误版本、断线、超时、stale session、payload 边界 |
+| `SL-P2-040` | done | `SL-P2-010` | 新 `native/windows-fixture/**` | 中性 UIA app：invoke/setValue/歧义/消失元素/owned lifecycle |
 | `SL-P2-050` | planned | `SL-P2-020`,`SL-P2-030`,`SL-P2-040` | Windows live tests/scripts/workflow | 真实 conformance，记录 OS/host/revision/Case 数，禁止全 skip |
 
 ### P3：macOS 与 multi-surface
@@ -205,10 +205,10 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 
 ## 9. 并行施工规则
 
-下一并行波次为：`SL-P2-020`、`SL-P2-030` 与 `SL-P2-040`。三者分别独占 Windows host、
-native TS client 和 Windows fixture；不得修改 SSOT、根 scripts/CI、共享 exports 或现有 execution
-kernel。共享接线仍由主 Agent 集成。P3 macOS fixture 与 evidence correlation 已 ready，但等待本波次
-释放并发位后再施工。
+Windows host/client/fixture 并行波次已经收口；其中 `SL-P2-020` 只差 Windows 上实际运行 contract
+executable，不能用 Linux 交叉编译冒充。下一波可并行施工 `SL-P3-020` 与 `SL-P3-050`，分别独占
+macOS fixture 和 evidence correlation；`SL-P2-050` 必须在 Windows 10+ 交互式 runner 上完成，不得
+以 fake、portable model 或全 skip workflow 替代。
 
 即使源码目录互斥，`core/dist` 等生成物仍共享。实现 Agent 只运行 scoped typecheck/test；主 Agent
 串行运行全量构建。`packages/*/src/index.ts`、package manifest/lock、Package.swift、Reporter
@@ -244,6 +244,9 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | `SL-P1-070` | `2f89ea71e981a67c9ac8e0afff529cd77fd89da5` | `packages/test/src/cli/**`、`src/report/**`、对应 tests、exports/bin/manifest | `npm run typecheck && npm test && npm pack --dry-run` / 0 | macOS / Node 22 | 13 scoped CLI/report tests（186 package total）/ 0 | `packages/test/tests/cli/**`、`packages/test/tests/report/**` | 顺序执行；无 worker pool、sharding、watch、插件加载或未编译 TypeScript Case loader。 |
 | `SL-P1-080` | `2f89ea71e981a67c9ac8e0afff529cd77fd89da5` | `scripts/run-framework-p1-tests.sh`、CI、README 与共享接线 | `./scripts/run-framework-p1-tests.sh && ./scripts/check-architecture.sh && node scripts/check-license-contract.mjs` / 0 | macOS / Node 22 / Chrome | 6 package suites + 68 repository contracts + 11 fixture tests + 4 required live E2E / 3 optional browser smoke skips，required E2E 0 skip | `scripts/run-framework-p1-tests.sh`、`.github/workflows/ci.yml` | P1 只交付 browser 纵向切片；native parity、强隔离通用 Case、并行 runner 和 report/v3 留在后续阶段。 |
 | `SL-P2-010` | `2ebc6ccae2ce97e373f09d8abb2c97e9c5755a1a` | `packages/native/**`、TS 根测试/CI 接线 | `npm run typecheck && npm test && npm pack --dry-run` / 0 | macOS / Node 22 | 26 protocol tests / 0；45 packed files | `packages/native/tests`、`packages/native/vectors/v1` | 只有共享 wire contract；尚无 TS transport、已迁移 host 或真实 native conformance。Windows 0.2 明确不是共享协议别名。 |
+| `SL-P2-020` | `b0aa7fe` | `native/windows-host/**` | Docker `.NET 8` `dotnet build SurfaceLoom.WindowsHost.sln -c Release`、`git diff --check` / 0 | Linux ARM64 container targeting Windows | 2 projects compiled，0 warnings/errors / Windows contract executable not run | `native/windows-host/tests/SurfaceLoom.WindowsHost.ContractTests` | 状态保留 review：Linux 缺 `Microsoft.WindowsDesktop.App`；52 个已登记 contract cases 和真实 UIA 均需 Windows runner 执行。legacy 0.2 与 1.0 严格隔离。 |
+| `SL-P2-030` | `8db8418` | `packages/native/src/client/**`、`tests/client/**`、export/README | `npm test && npm run typecheck && npm pack --dry-run && git diff --check` / 0 | macOS / Node 22 | 30 client tests（56 package total）/ 0；69 packed files | `packages/native/tests/client` | transport-neutral fake contract；未提供 host process transport，不宣称真实 native conformance。连接生命周期内 request/operation/tombstone 账本按协议不淘汰。 |
+| `SL-P2-040` | `8d047c7` | `native/windows-fixture/**` | Node tests + Docker WPF Release build + portable .NET model run + `git diff --check` / 0 | macOS + Linux ARM64 container targeting Windows | 8 Node tests + 16 model checks，WPF build 0 warnings/errors / 0 | `native/windows-fixture/tests`、`fixture-contract.v1.json` | 证明源码、XAML 与 portable model；没有在 Windows 启动 GUI、查询 UIA pattern 或验证 process exit，live 责任仍属于 `SL-P2-050`。 |
 | `SL-P3-040` | `2ebc6ccae2ce97e373f09d8abb2c97e9c5755a1a` | `packages/reporter/src/v3/**`、`tests/v3/**`、公开 export | `npm run typecheck && npm test && npm pack --dry-run` / 0 | macOS / Node 22 | 18 v3 tests（54 reporter total）/ 0；111 packed files | `packages/reporter/tests/v3` | CLI 仍输出 report/v2；v3 需要 runner 提供真实 host/surface/attempt/executionPlatforms，不自动伪造。 |
 
 ## 12. 变更记录
@@ -254,3 +257,4 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | 2026-09-16 | 将生命周期任务拆为 deadline（051）、resource cleanup（052）、worker/stop semantics（053）和最终 kernel integration（050），允许 GPT-6 Xhigh 在互斥目录并行施工。 |
 | 2026-09-16 | 完成 P1：真实浏览器审批 showcase、独立完整工具账本、顺序 CLI/逐 Case Reporter 与根验收门禁；显式跨平台 filter 命中 fail closed。 |
 | 2026-09-17 | 冻结 `surfaceloom.native/1.0` 协议与 report/v3：副作用 receipt/unknown-no-retry、method intent/scope、multi-host surfaces、最高 ordinal 最终 attempt、保守 v2 import 均有契约回归。 |
+| 2026-09-17 | 完成 transport-neutral TS native client 与中性 Windows WPF fixture；Windows host 1.0 双栈实现通过 Docker Release 编译和三轮对抗审查，但在 Windows contract executable 实跑前保持 review。 |
