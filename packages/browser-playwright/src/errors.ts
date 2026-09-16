@@ -1,5 +1,6 @@
 export type BrowserAutomationErrorCode =
   | "ambiguousTarget"
+  | "artifactNotSecured"
   | "artifactState"
   | "dependencyUnavailable"
   | "invalidArgument"

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -9,7 +9,14 @@ import {
   defineDomLocator,
   PlaywrightBrowserBackend,
 } from "../src/index.js";
-import { FakeBrowserType, fakePlaywright } from "./fakes.js";
+import type {
+  PlaywrightBrowserLike,
+  PlaywrightContextLike,
+  PlaywrightPageLike,
+  PlaywrightTracingLike,
+} from "../src/playwright-shapes.js";
+import { PlaywrightBrowserSession } from "../src/session.js";
+import { FakeBrowserType, FakePage, fakePlaywright } from "./fakes.js";
 
 test("resolves semantic DOM locators and requires exactly one action target", async () => {
   const module = fakePlaywright();

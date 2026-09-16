@@ -29,6 +29,7 @@ export class PlaywrightBrowserBackend implements BrowserBackend {
   public async launch(
     options: BrowserLaunchOptions = {},
   ): Promise<BrowserSession> {
+    requireOptionalRecord(options, "options");
     const engine = options.engine ?? "chromium";
     assertEngine(engine);
     const resolvedLaunchOptions = launchOptions(options);
@@ -118,10 +119,12 @@ function launchOptions(options: BrowserLaunchOptions): Record<string, unknown> {
 }
 
 function contextOptions(options: BrowserContextOptions | undefined): Record<string, unknown> {
+  requireOptionalRecord(options, "context");
   if (options === undefined) return {};
   requireOptionalText(options.baseURL, "baseURL");
   requireOptionalText(options.locale, "locale");
   requireOptionalText(options.storageStatePath, "storageStatePath");
+  requireOptionalRecord(options.viewport, "viewport");
   if (
     options.viewport !== undefined &&
     (!Number.isInteger(options.viewport.width) || options.viewport.width <= 0 ||
@@ -153,6 +156,19 @@ function contextOptions(options: BrowserContextOptions | undefined): Record<stri
       : { storageState: options.storageStatePath }),
     ...(proxy === undefined ? {} : { proxy }),
   };
+}
+
+/**
+ * Guards every optional object-shaped launch argument before any property is read.
+ * Without it a `null`, array, or primitive container leaks a native `TypeError`
+ * instead of the package's stable `invalidArgument` code, and each new nested
+ * option field would have to repeat the same check.
+ */
+function requireOptionalRecord(value: unknown, name: string): void {
+  if (value === undefined) return;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw invalidLaunchOption(`${name} must be an object`);
+  }
 }
 
 function requireOptionalText(value: string | undefined, name: string): void {

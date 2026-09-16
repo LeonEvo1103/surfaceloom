@@ -111,3 +111,23 @@ const sourceArtifact = {
 浏览器二进制不在普通 Core 安装或默认源码包中。CI 的 browser package 契约使用注入的
 fake Playwright module，因此不会下载或启动真实浏览器；真实浏览器 smoke 应放在单独、显式
 启用的 lane。
+
+## 观察、状态导出与制品消费
+
+`session.observe({ limit })` 返回可停止的观察订阅；`stop()` 给出
+`{ observations, dropped }`，用 requestId 区分同 URL 的并发请求。订阅有界，
+session 关闭时释放；原始 URL、控制台内容和错误可能敏感，runner 负责脱敏及保留策略。
+
+`session.elementState(locator)` 读取同一节点的 present/visible/enabled/clickable。
+缺失目标是 `present: false`；歧义和驱动错误仍报错。两次属性读取并非原子 DOM
+快照，clickable 也不表示已检查稳定性或遮挡。
+
+`session.saveStorageState(absoluteJsonPath, { indexedDB: true })` 导出 cookies 和
+localStorage；IndexedDB 需显式开启，sessionStorage 不导出。写入采用独占创建
+0600 partial 文件再 rename，同一路径已有 partial 时拒绝覆盖。凭据等价文件通过
+`context.storageStatePath` 重放，不进入 Git 或普通公开证据。
+
+包当前保持 `private: true`，未声明 npm registry 已发布。跨仓消费者固定 framework
+commit，在 `packages/browser-playwright` 执行 `npm ci`、`npm run build`、
+`npm pack`，安装产出的 tgz，不链接源码目录。运行 `npm run test:packed` 可验证
+隔离消费者会验证公开 exports、类型与运行契约；贡献归属保留在提交元数据中。

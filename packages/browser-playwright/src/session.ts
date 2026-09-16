@@ -1,30 +1,21 @@
 import type {
-  BrowserArtifact,
-  BrowserEngine,
-  BrowserNavigateOptions,
-  BrowserNavigationResult,
-  BrowserOperationOptions,
-  BrowserSession,
-  DomLocator,
-  DomWaitState,
+  BrowserArtifact, BrowserEngine, BrowserNavigateOptions, BrowserNavigationResult,
+  BrowserObservationHandle, BrowserObservationOptions, BrowserOperationOptions,
+  BrowserSession, BrowserStorageStateOptions, DomElementState, DomLocator, DomWaitState,
 } from "./contracts.js";
-import { browserArtifact, prepareArtifactPath } from "./artifact.js";
-import {
-  BrowserAutomationError,
-  isBrowserAutomationError,
-} from "./errors.js";
+import { BrowserAutomationError, isBrowserAutomationError } from "./errors.js";
 import { resolveDomLocator } from "./locator.js";
-import type {
-  PlaywrightBrowserLike,
-  PlaywrightContextLike,
-  PlaywrightLocatorLike,
-  PlaywrightPageLike,
-} from "./playwright-shapes.js";
+import type { PlaywrightBrowserLike, PlaywrightContextLike, PlaywrightLocatorLike, PlaywrightPageLike } from "./playwright-shapes.js";
+import { readElementState } from "./element-state.js";
+import { SessionArtifacts } from "./session-artifacts.js";
+import { SessionObservations } from "./session-observations.js";
+import { operationOptions, timeoutOptions } from "./session-operations.js";
 
 export class PlaywrightBrowserSession implements BrowserSession {
   public readonly engine: BrowserEngine;
   private closed = false;
-  private traceStarted = false;
+  private readonly observations: SessionObservations;
+  private readonly artifacts: SessionArtifacts;
 
   public constructor(
     engine: BrowserEngine,
@@ -33,11 +24,11 @@ export class PlaywrightBrowserSession implements BrowserSession {
     private readonly page: PlaywrightPageLike,
   ) {
     this.engine = engine;
+    this.observations = new SessionObservations(page);
+    this.artifacts = new SessionArtifacts(page, context, (operation, action) => this.run(operation, action));
   }
 
-  public get isClosed(): boolean {
-    return this.closed;
-  }
+  public get isClosed(): boolean { return this.closed; }
 
   public async navigate(
     url: string,
@@ -95,6 +86,11 @@ export class PlaywrightBrowserSession implements BrowserSession {
     );
   }
 
+  public async elementState(locator: DomLocator, options: BrowserOperationOptions = {}): Promise<DomElementState> {
+    this.requireOpen();
+    return readElementState(this.page, locator, options, (operation, action) => this.run(operation, action));
+  }
+
   public async title(): Promise<string> {
     this.requireOpen();
     return this.run("read title", () => this.page.title());
@@ -105,45 +101,31 @@ export class PlaywrightBrowserSession implements BrowserSession {
     return this.page.url();
   }
 
-  public async screenshot(
-    outputPath: string,
-    fullPage = false,
-  ): Promise<BrowserArtifact> {
-    this.requireOpen();
-    const target = await prepareArtifactPath(outputPath, ".png");
-    await this.run("capture screenshot", () =>
-      this.page.screenshot({ path: target, type: "png", fullPage })
-    );
-    return browserArtifact("screenshot", target, "image/png");
+  public screenshot(outputPath: string, fullPage = false): Promise<BrowserArtifact> {
+    return this.run("capture screenshot", () => this.artifacts.screenshot(outputPath, fullPage));
   }
 
-  public async startTrace(): Promise<void> {
-    this.requireOpen();
-    if (this.traceStarted) {
-      throw new BrowserAutomationError("artifactState", "Browser tracing is already active.");
-    }
-    await this.run("start trace", () =>
-      this.context.tracing.start({ screenshots: true, snapshots: true, sources: true })
-    );
-    this.traceStarted = true;
+  public startTrace(): Promise<void> {
+    return this.run("start trace", () => this.artifacts.startTrace());
   }
 
-  public async stopTrace(outputPath: string): Promise<BrowserArtifact> {
+  public stopTrace(outputPath: string): Promise<BrowserArtifact> {
+    return this.run("stop trace", () => this.artifacts.stopTrace(outputPath));
+  }
+
+  public saveStorageState(outputPath: string, options: BrowserStorageStateOptions = {}): Promise<BrowserArtifact> {
+    return this.run("save storage state", () => this.artifacts.saveStorageState(outputPath, options));
+  }
+
+  public observe(options: BrowserObservationOptions = {}): BrowserObservationHandle {
     this.requireOpen();
-    if (!this.traceStarted) {
-      throw new BrowserAutomationError("artifactState", "Browser tracing is not active.");
-    }
-    const target = await prepareArtifactPath(outputPath, ".zip");
-    try {
-      await this.run("stop trace", () => this.context.tracing.stop({ path: target }));
-    } finally {
-      this.traceStarted = false;
-    }
-    return browserArtifact("trace", target, "application/zip");
+    return this.observations.observe(options);
   }
 
   public async close(): Promise<void> {
     if (this.closed) return;
+    // Detach before the page and context go away, so no listener outlives the session.
+    this.observations.stopAll();
     this.closed = true;
     const failures: unknown[] = [];
     try {
@@ -213,23 +195,4 @@ export class PlaywrightBrowserSession implements BrowserSession {
       );
     }
   }
-}
-
-function timeoutOptions(timeoutMs: number | undefined): { readonly timeout?: number } {
-  if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs < 0)) {
-    throw new BrowserAutomationError(
-      "invalidArgument",
-      "A browser operation timeout must be a non-negative finite number.",
-    );
-  }
-  return timeoutMs === undefined ? {} : { timeout: timeoutMs };
-}
-
-function operationOptions(
-  options: BrowserNavigateOptions,
-): { readonly timeout?: number; readonly waitUntil?: string } {
-  return {
-    ...timeoutOptions(options.timeoutMs),
-    ...(options.waitUntil === undefined ? {} : { waitUntil: options.waitUntil }),
-  };
 }

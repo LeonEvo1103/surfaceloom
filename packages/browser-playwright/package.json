@@ -21,9 +21,10 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node ../../scripts/clean-package-dist.mjs && tsc -p tsconfig.json && node ../../scripts/copy-package-license.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node ../../scripts/run-typescript-package-tests.mjs",
+    "test": "npm run build && node ../../scripts/run-typescript-package-tests.mjs && node scripts/test-packed-consumer.mjs",
+    "test:packed": "npm run build && node scripts/test-packed-consumer.mjs",
     "test:local": "npm run build && node scripts/run-local-smoke.mjs"
   },
   "dependencies": {
