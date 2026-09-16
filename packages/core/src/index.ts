@@ -4,6 +4,7 @@ export * from "./case-spec.js";
 export * from "./component.js";
 export * from "./doctor.js";
 export * from "./driver.js";
+export * from "./evidence-context.js";
 export * from "./fixture.js";
 export * from "./fixture-registry.js";
 export * from "./fixture-runtime.js";

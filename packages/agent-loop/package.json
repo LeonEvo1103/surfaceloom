@@ -28,11 +28,16 @@
     "dist"
   ],
   "scripts": {
-    "build": "node ../../scripts/clean-package-dist.mjs && tsc -p tsconfig.json && node ../../scripts/copy-package-license.mjs",
+    "build:core": "tsc -p ../core/tsconfig.json",
+    "build": "npm run build:core && node ../../scripts/clean-package-dist.mjs && tsc -p tsconfig.json && node ../../scripts/copy-package-license.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node ../../scripts/run-typescript-package-tests.mjs && node ../../scripts/test-agent-loop-external-adapter.mjs"
   },
+  "peerDependencies": {
+    "@surfaceloom/core": "0.1.0"
+  },
   "devDependencies": {
+    "@surfaceloom/core": "file:../core",
     "@types/node": "^22.10.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
