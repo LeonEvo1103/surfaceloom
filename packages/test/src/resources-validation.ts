@@ -16,10 +16,19 @@ function fields(input: unknown, allowed: readonly string[]): Record<string, unkn
 }
 
 export function resourceTimeout(input: ResourceScopeOptions): number {
-  const configured = fields(input, ["cleanupTimeoutMs"]).cleanupTimeoutMs;
+  const configured = fields(input, ["cleanupTimeoutMs", "cleanupDeadlineAt"]).cleanupTimeoutMs;
   const value = configured === undefined ? 5000 : configured;
   if (typeof value !== "number" || !Number.isFinite(value) || value < 1 || value > 2_147_483_647) {
     throw new Error("cleanupTimeoutMs must be finite and between 1 and 2147483647.");
+  }
+  return value;
+}
+
+export function resourceCleanupDeadline(input: ResourceScopeOptions): number {
+  const configured = fields(input, ["cleanupTimeoutMs", "cleanupDeadlineAt"]).cleanupDeadlineAt;
+  const value = configured === undefined ? Number.MAX_SAFE_INTEGER : configured;
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error("cleanupDeadlineAt must be a finite monotonic timestamp.");
   }
   return value;
 }

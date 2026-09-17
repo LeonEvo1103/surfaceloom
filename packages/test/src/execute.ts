@@ -12,7 +12,7 @@ import type { EffectDescriptor } from "./effects.js";
 import { elapsed, ExecutionRecorder } from "./recorder.js";
 import { ResourceScope } from "./resources.js";
 import type { ResourceCleanupResult } from "./resources-contracts.js";
-import type { ResourceRegistration } from "./resources-contracts.js";
+import type { ResourceCleanupBoundary, ResourceRegistration } from "./resources-contracts.js";
 import { trackInProcessTask } from "./worker.js";
 import type { WorkerStopSnapshot } from "./worker-contracts.js";
 
@@ -21,6 +21,53 @@ export async function executeCase(
   input: CaseDefinition,
   options: ExecuteCaseOptions,
 ): Promise<NormalizedCaseReportInput> {
+  return (await executeCaseKernel(input, options)).report;
+}
+
+export interface RunnerCaseInternals {
+  readonly cleanupBoundary: ResourceCleanupBoundary;
+  cleanupSnapshot(): ResourceCleanupResult;
+}
+
+export interface RunnerCaseExecutionResult {
+  readonly report: NormalizedCaseReportInput;
+  readonly cleanup: ResourceCleanupResult | RunnerCleanupNotStarted;
+  readonly worker: WorkerStopSnapshot;
+  /** True only after the producer settled and cleanup reached a terminal snapshot. */
+  readonly publicationReady: boolean;
+}
+
+export interface RunnerCleanupNotStarted {
+  readonly state: "notStarted";
+  readonly status: "notStarted";
+}
+
+/** Internal v3 seam. It is intentionally not exported from the package author barrel. */
+export async function executeCaseWithRunnerContext(
+  input: CaseDefinition,
+  options: ExecuteCaseOptions,
+  runnerBody: (context: CaseContext, internals: RunnerCaseInternals) => void | Promise<void>,
+): Promise<RunnerCaseExecutionResult> {
+  const result = await executeCaseKernel(input, options, runnerBody);
+  const cleanup = result.cleanup ?? Object.freeze({ state: "notStarted" as const,
+    status: "notStarted" as const });
+  const producerSettled = result.worker.state === "settled"
+    || result.worker.state === "cooperativeStopped";
+  return Object.freeze({ report: result.report, cleanup, worker: result.worker,
+    publicationReady: producerSettled && cleanup.state === "closed" });
+}
+
+interface KernelExecutionResult {
+  readonly report: NormalizedCaseReportInput;
+  readonly cleanup?: ResourceCleanupResult;
+  readonly worker: WorkerStopSnapshot;
+}
+
+async function executeCaseKernel(
+  input: CaseDefinition,
+  options: ExecuteCaseOptions,
+  runnerBody?: (context: CaseContext, internals: RunnerCaseInternals) => void | Promise<void>,
+): Promise<KernelExecutionResult> {
   const definition = defineCase(input);
   const selectedPlatform = options.platform;
   if (!definition.spec.platforms.includes(selectedPlatform)) {
@@ -36,7 +83,8 @@ export async function executeCase(
   let cleanupResult: ResourceCleanupResult | undefined;
   let accepting = false;
   const task = startDeadlineTask(async (deadline) => {
-    const resources = new ResourceScope({ cleanupTimeoutMs: execution.cleanupTimeoutMs });
+    const resources = new ResourceScope({ cleanupTimeoutMs: execution.cleanupTimeoutMs,
+      cleanupDeadlineAt: performance.now() + deadline.remainingMs() });
     resourceScope = resources;
     const workerFixtures = new FixtureRuntime("worker");
     const testFixtures = workerFixtures.createTestScope();
@@ -87,7 +135,9 @@ export async function executeCase(
       }
       phase = "body";
       deadline.throwIfCancelled();
-      await definition.run(context);
+      if (runnerBody === undefined) await definition.run(context);
+      else await runnerBody(context, { cleanupBoundary: resources.cleanupBoundary,
+        cleanupSnapshot: () => resources.snapshot() });
     } catch (error) {
       if (!deadline.signal.aborted || error !== deadline.signal.reason) recorder.failure(phase, error);
     } finally {
@@ -121,7 +171,9 @@ export async function executeCase(
       ...(recorder.error === undefined ? {} : { error: recorder.error }) }),
   });
   validateCaseReport(report, execution.platform);
-  return report;
+  return Object.freeze({ report, ...(cleanupSnapshot === undefined ? {} : {
+    cleanup: cleanupSnapshot,
+  }), worker });
 }
 
 function registerFixtureRuntimes(resources: ResourceScope, test: FixtureRuntime,

@@ -6,7 +6,11 @@ export { sanitizeReportV3Input } from "./sanitize.js";
 export { overallStatusV3, summarizeTestsV3, testsForReviewV3 } from "./summary.js";
 export { validateEvidencePolicyV3, validateReportV3Input } from "./validate.js";
 export {
+  RequiredArtifactPublicationError,
   serializeReportV3,
   writeReportV3Bundle,
+  type RequiredArtifactPublicationFailure,
+  type RequiredArtifactPublicationFailureCode,
+  type RequiredReportArtifactV3,
   type WriteReportV3Options,
 } from "./write-report.js";

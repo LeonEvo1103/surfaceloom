@@ -3,6 +3,28 @@ export type {
 } from "./contracts.js";
 export { CaseRegistry, defineCase } from "./definition.js";
 export { executeCase } from "./execute.js";
+export { defineCaseV3 } from "./definition-v3.js";
+export { runCaseV3 } from "./runner-v3.js";
+export { RunCaseV3Error } from "./runner-v3-error.js";
+export type { RunCaseV3AdditionalFailure, RunCaseV3FailurePhase } from "./runner-v3-error.js";
+export type {
+  BrowserRunnerSurfaceV3,
+  CaseContextV3,
+  CaseDefinitionV3,
+  CaseEvidenceSubmissionV3,
+  CaseEvidenceV3,
+  CaseSurfaceV3,
+  NativeRunnerSurfaceV3,
+  RunnerSurfaceV3,
+  RunCaseV3Identity,
+  RunCaseV3Options,
+  RunCaseV3Result,
+} from "./runner-v3-contracts.js";
+export type {
+  AxAction, AxLocator, BrowserAction, BrowserSurfaceAuthor, BrowserSurfaceRequirement,
+  DomLocator, NativeSurfaceAuthor, NativeSurfaceRequirement, SurfaceOwnership,
+  UiaAction, UiaLocator,
+} from "./surfaces/contracts.js";
 export type {
   AssertionClock,
   AssertionFailure,
@@ -70,7 +92,8 @@ export type {
 export { DeadlineCancellationError, startDeadlineTask } from "./deadline.js";
 export type {
   ResourceCleanupOutcome, ResourceCleanupReceipt, ResourceCleanupResult, ResourceFailure,
-  ResourceCleanupRemaining, ResourceFailureCode, ResourceRegistration, ResourceScopeOptions,
+  ResourceCleanupBoundary, ResourceCleanupRemaining, ResourceFailureCode,
+  ResourceRegistration, ResourceScopeOptions,
 } from "./resources-contracts.js";
 export { ResourceScope } from "./resources.js";
 export type {

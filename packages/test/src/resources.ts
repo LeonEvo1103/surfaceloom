@@ -1,13 +1,16 @@
 import type {
   ResourceCleanupOutcome, ResourceCleanupResult, ResourceFailure, ResourceFailureCode,
-  ResourceRegistration, ResourceScopeOptions,
+  ResourceCleanupBoundary, ResourceRegistration, ResourceScopeOptions,
 } from "./resources-contracts.js";
 import { cleanupResource } from "./resources-cleanup.js";
-import { resourceErrorMessage, resourceTimeout, snapshotResource } from "./resources-validation.js";
+import {
+  resourceCleanupDeadline, resourceErrorMessage, resourceTimeout, snapshotResource,
+} from "./resources-validation.js";
 
 export type {
   ResourceCleanupOutcome, ResourceCleanupReceipt, ResourceCleanupResult, ResourceFailure,
-  ResourceCleanupRemaining, ResourceFailureCode, ResourceRegistration, ResourceScopeOptions,
+  ResourceCleanupBoundary, ResourceCleanupRemaining, ResourceFailureCode,
+  ResourceRegistration, ResourceScopeOptions,
 } from "./resources-contracts.js";
 
 /**
@@ -21,12 +24,18 @@ export class ResourceScope {
   readonly #outcomes: ResourceCleanupOutcome[] = [];
   readonly #failures: ResourceFailure[] = [];
   readonly #timeoutMs: number;
+  readonly #cleanupDeadlineAt: number;
+  readonly #cleanupStop = new AbortController();
+  readonly cleanupBoundary: ResourceCleanupBoundary;
   #state: ResourceCleanupResult["state"] = "open";
   #tainted = false;
   #closing: Promise<ResourceCleanupResult> | undefined;
 
   constructor(options: ResourceScopeOptions = {}) {
     this.#timeoutMs = resourceTimeout(options);
+    this.#cleanupDeadlineAt = resourceCleanupDeadline(options);
+    this.cleanupBoundary = Object.freeze({ signal: this.#cleanupStop.signal,
+      deadlineAt: this.#cleanupDeadlineAt });
   }
 
   register(input: ResourceRegistration): void {
@@ -57,8 +66,19 @@ export class ResourceScope {
   close(): Promise<ResourceCleanupResult> {
     if (this.#closing !== undefined) return this.#closing;
     this.#state = "closing";
+    const remaining = this.#cleanupDeadlineAt - performance.now();
+    if (remaining <= 0) this.stopCleanup("Resource cleanup deadline expired before cleanup.");
+    let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+    const armDeadline = (): void => {
+      const next = this.#cleanupDeadlineAt - performance.now();
+      if (next <= 0) { this.stopCleanup("Resource cleanup deadline expired."); return; }
+      deadlineTimer = setTimeout(armDeadline, Math.min(2_147_483_647, Math.max(1, Math.ceil(next))));
+    };
+    if (remaining > 0 && this.#cleanupDeadlineAt !== Number.MAX_SAFE_INTEGER) armDeadline();
     // Defer callbacks until #closing exists, including for reentrant close calls.
-    this.#closing = Promise.resolve().then(() => this.drain());
+    this.#closing = Promise.resolve().then(() => this.drain()).finally(() => {
+      if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
+    });
     return this.#closing;
   }
 
@@ -104,9 +124,17 @@ export class ResourceScope {
       if (outcome.status === "failed" || outcome.status === "unconfirmed") {
         this.#tainted = true;
         this.#failures.push(outcome.failure);
+        this.stopCleanup("Resource cleanup became unconfirmed.");
+      }
+      if (performance.now() >= this.#cleanupDeadlineAt) {
+        this.stopCleanup("Resource cleanup deadline expired.");
       }
     }
     this.#state = "closed";
     return this.snapshot();
+  }
+
+  private stopCleanup(message: string): void {
+    if (!this.#cleanupStop.signal.aborted) this.#cleanupStop.abort(new Error(message));
   }
 }

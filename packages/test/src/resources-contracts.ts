@@ -19,6 +19,13 @@ export type ResourceRegistration =
 export interface ResourceScopeOptions {
   /** Per-resource receipt wait budget, not a cancellation or termination guarantee. */
   readonly cleanupTimeoutMs?: number;
+  /** Runner-owned absolute monotonic deadline for the whole cleanup phase. */
+  readonly cleanupDeadlineAt?: number;
+}
+
+export interface ResourceCleanupBoundary {
+  readonly signal: AbortSignal;
+  readonly deadlineAt: number;
 }
 
 export type ResourceFailureCode = "executionFailed" | "invalidRegistration" | "duplicateResource"

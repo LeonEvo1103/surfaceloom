@@ -1,8 +1,9 @@
-import { redactReportText } from "@surfaceloom/reporter";
+import { redactReportText, RequiredArtifactPublicationError } from "@surfaceloom/reporter";
 import type { TestPlatform } from "@surfaceloom/core";
 import { loadProjectCases } from "../loader.js";
 import { preflightResolvedProject, resolveProject } from "../project.js";
 import { suiteExitCodes, type SuiteExitCode } from "../report/contracts.js";
+import { RunCaseV3Error } from "../runner-v3-error.js";
 import { parseCliArguments, cliUsage } from "./arguments.js";
 import { loadProjectConfig } from "./config-loader.js";
 import type { CliIO, ExecuteCaseSuiteOptions, RunnableCase } from "./contracts.js";
@@ -67,9 +68,16 @@ export async function runCli(
     ].join("\n"));
     return result.report.exitCode;
   } catch (error) {
-    io.stderr.write(`SurfaceLoom CLI: ${safeCliMessage(error)}\n`);
-    return suiteExitCodes.cliError;
+    const publication = error instanceof RequiredArtifactPublicationError
+      || error instanceof RunCaseV3Error && error.additionalFailure.phase === "publication";
+    io.stderr.write(`SurfaceLoom CLI${publication ? " publication" : ""}: ${safeCliMessage(error)}\n`);
+    return cliFailureExitCode(error);
   }
+}
+
+/** Publication is an infrastructure/CLI failure; it never rewrites a Case verdict. */
+export function cliFailureExitCode(_error: unknown): typeof suiteExitCodes.cliError {
+  return suiteExitCodes.cliError;
 }
 
 async function configuredRun(args: ReturnType<typeof parseCliArguments>) {
