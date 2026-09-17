@@ -5,6 +5,13 @@ import {
   type ActionabilityCheck,
   type ElementActionKind,
 } from "./actionability.js";
+import {
+  assertInvocationMaySubmit,
+  awaitActionResolution,
+  createInvocationContext,
+  throwIfAborted,
+  type ElementActionInvocationContext,
+} from "./action-invocation.js";
 import type { ElementReference } from "./driver.js";
 import type { Locator } from "./locator.js";
 
@@ -14,7 +21,10 @@ export interface ActionabilityRequest {
   readonly action: ElementActionKind;
   readonly checks: readonly ActionabilityCheck[];
   readonly timeoutMs?: number;
+  readonly signal?: AbortSignal;
 }
+
+export type { ElementActionInvocationContext } from "./action-invocation.js";
 
 export type ResolvedElementAction =
   | { readonly kind: "invoke"; readonly target: ElementReference }
@@ -41,7 +51,10 @@ export interface ElementActionBackend {
     target: ElementActionTarget,
     request: ActionabilityRequest,
   ): Promise<ElementReference>;
-  performResolvedAction(action: ResolvedElementAction): Promise<void>;
+  performResolvedAction(
+    action: ResolvedElementAction,
+    context?: ElementActionInvocationContext,
+  ): Promise<void>;
 }
 
 export interface ElementActions {
@@ -79,9 +92,11 @@ export class GuardedElementActions implements ElementActions {
     target: ElementActionTarget,
     options: ActionOptions = {},
   ): Promise<void> {
-    const resolved = await this.resolve("invoke", target, options);
+    const { resolved, context } = await this.resolve("invoke", target, options);
+    assertInvocationMaySubmit(context);
     await this.#backend.performResolvedAction(
       Object.freeze({ kind: "invoke", target: resolved }),
+      context,
     );
   }
 
@@ -90,9 +105,11 @@ export class GuardedElementActions implements ElementActions {
     value: string,
     options: ActionOptions = {},
   ): Promise<void> {
-    const resolved = await this.resolve("setValue", target, options);
+    const { resolved, context } = await this.resolve("setValue", target, options);
+    assertInvocationMaySubmit(context);
     await this.#backend.performResolvedAction(
       Object.freeze({ kind: "setValue", target: resolved, value }),
+      context,
     );
   }
 
@@ -101,9 +118,11 @@ export class GuardedElementActions implements ElementActions {
     text: string,
     options: ActionOptions = {},
   ): Promise<void> {
-    const resolved = await this.resolve("typeText", target, options);
+    const { resolved, context } = await this.resolve("typeText", target, options);
+    assertInvocationMaySubmit(context);
     await this.#backend.performResolvedAction(
       Object.freeze({ kind: "typeText", target: resolved, text }),
+      context,
     );
   }
 
@@ -111,8 +130,11 @@ export class GuardedElementActions implements ElementActions {
     action: ElementActionKind,
     target: ElementActionTarget,
     options: ActionOptions,
-  ): Promise<ElementReference> {
+  ): Promise<{ readonly resolved: ElementReference; readonly context: ElementActionInvocationContext }> {
     const request = freezeRequest(action, options);
+    const startedAt = monotonicNow();
+    const context = createInvocationContext(startedAt, request.timeoutMs, request.signal);
+    throwIfAborted(context.signal);
     const unsupported = request.checks.filter(
       (check) => !this.#supportedChecks.has(check),
     );
@@ -121,14 +143,14 @@ export class GuardedElementActions implements ElementActions {
         `The action backend cannot enforce required checks: ${unsupported.join(", ")}.`,
       );
     }
-    const startedAt = monotonicNow();
     const pending = this.#backend.resolveActionability(target, request);
-    const resolved = await enforceResolutionTimeout(
+    const resolved = await awaitActionResolution(
       pending,
       request.timeoutMs,
       startedAt,
+      request.signal,
     );
-    return validateResolvedElement(resolved);
+    return Object.freeze({ resolved: validateResolvedElement(resolved), context });
   }
 }
 
@@ -136,49 +158,20 @@ function freezeRequest(
   action: ElementActionKind,
   options: ActionOptions,
 ): ActionabilityRequest {
-  const timeout =
-    options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs };
+  const timeoutMs = options.timeoutMs;
+  const signal = options.signal;
+  const snapshot = Object.freeze({
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    ...(signal === undefined ? {} : { signal }),
+    ...(options.additionalChecks === undefined ? {} : { additionalChecks: options.additionalChecks }),
+    ...(options.force === undefined ? {} : { force: options.force }),
+  });
   return Object.freeze({
     action,
-    checks: resolveActionabilityChecks(action, options),
-    ...timeout,
+    checks: resolveActionabilityChecks(action, snapshot),
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    ...(signal === undefined ? {} : { signal }),
   });
-}
-
-function enforceResolutionTimeout<T>(
-  pending: Promise<T>,
-  timeoutMs: number | undefined,
-  startedAt: number,
-): Promise<T> {
-  if (timeoutMs === undefined) return pending;
-  const remaining = timeoutMs - (monotonicNow() - startedAt);
-  if (remaining <= 0) {
-    void pending.catch(() => undefined);
-    return Promise.reject(resolutionTimeoutError(timeoutMs));
-  }
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(resolutionTimeoutError(timeoutMs));
-    }, remaining);
-    pending.then(
-      (value) => {
-        clearTimeout(timer);
-        if (monotonicNow() - startedAt >= timeoutMs) {
-          reject(resolutionTimeoutError(timeoutMs));
-        } else {
-          resolve(value);
-        }
-      },
-      (error: unknown) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
-}
-
-function resolutionTimeoutError(timeoutMs: number): Error {
-  return new Error(`Actionability resolution timed out after ${timeoutMs}ms.`);
 }
 
 function monotonicNow(): number {

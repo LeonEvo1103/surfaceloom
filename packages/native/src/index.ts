@@ -18,3 +18,5 @@ export {
   validateWireMessage,
 } from "./schema.js";
 export * from "./client/index.js";
+export * from "./desktop-session/index.js";
+export * from "./node-transport/index.js";

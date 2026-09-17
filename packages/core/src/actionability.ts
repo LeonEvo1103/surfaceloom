@@ -1,3 +1,5 @@
+import { assertAbortSignal } from "./action-invocation.js";
+
 export const actionabilityChecks = [
   "attached",
   "unique",
@@ -22,6 +24,8 @@ export type ElementActionKind = (typeof elementActionKinds)[number];
 export interface ActionOptions {
   /** Deadline for locating the target and completing pre-action checks. */
   readonly timeoutMs?: number;
+  /** Cancels only this invocation; it is never retained as session state. */
+  readonly signal?: AbortSignal;
   /** Adds backend-supported checks without weakening the action defaults. */
   readonly additionalChecks?: readonly ActionabilityCheck[];
   /** Keeps essential attached/unique checks while bypassing optional checks. */
@@ -47,6 +51,7 @@ export function resolveActionabilityChecks(
   options: ActionOptions = {},
 ): readonly ActionabilityCheck[] {
   assertTimeout(options.timeoutMs);
+  if (options.signal !== undefined) assertAbortSignal(options.signal);
   if (options.force !== undefined && typeof options.force !== "boolean") {
     throw new Error("Action force must be a boolean.");
   }

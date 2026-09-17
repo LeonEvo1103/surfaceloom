@@ -116,5 +116,6 @@ export type {
   TypeScriptCaseRuntime,
 } from "./loader-contracts.js";
 export { loadProjectCases, ProjectLoadError } from "./loader.js";
+export * from "./native-binding/index.js";
 export * from "./cli/index.js";
 export * from "./report/index.js";

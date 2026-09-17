@@ -1,0 +1,5 @@
+{
+  "unsafePaths": ["../escape", "/absolute", "C:/drive", "safe/file:stream", "a/./b"],
+  "caseCollision": ["Package/File.js", "package/file.js"],
+  "debugPaths": ["symbols/app.pdb", "App.dSYM/Contents/Info.plist", "bin/host.debug"]
+}
