@@ -114,6 +114,8 @@ test("host descriptors bound advertised methods and frame size", () => {
     name: "accessibility.snapshot", intent: "observe", scopeKinds: ["bootstrap"],
   }] }), /Only host\.handshake/);
   assert.throws(() => validateHostDescriptor({ ...host, maxMessageBytes: 1048577 }), /between/);
+  assert.throws(() => validateHostDescriptor({ ...host, os: "windows" }), /unknown field 'os'/);
+  assert.throws(() => validateHostDescriptor({ ...host, architecture: "x64" }), /unknown field 'architecture'/);
   assert.doesNotThrow(() => validateCallAgainstHost(request("lifecycle").call, host));
   assert.throws(() => validateCallAgainstHost(request("observe").call, host), /does not advertise/);
   assert.throws(() => validateCallAgainstHost({ ...request("lifecycle").call,

@@ -13,6 +13,33 @@ export type {
 } from "./assertion-contracts.js";
 export { assertObservation, ObservationAssertionError, waitForObservation } from "./assertion.js";
 export type {
+  AgentApprovalObservation,
+  AgentAssertionOptions,
+  AgentCallScope,
+  AgentCompletionAssertionOptions,
+  AgentExternalEffectObservation,
+  AgentObservationProvider,
+  AgentResourceScope,
+  AgentRunScope,
+  AgentRunStateObservation,
+  AgentToolCallObservation,
+  NoExternalEffectAssertionOptions,
+} from "./agent-observation.js";
+export {
+  assertAgentApprovalRequested,
+  assertAgentResourceHasNoExternalEffect,
+  assertAgentRunState,
+  assertAgentToolCall,
+  assertAgentToolCallExactlyOnce,
+} from "./agent-observation.js";
+export {
+  assertAgentRunState as toHaveRunState,
+  assertAgentApprovalRequested as toHaveRequestedApproval,
+  assertAgentToolCall as toHaveToolCall,
+  assertAgentToolCallExactlyOnce as toHaveExecutedExactlyOnce,
+  assertAgentResourceHasNoExternalEffect as toHaveNoExternalEffect,
+} from "./agent-observation.js";
+export type {
   Observation,
   ObservationAttempt,
   ObservationCompleteness,

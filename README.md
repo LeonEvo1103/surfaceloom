@@ -43,15 +43,15 @@ credentials, and business scenarios belong in downstream repositories.
 | --- | --- |
 | Core | Cross-platform `Driver`, `Session`, and `Locator` contracts; `CaseSpec`; actionability; fixture runtime; doctor checks; trace redaction |
 | Reporter | Reporter v2 single-platform compatibility; Reporter v3 host/surface/attempt/execution-platform records; conservative v2 importer; Chinese AI-review Markdown; lightweight HTML; evidence hashing |
-| Native protocol | `surfaceloom.native/1.0` NDJSON protocol; deadlines; cancellation; ownership; normalized outcomes; golden vectors; transport-neutral TypeScript client |
+| Native protocol | `surfaceloom.native/1.0` NDJSON protocol; strict framing and duplicate-key rejection; deadlines; cancellation; ownership; normalized and late outcomes; observable close failure; golden vectors; transport-neutral TypeScript client |
 | Component catalog | 37 desktop, System Surface, and Agent manifests plus 7 fixture manifests. A manifest is a declaration, not proof of a live implementation |
 | Browser | Optional Playwright Core backend; semantic DOM locators; strict single-target actions; screenshots and traces. Browser installation is opt-in |
 | Agent loop | Extensible `TraceAdapter`; unified event schema; Codex, native, and third-party imports; cross-clock merge; explicit evidence correlation; static HTML timeline |
 | Execution kernel | Embeddable registration and execution; fixtures and resources; steps and criteria; observation polling; capability/effect preflight; deadlines and cooperative cancellation; minimal sequential CLI with filtering and Reporter v2 bundle output |
-| macOS | Swift Accessibility/AppKit backend; neutral fixture app; window, menu, text, collection, and file-panel interactions; owned launch and non-owning attach |
+| macOS | Swift Accessibility/AppKit backend; neutral fixture packaged as a stable `.app` build artifact; window, menu, text, collection, and file-panel interactions; owned launch and non-owning attach. The fixture build is not live AX evidence |
 | Windows | .NET 8 UIA/Win32 backend; `0.2` and `1.0` NDJSON host; neutral WPF fixture; process ownership; window lifecycle and UIA patterns. Verified on Windows 11 with 52/52 host tests and 5/5 live UIA/lifecycle tests, with zero skipped |
 
-Still missing are a general host-process transport, a macOS stdio host, broad
+Still missing are a Node host-process transport, a macOS stdio host, broad
 cross-platform native live conformance, and full runner features such as
 parallelism, sharding, and watch mode.
 

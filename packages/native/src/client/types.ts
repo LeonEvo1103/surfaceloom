@@ -1,5 +1,5 @@
 import type {
-  HostDescriptor, JsonObject, NativeScope, OperationReceipt, WireRequest,
+  HostDescriptor, JsonObject, NativeScope, OperationReceipt, WireRequest, WireResponse,
 } from "../contracts.js";
 import type { NativeResultCodec } from "./codec.js";
 import type { NativeClientTransport } from "./transport.js";
@@ -14,6 +14,19 @@ export interface NativeClientOptions {
   readonly transport: NativeClientTransport;
   readonly idFactory?: (kind: "request" | "operation" | "cancel") => string;
   readonly runtime?: NativeClientRuntime;
+  /** Reports terminal responses that arrive after the caller stopped waiting. */
+  readonly onLateResponse?: (event: Readonly<{
+    readonly request: Readonly<{
+      readonly id: string;
+      readonly name: string;
+      readonly intent: WireRequest["call"]["intent"];
+      readonly operationId: string | null;
+    }>;
+    readonly response: WireResponse;
+    readonly responsibility: "callerReconciliation";
+    /** Transport/client shutdown is never an owned-resource cleanup receipt. */
+    readonly cleanupConfirmed: false;
+  }>) => void;
 }
 
 interface InvocationBase<T> {

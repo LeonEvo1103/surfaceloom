@@ -9,7 +9,8 @@ interface Vector {
   readonly name: string;
   readonly valid: boolean;
   readonly errorCode?: string;
-  readonly message: unknown;
+  readonly message?: unknown;
+  readonly wire?: string;
 }
 
 const vectorDirectory = join(dirname(fileURLToPath(import.meta.url)), "../vectors/v1");
@@ -22,12 +23,19 @@ test("v1 golden vector inventory is stable and non-empty", () => {
     "05-handle-observe.vector.json", "06-action-not-executed.vector.json",
     "07-action-unknown.vector.json", "08-cancel.vector.json",
     "09-windows-02-not-shared.vector.json", "10-unsupported-version.vector.json",
+    "11-duplicate-json-key.vector.json",
   ]);
 });
 
 for (const filename of vectors) {
   const vector = JSON.parse(readFileSync(join(vectorDirectory, filename), "utf8")) as Vector;
   test(`golden: ${vector.name}`, () => {
+    if (vector.wire !== undefined) {
+      assert.equal(vector.valid, false);
+      assert.throws(() => parseWireLine(vector.wire), (error: unknown) =>
+        error instanceof NativeProtocolError && error.code === vector.errorCode);
+      return;
+    }
     if (!vector.valid) {
       assert.throws(() => validateWireMessage(vector.message), (error: unknown) =>
         error instanceof NativeProtocolError && error.code === vector.errorCode);

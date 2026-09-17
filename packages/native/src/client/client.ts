@@ -47,8 +47,10 @@ export class NativeClient {
   readonly #transport: NativeClientOptions["transport"];
   readonly #runtime: NativeClientRuntime;
   readonly #idFactory: (kind: "request" | "operation" | "cancel") => string;
+  readonly #onLateResponse: NativeClientOptions["onLateResponse"];
   readonly #pending = new Map<string, Pending>();
-  readonly #dispatchedRequestIds = new Set<string>();
+  readonly #dispatchedRequests = new Map<string, WireRequest>();
+  readonly #awaitingLateResponseIds = new Set<string>();
   readonly #allocatedIds = new Set<string>();
   readonly #sessions = new Map<string, NativeSessionDescriptor>();
   readonly #seenSessionIds = new Set<string>();
@@ -64,6 +66,7 @@ export class NativeClient {
     this.#transport = options.transport;
     this.#runtime = options.runtime ?? defaultRuntime;
     this.#idFactory = options.idFactory ?? ((kind) => `${kind}-${++this.#counter}`);
+    this.#onLateResponse = options.onLateResponse;
   }
 
   snapshot(): NativeClientSnapshot {
@@ -96,7 +99,7 @@ export class NativeClient {
         this.#state = "disconnected";
       }
       // Connection failure must settle independently of a broken close().
-      void this.#closeTransport();
+      this.#beginTransportClose();
       throw error;
     }
   }
@@ -199,7 +202,6 @@ export class NativeClient {
       const pending: Pending<T> = { request, codec: invocation.codec, resolve, reject,
         deadlineAt, phase: "beforeWrite", timer: undefined };
       this.#pending.set(request.id, pending as Pending);
-      this.#dispatchedRequestIds.add(request.id);
       if (invocation.signal !== undefined) {
         pending.signal = invocation.signal;
         pending.abortListener = () => this.#cancelPending(pending as Pending, "caller");
@@ -228,6 +230,7 @@ export class NativeClient {
         return;
       }
       pending.phase = "writing";
+      this.#dispatchedRequests.set(request.id, this.#requestTombstone(request));
       let write: Promise<import("./transport.js").NativeWriteReceipt>;
       try { write = this.#transport.write(frame); }
       catch (error) { this.#writeFailed(pending as Pending, error); return; }
@@ -257,7 +260,19 @@ export class NativeClient {
     }
     const pending = this.#pending.get(response.id);
     if (pending === undefined) {
-      if (this.#dispatchedRequestIds.has(response.id)) return;
+      const dispatched = this.#dispatchedRequests.get(response.id);
+      if (dispatched !== undefined && this.#awaitingLateResponseIds.delete(response.id)) {
+        try { validateResponseForRequest(dispatched, response); }
+        catch (error) { this.#protocolFailure(error); return; }
+        try {
+          this.#onLateResponse?.(Object.freeze({ request: Object.freeze({ id: dispatched.id,
+            name: dispatched.call.name, intent: dispatched.call.intent,
+            operationId: dispatched.call.operationId ?? null }), response,
+            responsibility: "callerReconciliation", cleanupConfirmed: false }));
+        } catch { /* Audit observers do not own transport lifecycle. */ }
+        return;
+      }
+      if (dispatched !== undefined) return;
       this.#protocolFailure(new NativeClientError("protocol_violation", "Received an unsolicited response frame."));
       return;
     }
@@ -305,6 +320,7 @@ export class NativeClient {
   #cancelPending(pending: Pending, reason: CancellationReason): void {
     if (!this.#pending.has(pending.request.id)) return;
     const outcome = disconnectedOperationOutcome(pending.request, pending.phase);
+    if (pending.phase !== "beforeWrite") this.#awaitingLateResponseIds.add(pending.request.id);
     this.#settle(pending);
     pending.reject(new NativeClientError(reason === "deadline" ? "deadline" : "cancelled",
       reason === "deadline" ? "Native request exceeded its deadline." : "Native request was cancelled.", {
@@ -326,6 +342,7 @@ export class NativeClient {
     const phase = error instanceof NativeTransportWriteError ? error.phase : "writing";
     pending.phase = phase;
     const outcome = disconnectedOperationOutcome(pending.request, phase);
+    if (phase !== "beforeWrite") this.#awaitingLateResponseIds.add(pending.request.id);
     this.#settle(pending);
     pending.reject(new NativeClientError("write_failed", "Native request write failed.", {
       requestId: pending.request.id, operationOutcome: outcome, writePhase: phase, cause: error,
@@ -342,6 +359,7 @@ export class NativeClient {
     this.#handles.clear();
     for (const pending of [...this.#pending.values()]) {
       const outcome = disconnectedOperationOutcome(pending.request, pending.phase);
+      if (pending.phase !== "beforeWrite") this.#awaitingLateResponseIds.add(pending.request.id);
       this.#settle(pending);
       pending.reject(new NativeClientError("disconnected", "Native transport disconnected.", {
         requestId: pending.request.id, operationOutcome: outcome, writePhase: pending.phase, cause,
@@ -365,7 +383,7 @@ export class NativeClient {
         operationOutcome: disconnectedOperationOutcome(pending.request, pending.phase), cause: error,
       }));
     }
-    void this.#closeTransport();
+    this.#beginTransportClose();
   }
 
   #settle(pending: Pending): void {
@@ -414,7 +432,7 @@ export class NativeClient {
         this.#state = "disconnected";
         this.#connectionEpoch += 1;
         finish(new NativeClientError("deadline", "Native transport open exceeded its deadline."));
-        void this.#closeTransport();
+        this.#beginTransportClose();
       }, timeoutMs);
       let opening: Promise<void>;
       try {
@@ -475,12 +493,28 @@ export class NativeClient {
   #handleKey(handle: NativeHandle): string {
     return `${handle.hostInstanceId}\0${handle.sessionId}\0${handle.handleId}`;
   }
+  #requestTombstone(request: WireRequest): WireRequest {
+    // Late-response correlation must survive for the connection lifetime, but
+    // retaining arbitrary method payloads would turn tombstones into a memory
+    // and data-retention hazard.
+    return Object.freeze({ ...request, deadline: Object.freeze({ ...request.deadline }),
+      call: Object.freeze({ ...request.call, payload: Object.freeze({}) }) });
+  }
   #wireFrameBytes(frame: string): number {
     return Buffer.byteLength(frame, "utf8") + (/\r?\n$/u.test(frame) ? 0 : 1);
   }
   #closeTransport(): Promise<void> {
     this.#transportClose ??= Promise.resolve().then(() => this.#transport.close())
-      .catch(() => { /* preserve the first lifecycle failure */ });
+      .catch((cause: unknown) => {
+        throw new NativeClientError("close_failed", "Native transport close failed; cleanup is unconfirmed.", {
+          cause,
+        });
+      });
     return this.#transportClose;
+  }
+  #beginTransportClose(): void {
+    // Preserve the primary lifecycle failure. Explicit close() can still await
+    // the same cached rejection and observe that cleanup was not confirmed.
+    void this.#closeTransport().catch(() => {});
   }
 }

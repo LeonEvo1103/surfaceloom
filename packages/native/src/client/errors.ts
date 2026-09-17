@@ -2,7 +2,8 @@ import type { OperationOutcome, OperationReceipt, WireError } from "../contracts
 import type { NativeWritePhase } from "./transport.js";
 
 export type NativeClientIssueCode = "not_connected" | "closed" | "disconnected" | "deadline"
-  | "cancelled" | "protocol_violation" | "decode_failed" | "stale_scope" | "write_failed";
+  | "cancelled" | "protocol_violation" | "decode_failed" | "stale_scope" | "write_failed"
+  | "close_failed";
 
 export class NativeClientError extends Error {
   readonly code: NativeClientIssueCode;
