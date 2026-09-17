@@ -43,9 +43,9 @@ macOS Accessibility 和 Windows UI Automation 后端负责定位、动作、窗�
 | Agent Loop | 可扩展 TraceAdapter、统一 trace schema、Codex/原生/第三方 trace 导入、跨时钟合并、显式 evidence correlation 与静态 HTML 时间线 |
 | Execution Kernel | 可嵌入 Case 注册/执行、fixture/resource 生命周期、step/criterion、observation 自动等待、capability/effect preflight、deadline 与合作取消；最小顺序 CLI、过滤与 Reporter v2 bundle |
 | macOS | Swift、Accessibility API、AppKit、中性 fixture、窗口/菜单/文本/集合/文件面板、owned launch 与 non-owning attach |
-| Windows | .NET 8、UI Automation/Win32、0.2/1.0 双栈 NDJSON host、中性 WPF fixture、进程 ownership、窗口与常用 UIA Pattern；真实 Windows conformance 待补 |
+| Windows | .NET 8、UI Automation/Win32、0.2/1.0 双栈 NDJSON host、中性 WPF fixture、进程 ownership、窗口与常用 UIA Pattern；Windows 11 实测 host contracts 52/52、真实 UIA/lifecycle 5/5（0 skip） |
 
-当前已有 transport-neutral TypeScript native client，但尚没有具体 host process transport、macOS stdio host、跨平台 native live conformance，
+当前已有 transport-neutral TypeScript native client，但尚没有通用 host process transport、macOS stdio host、跨平台 native live conformance，
 也没有并行、sharding、watch 等完整 runner。具体实现与证据边界见[能力事实矩阵](docs/framework/capabilities.md)。
 
 组件 manifest `desktop.agent.computer-control` 与 `desktop.agent.emergency-stop` 表示“测试

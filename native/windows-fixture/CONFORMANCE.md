@@ -38,12 +38,14 @@ submission must preserve an unknown operation outcome and must never cause autom
 ## What portable validation proves
 
 The Node tests prove that checked-in files agree on stable IDs and modeled transitions. The .NET model
-test proves the state object used by the WPF event handlers. Neither proves Windows UIA provider
-behavior, pattern availability, process ownership, process exit, or native protocol integration.
-Those claims remain blocked until a Windows live run records OS, host revision, fixture revision,
-executed case count, skipped case count, and artifacts.
+test proves the state object used by the WPF event handlers. Neither alone proves Windows UIA
+provider behavior, pattern availability, process ownership, process exit, or native protocol
+integration. Those claims require a Windows live run that records OS, host revision, fixture
+revision, executed case count, skipped case count, and artifacts.
 
 Run `scripts/live-conformance.ps1` from an interactive Windows session. A conforming run must report
 five passed cases, zero skipped cases, and persist the JSON report under `artifacts/`. The report is
 generated evidence and is not committed as a timeless claim; the SSOT evidence ledger records the
-validated revision and result.
+validated revision and result. Revision `7d79157c9bc2e582d79950ab68b97542243868f4` passed all five
+required cases with zero skips in an interactive Windows 11 session; future changes in the host,
+fixture, or native protocol must produce a fresh run rather than inheriting that result.
