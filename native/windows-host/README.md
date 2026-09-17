@@ -30,6 +30,9 @@ contract tests 是无第三方测试框架依赖的可执行程序，失败时�
 host 现在原生支持共享协议 `surfaceloom.native/1.0`。它使用 UTF-8 NDJSON，每个 frame 最多
 1 MiB（包含实际的 LF 或 CRLF；末行没有 delimiter 时仍按一个 LF 计入上限）。完整 frame 到达即开始
 计算相对 deadline，协议/结构校验、排队、UIA 操作和响应构造共同消耗同一预算。
+实际 stdin 入口直接以严格 UTF-8 解码原始字节；非法字节、EOF 半帧、超限帧以及 v1 任意层级的重复
+JSON key（包括转义后等价的 key）都会在 dispatch 前关闭输入连接。完整但没有末尾 delimiter 的最后一帧
+仍按隐式 LF 处理；EOF 或 process close 本身绝不生成 operation outcome，也不充当 owned-resource cleanup receipt。
 
 旧 Windows `0.2` 仅作为显式、已弃用的 legacy boundary 暂时保留，方便早期 client 迁移：
 

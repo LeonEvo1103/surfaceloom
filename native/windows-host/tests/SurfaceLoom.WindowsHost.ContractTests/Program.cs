@@ -66,6 +66,12 @@ public static class Program
             ("native v1 prepare cannot race host disposal", NativeV1TransportContractTests.PrepareCannotRegisterAfterHostDispose),
             ("native v1 outstanding ids own one terminal response", NativeV1TransportContractTests.OutstandingIdOwnsItsOnlyTerminalResponse),
             ("native v1 routing requires one exact marker", NativeV1TransportContractTests.RoutingRequiresOneExactProtocolMarker),
+            ("native v1 shared duplicate-key vector fails closed", NativeV1InputHardeningContractTests.SharedDuplicateKeyVectorFailsClosed),
+            ("native v1 nested duplicate keys fail closed", NativeV1InputHardeningContractTests.NestedDuplicateKeysFailClosed),
+            ("native v1 invalid UTF-8 fails closed", NativeV1InputHardeningContractTests.InvalidUtf8FailsClosed),
+            ("native v1 EOF responsibility is explicit", NativeV1InputHardeningContractTests.EofResponsibilityIsExplicit),
+            ("native v1 CRLF and multiple frames remain bounded", NativeV1InputHardeningContractTests.CrlfAndMultipleFramesRemainBounded),
+            ("native v1 byte input preserves legacy boundary", NativeV1InputHardeningContractTests.ByteInputPreservesLegacyBoundary),
         };
 
         var failures = 0;

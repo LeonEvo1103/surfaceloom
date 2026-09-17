@@ -10,7 +10,8 @@ namespace SurfaceLoom.WindowsHost.Host;
 public sealed class NdjsonHost
 {
     private static readonly TimeSpan ReaderShutdownGrace = TimeSpan.FromMilliseconds(250);
-    private readonly TextReader input;
+    private readonly TextReader? textInput;
+    private readonly StrictNdjsonFrameReader? byteInput;
     private readonly TextWriter output;
     private readonly TextWriter diagnostics;
     private readonly object outputGate = new();
@@ -18,7 +19,14 @@ public sealed class NdjsonHost
 
     public NdjsonHost(TextReader input, TextWriter output, TextWriter diagnostics)
     {
-        this.input = input;
+        textInput = input;
+        this.output = output;
+        this.diagnostics = diagnostics;
+    }
+
+    public NdjsonHost(Stream input, TextWriter output, TextWriter diagnostics)
+    {
+        byteInput = new StrictNdjsonFrameReader(input);
         this.output = output;
         this.diagnostics = diagnostics;
     }
@@ -93,8 +101,8 @@ public sealed class NdjsonHost
 
     private void WakeForShutdown(BlockingCollection<InboundItem> inbound)
     {
-        // A generic synchronous TextReader cannot be interrupted safely, and Console.In may
-        // serialize Dispose behind the blocking Read. Wake the STA consumer immediately instead.
+        // A generic synchronous input source cannot be interrupted safely, and disposing it may
+        // serialize behind a blocking Read. Wake the STA consumer immediately instead.
         // The reader sees the token before it can publish another frame; if Read never returns,
         // the background reader is detached after a bounded grace period.
         CompleteAdding(inbound);
@@ -112,6 +120,11 @@ public sealed class NdjsonHost
                 var frame = ReadWireLine();
                 if (frame is null || cancellationToken.IsCancellationRequested)
                 {
+                    return;
+                }
+                if (frame.ExceededByteLimit)
+                {
+                    WriteSafeDiagnostic("Native input connection closed after an oversized frame.");
                     return;
                 }
                 if (string.IsNullOrWhiteSpace(frame.Line))
@@ -142,7 +155,7 @@ public sealed class NdjsonHost
     private bool IngestFrame(
         NativeV1Dispatcher native,
         BlockingCollection<InboundItem> inbound,
-        WireLine frame,
+        NdjsonWireLine frame,
         long receivedTimestamp)
     {
         JsonDocument document;
@@ -248,25 +261,32 @@ public sealed class NdjsonHost
         }
     }
 
-    private WireLine? ReadWireLine()
+    private NdjsonWireLine? ReadWireLine()
+    {
+        return byteInput is null ? ReadTextWireLine() : byteInput.ReadLine();
+    }
+
+    private NdjsonWireLine? ReadTextWireLine()
     {
         var line = new StringBuilder();
         var overCharacterLimit = false;
         while (true)
         {
-            var next = input.Read();
+            var next = textInput!.Read();
             if (next < 0)
             {
-                return line.Length == 0 && !overCharacterLimit ? null : new WireLine(line.ToString(), 1);
+                return line.Length == 0 && !overCharacterLimit
+                    ? null
+                    : new NdjsonWireLine(line.ToString(), 1, overCharacterLimit);
             }
             if (next == '\n')
             {
                 if (line.Length > 0 && line[^1] == '\r')
                 {
                     line.Length--;
-                    return new WireLine(line.ToString(), 2);
+                    return new NdjsonWireLine(line.ToString(), 2, overCharacterLimit);
                 }
-                return new WireLine(line.ToString(), 1);
+                return new NdjsonWireLine(line.ToString(), 1, overCharacterLimit);
             }
             if (line.Length <= NativeV1Protocol.MaxMessageBytes)
             {
@@ -386,7 +406,6 @@ public sealed class NdjsonHost
         }
     }
 
-    private sealed record WireLine(string Line, int DelimiterBytes);
     private abstract record InboundItem;
     private sealed record LegacyItem(string Line) : InboundItem;
     private sealed record NativeItem(NativeV1PreparedRequest Prepared) : InboundItem;

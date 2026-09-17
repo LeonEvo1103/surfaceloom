@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text;
 using SurfaceLoom.WindowsHost.Host;
 
@@ -25,7 +26,8 @@ public static class Program
             cancellation.Cancel();
         };
 
-        var host = new NdjsonHost(Console.In, Console.Out, Console.Error);
+        using var input = new BufferedStream(Console.OpenStandardInput(), 16 * 1024);
+        var host = new NdjsonHost(input, Console.Out, Console.Error);
         return host.Run(cancellation.Token);
     }
 }

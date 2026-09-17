@@ -11,5 +11,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SurfaceLoom.WindowsHost\SurfaceLoom.WindowsHost.csproj" />
+    <Content Include="..\..\..\..\packages\native\vectors\v1\*.vector.json"
+             Link="fixtures\native-v1\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -24,12 +24,29 @@ public static partial class NativeV1Parser
 
         try
         {
-            return JsonDocument.Parse(line, new JsonDocumentOptions
+            var document = JsonDocument.Parse(line, new JsonDocumentOptions
             {
                 AllowTrailingCommas = false,
                 CommentHandling = JsonCommentHandling.Disallow,
                 MaxDepth = 40,
             });
+            try
+            {
+                if (IsNativeV1Envelope(document.RootElement))
+                {
+                    RejectDuplicateObjectKeys(document.RootElement);
+                }
+                return document;
+            }
+            catch
+            {
+                document.Dispose();
+                throw;
+            }
+        }
+        catch (NativeV1ProtocolException)
+        {
+            throw;
         }
         catch (JsonException)
         {
@@ -251,6 +268,33 @@ public static partial class NativeV1Parser
         string message,
         string requestId = "invalid",
         object? details = null) => new(code, category, message, requestId, details);
+
+    private static void RejectDuplicateObjectKeys(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            var keys = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var property in value.EnumerateObject())
+            {
+                if (!keys.Add(property.Name))
+                {
+                    throw Invalid(
+                        "invalid_json",
+                        "protocol",
+                        "Wire frame contains a duplicate object key.");
+                }
+                RejectDuplicateObjectKeys(property.Value);
+            }
+            return;
+        }
+        if (value.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in value.EnumerateArray())
+            {
+                RejectDuplicateObjectKeys(item);
+            }
+        }
+    }
 
     [GeneratedRegex("^[A-Za-z0-9](?:[A-Za-z0-9._:-]{0,127})$", RegexOptions.CultureInvariant)]
     private static partial Regex IdentifierRegex();
