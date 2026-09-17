@@ -205,7 +205,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P2-040` | done | `SL-P2-010` | 新 `native/windows-fixture/**` | 中性 UIA app：invoke/setValue/歧义/消失元素/owned lifecycle |
 | `SL-P2-050` | done | `SL-P2-020`,`SL-P2-030`,`SL-P2-040` | Windows live tests/scripts/workflow | 真实 conformance，记录 OS/host/revision/Case 数，禁止全 skip |
 | `SL-P2-060` | done | `SL-P2-010`,`SL-P2-030` | native schema/client/vectors 与跨语言 contract tests | 冻结重复 JSON key、UTF-8/EOF/frame limit、close failure、迟到 response/launch responsibility 与 cleanup receipt；TS/C# 严格对齐，Swift codec 在 `SL-P3-010` 接入同一 vectors 后补第三语言证据 |
-| `SL-P2-070` | planned | `SL-P2-060` | native Node process transport/tests | 真实子进程、`shell:false`、增量 UTF-8/framing、stderr 排空、backpressure、spawn/EPIPE/EOF/crash/close race；write/kill resolve 不冒充 operation/exit receipt |
+| `SL-P2-070` | in_progress | `SL-P2-060` | native Node process transport/tests | 真实子进程、`shell:false`、fatal UTF-8、LF/CRLF/完整 EOF 尾帧；bounded write admission/stderr retention；未 admission 请求不迟到发送；actual process exit 与 stdio close 分证据；跨平台 child 对抗测试；write/kill resolve 不冒充 operation/exit receipt |
 | `SL-P2-080` | review | `SL-P1-052` | test package interactive-session lease 与跨进程 tests | contention、取消等待、owner crash、陈旧锁/PID reuse、不能释放他人 lease；native live 和 mixed GUI 在同一 interactive session 内串行 |
 
 ### P3：macOS 与 multi-surface
@@ -216,7 +216,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P3-010` | planned | `SL-P2-060`,`SL-P3-005` | Package.swift、新 macOS codec/stdio host/tests | 同协议严格 frame/dispatcher；stdout 只承载 wire、错误脱敏、共享单调 deadline；不把 cancel arrival 冒充 AX 已停止 |
 | `SL-P3-015` | planned | `SL-P3-010` | macOS host lifecycle/handle/action adapter | opaque host/session handle、唯一 scope、单次提交、迟到 launch ownership、全部 cleanup 尝试；不隐式 fallback 坐标/键盘 |
 | `SL-P3-020` | done | `SL-P2-010` | 新 macOS fixture | 与 Windows 同一行为契约的中性 app |
-| `SL-P3-025` | planned | `SL-P2-060`,`SL-P1-050` | native typed DesktopSession contract 与 kernel resource/policy binding | 兼容现有 Core session；operation/cleanup receipt、AbortSignal、capability/effect gate 不丢失 |
+| `SL-P3-025` | in_progress | `SL-P2-060`,`SL-P1-050` | native typed DesktopSession contract、Core per-call cancellation seam 与 kernel binding | 兼容现有 Core session；legacy void 不伪造 receipt；late acquisition 先登记 controller；borrowed target 与 owned reference 分离；unconfirmed cleanup 不释放 GUI 安全资格 |
 | `SL-P3-030` | planned | `SL-P2-070`,`SL-P3-015`,`SL-P3-025` | native package Windows/macOS bindings/tests | 两平台 typed session 与 locator/action codec；声明 capability 必须与实际 handshake 核对 |
 | `SL-P3-040` | done | `SL-P1-080` | reporter package | report/v3 host/surface/attempt 和 v2 importer；不静默降级 |
 | `SL-P3-050` | done | `SL-P3-040` | Core evidence context、agent-loop/tests | 显式 correlation；时间相邻不冒充因果，trace 不改 verdict |
@@ -233,7 +233,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
-| `SL-P4-005` | ready | `SL-P2-060` | release manifest、包依赖图、兼容/签名/扫描设计 | 列出七包及每个 host OS/arch 制品、runtime/minimum OS、wire/report/trace/component 版本、hash/source/toolchain；不发布 |
+| `SL-P4-005` | in_progress | `SL-P2-060` | release plan/manifest、包依赖图、兼容/签名/扫描设计与验证器 | 分离允许 pending 的 plan 与只记录最终真实 bytes 的 manifest；严格 schema、独立版本、无环 digest/SBOM/provenance/签名证据图和 fail-closed recursive scan；不发布 |
 | `SL-P4-010` | planned | `SL-P3-070`,`SL-P4-005` | package manifests、locks、native 制品脚本、release CI | 无 `file:` 发布依赖；候选七包和 host 制品固定版本、license/exports/bin/assets 完整；最终字节递归扫描并绑定 digest |
 | `SL-P4-020` | planned | `SL-P4-010` | clean packed-consumer project/script | 隐藏源码树，在仓库外用消费端自己的依赖安装候选；真实 Browser+Native Case 与 report/v3，不用 fake backend/仓库 tsc |
 | `SL-P4-025` | planned | `SL-P4-020` | registry staging/publish/post-install workflow | 验证 npm scope/身份/provenance；发布后安装精确版本，以 `npx --no-install sl-test <case/config>` 运行，不下载 latest |
@@ -309,3 +309,5 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | 2026-09-17 | 首批 5.6 Sol High 实现经主 Agent 回归：关闭事实矩阵同步、macOS `.app` artifact 与 Agent fail-closed 断言；native TS close/late/duplicate-key 加固保持 review，等待 Windows/macOS 跨语言协议证据后再关闭 `SL-P2-060`。 |
 | 2026-09-17 | 第二波经 GPT-6 Xhigh 对抗审计和 5.6 Sol High 修正：Windows 严格输入 framing 在真实 Windows 达到 host contract 58/58，并回归 UIA 5/5；据此关闭 TS/C# 范围的 `SL-P2-060`，Swift 共享协议证据仍明确归属 `SL-P3-010`。 |
 | 2026-09-17 | `defineProject`、显式配置/Case loader 与兼容 CLI 通过 234 个 package tests，关闭 `SL-P3-075`；interactive-session lease primitive 通过 ABA、PID reuse、异常与 ownership 审计，但尚未接入 native live/mixed GUI，故 `SL-P2-080` 保持 review。 |
+| 2026-09-17 | Windows 复验确认 lease 核心跨进程行为 8/8、非软链 storage 对抗 5/5；最初 3 个假失败源于 core/reporter 未先构建导致 test dist 缺失，且 child harness 隐藏 stderr。另 2 个软链安全用例因账户无 symlink 权限被环境阻断，不能计通过；需先加 fail-fast build/child diagnostics，并在具备权限的 Windows runner 0 skip 后再关闭 `SL-P2-080`。 |
+| 2026-09-17 | GPT-6 Xhigh 批准启动 `SL-P2-070`、`SL-P3-025`、`SL-P4-005`，并冻结 bounded write admission、Core immutable per-call context、ReleasePlan/最终 ReleaseManifest 分离三项约束；实现交由互斥目录的 5.6 Sol High，exports/manifest/SSOT 由主 Agent 串行集成。 |
