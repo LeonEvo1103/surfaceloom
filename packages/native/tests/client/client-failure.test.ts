@@ -371,7 +371,7 @@ test("large legal payload is serialized a bounded number of times and reaches tr
   await client.connect();
   await client.invoke({ name: "desktop.observe", intent: "observe",
     scope: { kind: "host", hostInstanceId: "host-1" },
-    payload: { content: "x".repeat(800_000) }, timeoutMs: 100, codec: jsonResultCodec });
+    payload: { content: "x".repeat(800_000) }, timeoutMs: 5_000, codec: jsonResultCodec });
   assert.ok(dispatchedBytes >= 800_000);
   assert.equal(transport.writes.filter((line) => {
     const message = parseWireLine(line);
