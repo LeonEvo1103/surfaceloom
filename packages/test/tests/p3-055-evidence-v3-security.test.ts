@@ -14,6 +14,7 @@ import {
 import { materializeEvidenceV3 } from "../src/report/v3/materialize.js";
 
 const capturedAt = "2026-09-17T01:02:03.000Z";
+const syntheticProviderSecret = ["sk", "synthetic", "redaction", "fixture", "value"].join("-");
 
 test("collector rejects scope, identity, graph, shape and timing violations", () => {
   const authority = new RunnerExecutionAuthority({ reportRunId: "run-1", runnerHostId: "runner-1" });
@@ -99,7 +100,7 @@ test("content gate rejects malformed and oversized data while redacting credenti
 
   const safe = submission(scope, "safe", "artifact-safe");
   safe.content = { kind: "trace", schemaVersion: "trace/v1", trace: {
-    apiToken: "sk-live-should-not-survive", location: "/Users/alice/private/file.txt",
+    apiToken: syntheticProviderSecret, location: "/Users/alice/private/file.txt",
   } };
   const item = new EvidenceSubmissionCollector(scope).submit(safe);
   const serialized = JSON.stringify(item.content);
@@ -150,14 +151,15 @@ test("materialized evidence never persists credential or absolute-path plaintext
   const scope = oneScope("redaction-disk");
   const input = submission(scope, "redacted", "artifact-redacted");
   input.content = { kind: "trace", schemaVersion: "trace/v1", trace: {
-    apiToken: "sk-synthetic-never-write-this",
+    apiToken: syntheticProviderSecret,
     location: "/Users/synthetic/private/file.txt",
   } };
   const collector = new EvidenceSubmissionCollector(scope);
   collector.submit(input);
   const materialized = await materializeEvidenceV3(collector.seal({ capturedAt }), root);
   const persisted = await readFile(materialized.artifacts[0]!.sourcePath!, "utf8");
-  assert.doesNotMatch(persisted, /sk-synthetic-never-write-this|\/Users\/synthetic/);
+  assert.ok(!persisted.includes(syntheticProviderSecret));
+  assert.doesNotMatch(persisted, /\/Users\/synthetic/);
   assert.match(persisted, /REDACTED|USER_HOME/);
 });
 
