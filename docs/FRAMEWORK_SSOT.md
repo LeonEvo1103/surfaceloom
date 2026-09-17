@@ -206,7 +206,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P2-050` | done | `SL-P2-020`,`SL-P2-030`,`SL-P2-040` | Windows live tests/scripts/workflow | 真实 conformance，记录 OS/host/revision/Case 数，禁止全 skip |
 | `SL-P2-060` | review | `SL-P2-010`,`SL-P2-030` | native schema/client/vectors 与跨语言 contract tests | 冻结重复 JSON key、UTF-8/EOF/frame limit、close failure、迟到 response/launch responsibility 与 cleanup receipt；三语言差异 fail closed |
 | `SL-P2-070` | planned | `SL-P2-060` | native Node process transport/tests | 真实子进程、`shell:false`、增量 UTF-8/framing、stderr 排空、backpressure、spawn/EPIPE/EOF/crash/close race；write/kill resolve 不冒充 operation/exit receipt |
-| `SL-P2-080` | planned | `SL-P1-052` | test package interactive-session lease 与跨进程 tests | contention、取消等待、owner crash、陈旧锁/PID reuse、不能释放他人 lease；native live 和 mixed GUI 在同一 interactive session 内串行 |
+| `SL-P2-080` | in_progress | `SL-P1-052` | test package interactive-session lease 与跨进程 tests | contention、取消等待、owner crash、陈旧锁/PID reuse、不能释放他人 lease；native live 和 mixed GUI 在同一 interactive session 内串行 |
 
 ### P3：macOS 与 multi-surface
 
@@ -224,7 +224,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P3-060` | planned | `SL-P2-050`,`SL-P2-070`,`SL-P2-080`,`SL-P3-025`,`SL-P3-030` | Windows TS live tests/scripts/CI | Node→typed session→host→WPF/UIA 同一必需 Case 集，0 skip；原 C# 5/5 继续回归，最终报告在 cleanup 后写出 |
 | `SL-P3-065` | planned | `SL-P2-080`,`SL-P3-005`,`SL-P3-015`,`SL-P3-030` | macOS TS live tests/scripts/CI | Node→typed session→host→AppKit/AX 同一必需 Case 集，0 skip；TCC 由实际 host identity 预检且不自动授权 |
 | `SL-P3-070` | planned | `SL-P3-055`,`SL-P3-060`,`SL-P3-065`,`SL-P3-086` | mixed-surface example 与 integration tests | browser + native Case；deny 0、approve 1、停止 outcome、ledger/trace 截断 fail closed、native criterion 失败令整 Case/CLI 失败；报告列两面和 cleanup |
-| `SL-P3-075` | ready | `SL-P1-070` | test package project config、loader、CLI tests | `defineProject` 只组织已有 kernel；冻结配置优先级/路径/ESM-CJS 边界/重复 ID/退出码；TS Case loader 不借源码树工具 |
+| `SL-P3-075` | in_progress | `SL-P1-070` | test package project config、loader、CLI tests | `defineProject` 只组织已有 kernel；冻结配置优先级/路径/ESM-CJS 边界/重复 ID/退出码；TS Case loader 不借源码树工具 |
 | `SL-P3-080` | planned | `SL-P3-025`,`SL-P3-075` | browser/native surface fixture factories 与 author facade | 可选 backend 显式注入，不让 core/test 强依赖 Playwright/native；旧 `defineCase` 签名继续通过 |
 | `SL-P3-085` | done | `SL-P1-030`,`SL-P1-060` | Agent observation provider/assertion wrappers 与 tests | 薄封装现有 observation assertion；run/call/resource/completeness 明确；“无外部 effect”只对有完成 barrier 的声明资源成立 |
 | `SL-P3-086` | planned | `SL-P3-030`,`SL-P3-085` | reference-agent async executor、stop barrier、native effect probe | 可控暂停/取消/settle receipt；区分提交前停止、提交后 unknown、已发生 effect；稳定绑定 runId/callId/operationId |
