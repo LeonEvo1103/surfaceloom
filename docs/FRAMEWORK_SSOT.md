@@ -204,9 +204,9 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P2-030` | done | `SL-P2-010` | native TS client/transport/tests | host 生命周期；错误版本、断线、超时、stale session、payload 边界 |
 | `SL-P2-040` | done | `SL-P2-010` | 新 `native/windows-fixture/**` | 中性 UIA app：invoke/setValue/歧义/消失元素/owned lifecycle |
 | `SL-P2-050` | done | `SL-P2-020`,`SL-P2-030`,`SL-P2-040` | Windows live tests/scripts/workflow | 真实 conformance，记录 OS/host/revision/Case 数，禁止全 skip |
-| `SL-P2-060` | review | `SL-P2-010`,`SL-P2-030` | native schema/client/vectors 与跨语言 contract tests | 冻结重复 JSON key、UTF-8/EOF/frame limit、close failure、迟到 response/launch responsibility 与 cleanup receipt；三语言差异 fail closed |
+| `SL-P2-060` | done | `SL-P2-010`,`SL-P2-030` | native schema/client/vectors 与跨语言 contract tests | 冻结重复 JSON key、UTF-8/EOF/frame limit、close failure、迟到 response/launch responsibility 与 cleanup receipt；TS/C# 严格对齐，Swift codec 在 `SL-P3-010` 接入同一 vectors 后补第三语言证据 |
 | `SL-P2-070` | planned | `SL-P2-060` | native Node process transport/tests | 真实子进程、`shell:false`、增量 UTF-8/framing、stderr 排空、backpressure、spawn/EPIPE/EOF/crash/close race；write/kill resolve 不冒充 operation/exit receipt |
-| `SL-P2-080` | in_progress | `SL-P1-052` | test package interactive-session lease 与跨进程 tests | contention、取消等待、owner crash、陈旧锁/PID reuse、不能释放他人 lease；native live 和 mixed GUI 在同一 interactive session 内串行 |
+| `SL-P2-080` | review | `SL-P1-052` | test package interactive-session lease 与跨进程 tests | contention、取消等待、owner crash、陈旧锁/PID reuse、不能释放他人 lease；native live 和 mixed GUI 在同一 interactive session 内串行 |
 
 ### P3：macOS 与 multi-surface
 
@@ -224,7 +224,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P3-060` | planned | `SL-P2-050`,`SL-P2-070`,`SL-P2-080`,`SL-P3-025`,`SL-P3-030` | Windows TS live tests/scripts/CI | Node→typed session→host→WPF/UIA 同一必需 Case 集，0 skip；原 C# 5/5 继续回归，最终报告在 cleanup 后写出 |
 | `SL-P3-065` | planned | `SL-P2-080`,`SL-P3-005`,`SL-P3-015`,`SL-P3-030` | macOS TS live tests/scripts/CI | Node→typed session→host→AppKit/AX 同一必需 Case 集，0 skip；TCC 由实际 host identity 预检且不自动授权 |
 | `SL-P3-070` | planned | `SL-P3-055`,`SL-P3-060`,`SL-P3-065`,`SL-P3-086` | mixed-surface example 与 integration tests | browser + native Case；deny 0、approve 1、停止 outcome、ledger/trace 截断 fail closed、native criterion 失败令整 Case/CLI 失败；报告列两面和 cleanup |
-| `SL-P3-075` | in_progress | `SL-P1-070` | test package project config、loader、CLI tests | `defineProject` 只组织已有 kernel；冻结配置优先级/路径/ESM-CJS 边界/重复 ID/退出码；TS Case loader 不借源码树工具 |
+| `SL-P3-075` | done | `SL-P1-070` | test package project config、loader、CLI tests | `defineProject` 只组织已有 kernel；冻结配置优先级/路径/ESM-CJS 边界/重复 ID/退出码；TS Case loader 不借源码树工具 |
 | `SL-P3-080` | planned | `SL-P3-025`,`SL-P3-075` | browser/native surface fixture factories 与 author facade | 可选 backend 显式注入，不让 core/test 强依赖 Playwright/native；旧 `defineCase` 签名继续通过 |
 | `SL-P3-085` | done | `SL-P1-030`,`SL-P1-060` | Agent observation provider/assertion wrappers 与 tests | 薄封装现有 observation assertion；run/call/resource/completeness 明确；“无外部 effect”只对有完成 barrier 的声明资源成立 |
 | `SL-P3-086` | planned | `SL-P3-030`,`SL-P3-085` | reference-agent async executor、stop barrier、native effect probe | 可控暂停/取消/settle receipt；区分提交前停止、提交后 unknown、已发生 effect；稳定绑定 runId/callId/operationId |
@@ -242,7 +242,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 ## 9. 并行施工规则
 
 Windows host/client/fixture 与 P3 macOS fixture/evidence correlation 波次已经收口；Windows 11
-交互式环境已实际运行 52 个 host contract cases 和 5 个不可跳过的 WPF/UIA lifecycle cases，
+交互式环境已实际运行 58 个 host contract cases 和 5 个不可跳过的 WPF/UIA lifecycle cases，
 因此 `SL-P2-020`、`SL-P2-050` 的 C# host/UIA 门槛已过。它们不证明 Node process transport 或
 typed DesktopSession。后续 Windows host/fixture/protocol 变更仍必须重跑原两组验收；新增 TS live
 由 `SL-P3-060` 单独证明。Linux 交叉编译、fake 或 portable model 不能替代 live 证据。
@@ -286,11 +286,13 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | `SL-P2-030` | `8db8418` | `packages/native/src/client/**`、`tests/client/**`、export/README | `npm test && npm run typecheck && npm pack --dry-run && git diff --check` / 0 | macOS / Node 22 | 30 client tests（56 package total）/ 0；69 packed files | `packages/native/tests/client` | transport-neutral fake contract；未提供 host process transport，不宣称真实 native conformance。连接生命周期内 request/operation/tombstone 账本按协议不淘汰。 |
 | `SL-P2-040` | `8d047c7` | `native/windows-fixture/**` | Node tests + Docker WPF Release build + portable .NET model run + `git diff --check` / 0 | macOS + Linux ARM64 container targeting Windows | 8 Node tests + 16 model checks，WPF build 0 warnings/errors / 0 | `native/windows-fixture/tests`、`fixture-contract.v1.json` | 证明源码、XAML 与 portable model；没有在 Windows 启动 GUI、查询 UIA pattern 或验证 process exit，live 责任仍属于 `SL-P2-050`。 |
 | `SL-P2-050` | `7d79157c9bc2e582d79950ab68b97542243868f4` | `native/windows-host/**`、`native/windows-fixture/**` | `native/windows-fixture/scripts/live-conformance.ps1` / 0 | Windows 11 interactive session / .NET 8 | 5 live WPF/UIA/lifecycle cases / 0 | `native/windows-fixture/artifacts/windows-live-conformance.json`（runner-local） | 证明真实 UIA invoke/value/strict ambiguity/transient recovery/owned process exit；报告来自与该 revision 内容一致的远端工作树，未另行从 commit archive 重跑，生成制品不作为静态仓库文件提交。 |
+| `SL-P2-060` | `714d790` | `packages/native/src/client/**`、framing/vectors/tests、`native/windows-host/**` | `npm --prefix packages/native run typecheck && npm --prefix packages/native test`；Windows `dotnet run --project tests/SurfaceLoom.WindowsHost.ContractTests -c Release`；`native/windows-fixture/scripts/live-conformance.ps1` / 0 | macOS / Node 22；Windows 11 / .NET 8 | 63 TS contract tests + 58 C# host contract cases + 5 live UIA regressions / 0 | `packages/native/tests`、`packages/native/vectors/v1`、`native/windows-host/tests/SurfaceLoom.WindowsHost.ContractTests`、Windows runner-local live JSON | TS/C# 已共享严格 duplicate-key/UTF-8/EOF/frame/close 契约；5/5 live 仍经 C# client/UIA，不证明 Node process transport；Swift codec 留给 `SL-P3-010`。 |
 | `SL-P3-020` | `b4d53d6` | `native/macos-fixture/**` | `./scripts/verify.sh && git diff --check` / 0 | macOS / Swift 6 / Node 22 | 8 Swift model tests + 10 Node parity/static tests + AppKit Release build / 0 | `native/macos-fixture/Tests`、`fixture-contract.v1.json` | 未启动 GUI、未请求 TCC、未执行 live AX；只证明模型、源码、Windows 行为 parity 与可构建性。 |
 | `SL-P3-005` | `c9a235e2eaef8b379c0fd7748deea14e2cc73360` | `native/macos-fixture/AppBundle/**`、`scripts/build-app.sh`、artifact tests/docs | `./native/macos-fixture/scripts/verify.sh` / 0 | macOS / Swift 6 / Node 22 | 8 Swift model + 13 Node model/parity/artifact tests / 0 | `native/macos-fixture/Tests/app-bundle-contract.test.mjs` | 证明 `.app` bundle identity、Info.plist、Mach-O minimum OS、可重复及空格路径构建；没有启动 GUI、安装应用、请求 TCC 或执行 live AX。 |
 | `SL-P3-040` | `2ebc6ccae2ce97e373f09d8abb2c97e9c5755a1a` | `packages/reporter/src/v3/**`、`tests/v3/**`、公开 export | `npm run typecheck && npm test && npm pack --dry-run` / 0 | macOS / Node 22 | 18 v3 tests（54 reporter total）/ 0；111 packed files | `packages/reporter/tests/v3` | CLI 仍输出 report/v2；v3 需要 runner 提供真实 host/surface/attempt/executionPlatforms，不自动伪造。 |
 | `SL-P3-050` | `2dad348` | Core evidence context、agent-loop correlation、exports/peer/外部消费脚本 | Core/agent-loop test+typecheck+pack，external adapter，`git diff --check` / 0 | macOS / Node 22 | 10 Core evidence tests（53 total）+ 10 correlation tests（30 agent-loop total）/ 0；63/87 packed files | `packages/core/tests/evidence-context.test.ts`、`packages/agent-loop/tests/correlation` | 只接受显式 binding，不自动从时间/相邻事件/correlationId 猜因果；尚未物化为 report/v3 artifact，不能修改 authoritative verdict。 |
 | `SL-P3-085` | `c9a235e2eaef8b379c0fd7748deea14e2cc73360` | `packages/test/src/agent-observation.ts`、公共 exports、对应 tests | `npm --prefix packages/test run typecheck && npm --prefix packages/test test` / 0 | macOS / Node 22 | 7 scoped Agent assertion tests（193 package total）/ 0 | `packages/test/tests/agent-observation.test.ts` | provider/ledger 的真实性仍是 adapter 信任边界；exactly-once 与 zero-effect 只在匹配的完成 barrier 后成立，不能从 unknown/truncated/read-failed 推断。 |
+| `SL-P3-075` | `ee9d4b8` | `packages/test/src/project*`、`src/cli/**`、interactive-session implementation/tests、公共 exports | `npm --prefix packages/test run typecheck && npm --prefix packages/test test` / 0 | macOS / Node 22 | 234 package tests / 0 | `packages/test/tests/project*.test.ts`、`packages/test/tests/cli/**`、`packages/test/tests/interactive-session*.test.ts` | 配置文件本身使用 JavaScript；TypeScript Case 需要消费方提供 runtime；CommonJS 配置为显式异步 Promise；输出路径预检仍有静态检查固有 TOCTOU；仓库外 packed consumer 留给 P4。 |
 
 ## 12. 变更记录
 
@@ -305,3 +307,5 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | 2026-09-17 | 在 Windows 11 交互式环境完成 host contract 52/52 与真实 WPF/UIA conformance 5/5（0 skip），关闭 `SL-P2-020` 和 `SL-P2-050`；后续同范围变更必须重跑，不以跨平台编译替代。 |
 | 2026-09-17 | GPT-6 Xhigh 逐步审计 P3/P4：明确既有 Windows live 未经过 TS client，拆分协议/cleanup、Node transport、lease、双平台 TS live、runner-v3、作者层和候选/registry 发布门槛；禁止把 close/timeout/kill、截图或手写 revision 冒充资源清理与来源证明。 |
 | 2026-09-17 | 首批 5.6 Sol High 实现经主 Agent 回归：关闭事实矩阵同步、macOS `.app` artifact 与 Agent fail-closed 断言；native TS close/late/duplicate-key 加固保持 review，等待 Windows/macOS 跨语言协议证据后再关闭 `SL-P2-060`。 |
+| 2026-09-17 | 第二波经 GPT-6 Xhigh 对抗审计和 5.6 Sol High 修正：Windows 严格输入 framing 在真实 Windows 达到 host contract 58/58，并回归 UIA 5/5；据此关闭 TS/C# 范围的 `SL-P2-060`，Swift 共享协议证据仍明确归属 `SL-P3-010`。 |
+| 2026-09-17 | `defineProject`、显式配置/Case loader 与兼容 CLI 通过 234 个 package tests，关闭 `SL-P3-075`；interactive-session lease primitive 通过 ABA、PID reuse、异常与 ownership 审计，但尚未接入 native live/mixed GUI，故 `SL-P2-080` 保持 review。 |
