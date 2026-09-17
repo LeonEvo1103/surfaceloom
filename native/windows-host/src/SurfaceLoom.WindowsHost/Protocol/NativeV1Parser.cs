@@ -21,6 +21,7 @@ public static partial class NativeV1Parser
         {
             throw Invalid("invalid_frame", "protocol", "Wire frame must contain exactly one JSON object.");
         }
+        RejectInvalidUnicodeScalars(line);
 
         try
         {
@@ -28,13 +29,16 @@ public static partial class NativeV1Parser
             {
                 AllowTrailingCommas = false,
                 CommentHandling = JsonCommentHandling.Disallow,
-                MaxDepth = 40,
+                // System.Text.Json counts open arrays/objects: the 64th may be
+                // empty or contain a scalar, while opening a 65th is rejected.
+                MaxDepth = MaxRawContainerDepth,
             });
             try
             {
                 if (IsNativeV1Envelope(document.RootElement))
                 {
                     RejectDuplicateObjectKeys(document.RootElement);
+                    ValidateSemanticMembers(document.RootElement);
                 }
                 return document;
             }

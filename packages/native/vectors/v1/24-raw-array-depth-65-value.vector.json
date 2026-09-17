@@ -1,0 +1,8 @@
+{
+  "name": "raw array container depth 65 rejects a scalar leaf",
+  "valid": false,
+  "rawValid": false,
+  "rawContainerDepth": 65,
+  "errorCode": "invalid_json",
+  "wire": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[null]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]"
+}

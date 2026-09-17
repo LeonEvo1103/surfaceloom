@@ -67,6 +67,7 @@ public static class Program
             ("native v1 outstanding ids own one terminal response", NativeV1TransportContractTests.OutstandingIdOwnsItsOnlyTerminalResponse),
             ("native v1 routing requires one exact marker", NativeV1TransportContractTests.RoutingRequiresOneExactProtocolMarker),
             ("native v1 shared duplicate-key vector fails closed", NativeV1InputHardeningContractTests.SharedDuplicateKeyVectorFailsClosed),
+            ("native v1 shared raw-wire boundaries are strict", NativeV1InputHardeningContractTests.SharedRawWireBoundaryVectorsAreStrict),
             ("native v1 nested duplicate keys fail closed", NativeV1InputHardeningContractTests.NestedDuplicateKeysFailClosed),
             ("native v1 invalid UTF-8 fails closed", NativeV1InputHardeningContractTests.InvalidUtf8FailsClosed),
             ("native v1 EOF responsibility is explicit", NativeV1InputHardeningContractTests.EofResponsibilityIsExplicit),

@@ -1,0 +1,6 @@
+{
+  "name": "semantic error details depth 33 is rejected",
+  "valid": false,
+  "errorCode": "invalid_message",
+  "wire": "{\"protocol\":\"surfaceloom.native\",\"version\":\"1.0\",\"type\":\"response\",\"id\":\"response.details-depth-33\",\"ok\":false,\"error\":{\"code\":\"fixture_error\",\"category\":\"backend\",\"message\":\"fixture\",\"retry\":\"never\",\"details\":{\"value\":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[null]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}},\"operation\":null}"
+}

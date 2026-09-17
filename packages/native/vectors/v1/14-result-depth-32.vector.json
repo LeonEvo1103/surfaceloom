@@ -1,0 +1,5 @@
+{
+  "name": "semantic result depth 32 is accepted",
+  "valid": true,
+  "wire": "{\"protocol\":\"surfaceloom.native\",\"version\":\"1.0\",\"type\":\"response\",\"id\":\"response.result-depth-32\",\"ok\":true,\"result\":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[null]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]],\"operation\":null}"
+}

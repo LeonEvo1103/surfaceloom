@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
-import { snapshotNodeProcessOptions, StdoutFramer } from "../../src/node-transport/index.js";
+import { snapshotNodeProcessOptions } from "../../src/node-transport/config.js";
+import { StdoutFramer } from "../../src/node-transport/framer.js";
 import { parseWireLine } from "../../src/framing.js";
 
 const absolute = process.execPath;

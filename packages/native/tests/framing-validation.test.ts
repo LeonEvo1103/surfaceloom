@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  maxDeadlineMs, maxWireMessageBytes, NativeProtocolError, parseWireLine, validateWireMessage,
+  encodeWireLine, maxDeadlineMs, maxWireMessageBytes, NativeProtocolError, parseWireLine, validateWireMessage,
   wireDeadlinePolicy,
 } from "../src/index.js";
 
@@ -54,6 +54,32 @@ test("duplicate-key detection does not weaken the frame byte boundary", () => {
   const oversizedDuplicate = `{"id":1,"id":2,"padding":"${"x".repeat(maxWireMessageBytes)}"}`;
   assert.throws(() => parseWireLine(oversizedDuplicate), (error: unknown) =>
     error instanceof NativeProtocolError && error.code === "message_too_large");
+});
+
+test("strict string scanning accepts surrogate pairs but rejects lone surrogates", () => {
+  const line = JSON.stringify(valid());
+  const withPayloadValue = (value: string) => line.replace('"payload":{}', `"payload":{"value":"${value}"}`);
+  assert.doesNotThrow(() => parseWireLine(withPayloadValue("\\uD83D\\uDE00")));
+  for (const value of ["\\uD800", "\\uD800\\u0041", "\\uDC00"]) {
+    assert.throws(() => parseWireLine(withPayloadValue(value)), (error: unknown) =>
+      error instanceof NativeProtocolError && error.code === "invalid_json");
+  }
+});
+
+test("encoding requires Unicode scalar keys and values before JSON.stringify", () => {
+  const accepted = validateWireMessage({ ...valid(), call: { ...valid().call, payload: {
+    pair: "\uD83D\uDE00", emoji: "😀", "😀": "emoji key",
+    literalEscape: "\\uD800", "\\uD800": "literal escape key",
+  } } });
+  assert.deepEqual(parseWireLine(encodeWireLine(accepted)), accepted);
+
+  for (const text of ["\uD800", "\uDC00"]) {
+    for (const payload of [{ value: text }, { [text]: "invalid key" }]) {
+      const checked = validateWireMessage({ ...valid(), call: { ...valid().call, payload } });
+      assert.throws(() => encodeWireLine(checked), (error: unknown) =>
+        error instanceof NativeProtocolError && error.code === "invalid_message");
+    }
+  }
 });
 
 test("deadline is relative, finite, and bounded including zero", () => {

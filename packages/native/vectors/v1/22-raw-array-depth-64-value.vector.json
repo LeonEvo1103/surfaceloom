@@ -1,0 +1,8 @@
+{
+  "name": "raw array container depth 64 accepts a scalar leaf",
+  "valid": false,
+  "rawValid": true,
+  "rawContainerDepth": 64,
+  "errorCode": "invalid_message",
+  "wire": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[null]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]"
+}

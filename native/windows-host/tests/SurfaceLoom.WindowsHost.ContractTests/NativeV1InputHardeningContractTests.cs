@@ -8,6 +8,69 @@ namespace SurfaceLoom.WindowsHost.ContractTests;
 
 internal static class NativeV1InputHardeningContractTests
 {
+    public static void SharedRawWireBoundaryVectorsAreStrict()
+    {
+        var filenames = new[]
+        {
+            "12-payload-depth-32.vector.json", "13-payload-depth-33.vector.json",
+            "14-result-depth-32.vector.json", "15-result-depth-33.vector.json",
+            "16-details-depth-32.vector.json", "17-details-depth-33.vector.json",
+            "18-canonical-equivalent-keys.vector.json", "19-escaped-high-surrogate.vector.json",
+            "20-escaped-low-surrogate.vector.json",
+            "21-raw-array-depth-64-empty.vector.json", "22-raw-array-depth-64-value.vector.json",
+            "23-raw-array-depth-65-empty.vector.json", "24-raw-array-depth-65-value.vector.json",
+            "25-raw-object-depth-64-empty.vector.json", "26-raw-object-depth-64-value.vector.json",
+            "27-raw-object-depth-65-empty.vector.json", "28-raw-object-depth-65-value.vector.json",
+        };
+        foreach (var filename in filenames)
+        {
+            var vectorPath = Path.Combine(AppContext.BaseDirectory, "fixtures", "native-v1", filename);
+            using var vector = JsonDocument.Parse(File.ReadAllText(vectorPath));
+            var root = vector.RootElement;
+            var wire = root.GetProperty("wire").GetString()
+                ?? throw new InvalidOperationException($"{filename} must contain raw wire text.");
+            if (root.TryGetProperty("rawValid", out var rawValidProperty))
+            {
+                var rawValid = rawValidProperty.GetBoolean();
+                Equal(rawValid ? 64 : 65, root.GetProperty("rawContainerDepth").GetInt32(),
+                    $"{filename} must document the shared raw-container boundary.");
+                if (rawValid)
+                {
+                    using var raw = NativeV1Parser.ParseFrame(wire);
+                }
+                else
+                {
+                    var rawFailure = Throws<NativeV1ProtocolException>(() => NativeV1Parser.ParseFrame(wire));
+                    Equal("invalid_json", rawFailure.Code, $"{filename} must reject the 65th raw container.");
+                }
+                continue;
+            }
+            if (!root.GetProperty("valid").GetBoolean())
+            {
+                var failure = Throws<NativeV1ProtocolException>(() => NativeV1Parser.ParseFrame(wire));
+                Equal(root.GetProperty("errorCode").GetString(), failure.Code,
+                    $"{filename} must retain the shared error code.");
+                continue;
+            }
+
+            using var message = NativeV1Parser.ParseFrame(wire);
+            if (message.RootElement.GetProperty("type").GetString() == "request")
+            {
+                _ = NativeV1Parser.ParseRequest(message.RootElement);
+            }
+            if (root.TryGetProperty("expectedPayloadKeyUtf8Hex", out var expectedKeys))
+            {
+                var payload = message.RootElement.GetProperty("call").GetProperty("payload");
+                var actual = payload.EnumerateObject()
+                    .Select(property => Convert.ToHexString(Encoding.UTF8.GetBytes(property.Name)).ToLowerInvariant())
+                    .ToArray();
+                var expected = expectedKeys.EnumerateArray().Select(item => item.GetString()!).ToArray();
+                True(actual.SequenceEqual(expected, StringComparer.Ordinal),
+                    "Canonical-equivalent keys must remain distinct by exact UTF-8 bytes.");
+            }
+        }
+    }
+
     public static void SharedDuplicateKeyVectorFailsClosed()
     {
         var vectorPath = Path.Combine(

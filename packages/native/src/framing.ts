@@ -25,11 +25,38 @@ export function parseWireLine(line: string): NativeWireMessage {
 
 export function encodeWireLine(message: NativeWireMessage): string {
   const checked = validateWireMessage(message);
+  assertValidUnicodeScalars(checked);
   const line = `${JSON.stringify(checked)}\n`;
   if (Buffer.byteLength(line, "utf8") > maxWireMessageBytes) {
     throw new NativeProtocolError("message_too_large", "Wire frame exceeds the protocol byte limit.");
   }
   return line;
+}
+
+/** JSON strings are Unicode scalar sequences; UTF-16 surrogate halves may not stand alone. */
+function assertValidUnicodeScalars(value: unknown): void {
+  const assertString = (text: string): void => {
+    for (let offset = 0; offset < text.length; offset += 1) {
+      const first = text.charCodeAt(offset);
+      if (first >= 0xD800 && first <= 0xDBFF) {
+        const second = text.charCodeAt(offset + 1);
+        if (!(second >= 0xDC00 && second <= 0xDFFF)) {
+          throw new NativeProtocolError("invalid_message", "Wire message contains an unpaired surrogate.");
+        }
+        offset += 1;
+      } else if (first >= 0xDC00 && first <= 0xDFFF) {
+        throw new NativeProtocolError("invalid_message", "Wire message contains an unpaired surrogate.");
+      }
+    }
+  };
+  if (typeof value === "string") { assertString(value); return; }
+  if (Array.isArray(value)) { value.forEach(assertValidUnicodeScalars); return; }
+  if (value !== null && typeof value === "object") {
+    for (const [key, item] of Object.entries(value)) {
+      assertString(key);
+      assertValidUnicodeScalars(item);
+    }
+  }
 }
 
 /** JSON.parse keeps only the last duplicate member, so inspect the source before parsing. */
@@ -57,8 +84,20 @@ function rejectDuplicateObjectKeys(source: string): void {
         offset += 1;
         const escape = source[offset];
         if (escape === "u") {
-          if (!/^[0-9A-Fa-f]{4}$/u.test(source.slice(offset + 1, offset + 5))) return invalidJson();
+          const firstDigits = source.slice(offset + 1, offset + 5);
+          if (!/^[0-9A-Fa-f]{4}$/u.test(firstDigits)) return invalidJson();
+          const first = Number.parseInt(firstDigits, 16);
           offset += 5;
+          if (first >= 0xD800 && first <= 0xDBFF) {
+            if (source[offset] !== "\\" || source[offset + 1] !== "u") return invalidJson();
+            const secondDigits = source.slice(offset + 2, offset + 6);
+            if (!/^[0-9A-Fa-f]{4}$/u.test(secondDigits)) return invalidJson();
+            const second = Number.parseInt(secondDigits, 16);
+            if (second < 0xDC00 || second > 0xDFFF) return invalidJson();
+            offset += 6;
+          } else if (first >= 0xDC00 && first <= 0xDFFF) {
+            return invalidJson();
+          }
           continue;
         }
         if (escape === undefined || !'"\\/bfnrt'.includes(escape)) return invalidJson();
@@ -66,16 +105,33 @@ function rejectDuplicateObjectKeys(source: string): void {
         continue;
       }
       if (character === undefined || character.charCodeAt(0) < 0x20) return invalidJson();
-      offset += 1;
+      const codeUnit = character.charCodeAt(0);
+      if (codeUnit >= 0xD800 && codeUnit <= 0xDBFF) {
+        const second = source.charCodeAt(offset + 1);
+        if (!(second >= 0xDC00 && second <= 0xDFFF)) return invalidJson();
+        offset += 2;
+      } else {
+        if (codeUnit >= 0xDC00 && codeUnit <= 0xDFFF) return invalidJson();
+        offset += 1;
+      }
     }
     return invalidJson();
   };
   const value = (depth: number): void => {
-    if (depth > 64) return invalidJson("Wire frame exceeds the JSON nesting limit.");
     whitespace();
     const character = source[offset];
-    if (character === "{") { object(depth + 1); return; }
-    if (character === "[") { array(depth + 1); return; }
+    // depth is the number of open containers. A 64th container may be empty or
+    // contain a scalar, but opening a 65th container is always invalid JSON.
+    if (character === "{") {
+      if (depth >= 64) return invalidJson("Wire frame exceeds the JSON nesting limit.");
+      object(depth + 1);
+      return;
+    }
+    if (character === "[") {
+      if (depth >= 64) return invalidJson("Wire frame exceeds the JSON nesting limit.");
+      array(depth + 1);
+      return;
+    }
     if (character === '"') { stringToken(); return; }
     literalPattern.lastIndex = offset;
     const literal = literalPattern.exec(source)?.[0];
