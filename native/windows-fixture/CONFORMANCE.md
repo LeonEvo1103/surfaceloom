@@ -42,3 +42,8 @@ test proves the state object used by the WPF event handlers. Neither proves Wind
 behavior, pattern availability, process ownership, process exit, or native protocol integration.
 Those claims remain blocked until a Windows live run records OS, host revision, fixture revision,
 executed case count, skipped case count, and artifacts.
+
+Run `scripts/live-conformance.ps1` from an interactive Windows session. A conforming run must report
+five passed cases, zero skipped cases, and persist the JSON report under `artifacts/`. The report is
+generated evidence and is not committed as a timeless claim; the SSOT evidence ledger records the
+validated revision and result.

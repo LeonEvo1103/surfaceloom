@@ -37,9 +37,19 @@ Use Windows 10 2004 or later with the .NET 8 SDK in an interactive user session:
 ```powershell
 .\scripts\verify.ps1
 dotnet run --project .\src\SurfaceLoom.WindowsFixture -c Release
+.\scripts\live-conformance.ps1
 ```
 
 `verify.ps1` runs the portable contract checks, builds the WPF application, and executes the .NET
-state-model test executable. It still does not count as live UIA conformance. The later P2 live suite
-must launch the built executable through the SurfaceLoom host/client and perform every assertion in
-the contract manifest with zero required skips.
+state-model test executable. It still does not count as live UIA conformance.
+
+`live-conformance.ps1` builds the adjacent Windows host and this fixture, then launches the real WPF
+process through the versioned NDJSON host. It executes all five required cases with zero skip support
+and writes `artifacts/windows-live-conformance.json`. Run it only in an interactive Windows session;
+a cross-compiled binary, model test, or headless job is not equivalent evidence.
+
+For release evidence, pass immutable revisions instead of the default `working-tree` labels:
+
+```powershell
+.\scripts\live-conformance.ps1 -HostRevision <commit> -FixtureRevision <commit>
+```

@@ -145,7 +145,11 @@ public sealed class NativeV1Dispatcher : IDisposable
             frame = NativeV1OutboundSerializer.Serialize(response);
         }
 
-        if (prepared.RemainingMilliseconds() == 0 && response.Error?.Code != "deadline_exceeded")
+        // A consumed operation id is a durable replay verdict. Replacing it with a
+        // deadline error would turn a non-retryable duplicate into an apparently
+        // fresh timeout after the request's zero-length deadline expires.
+        if (prepared.RemainingMilliseconds() == 0 &&
+            response.Error?.Code is not ("deadline_exceeded" or "operation_id_reused"))
         {
             response = OutboundFailure(
                 prepared.Request,

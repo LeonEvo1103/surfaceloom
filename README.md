@@ -215,10 +215,13 @@ package manifest 的 tools version 为 Swift 5.10。
 cd native\windows-host
 dotnet build .\SurfaceLoom.WindowsHost.sln -c Release
 dotnet run --project .\tests\SurfaceLoom.WindowsHost.ContractTests -c Release
+cd ..\windows-fixture
+.\scripts\live-conformance.ps1
 ```
 
 Windows host 不自动化 UAC Secure Desktop，也不会修改系统安全设置。详细协议和限制见
-[Windows Host README](native/windows-host/README.md)。
+[Windows Host README](native/windows-host/README.md)。最后一条命令会通过真实 host 启动中性
+WPF fixture，执行 5 个不可跳过的 UIA/lifecycle Case，并生成本机 JSON 证据。
 
 若 Windows 环境没有 Bash，可以分别运行仓库内 package 命令：
 
