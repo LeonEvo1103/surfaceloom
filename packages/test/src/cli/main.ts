@@ -1,7 +1,11 @@
 import { redactReportText } from "@surfaceloom/reporter";
+import type { TestPlatform } from "@surfaceloom/core";
+import { loadProjectCases } from "../loader.js";
+import { preflightResolvedProject, resolveProject } from "../project.js";
 import { suiteExitCodes, type SuiteExitCode } from "../report/contracts.js";
 import { parseCliArguments, cliUsage } from "./arguments.js";
-import type { CliIO, ExecuteCaseSuiteOptions } from "./contracts.js";
+import { loadProjectConfig } from "./config-loader.js";
+import type { CliIO, ExecuteCaseSuiteOptions, RunnableCase } from "./contracts.js";
 import { discoverCases } from "./discovery.js";
 import { runCaseSuite } from "./execute-suite.js";
 
@@ -15,13 +19,28 @@ export async function runCli(
   try {
     const args = parseCliArguments(argv);
     if (args.help) { io.stdout.write(cliUsage); return suiteExitCodes.passed; }
-    if (args.platform === undefined) throw new Error("--platform is required.");
-    if (args.output === undefined) throw new Error("--output is required.");
-    if (args.sources.length === 0) throw new Error("At least one Case module source is required.");
-    const cases = await discoverCases(args.sources);
+    let cases: readonly RunnableCase[];
+    let platform: TestPlatform;
+    let output: string;
+    let timeoutMs: number | undefined;
+    if (args.config === undefined) {
+      if (args.platform === undefined) throw new Error("--platform is required.");
+      if (args.output === undefined) throw new Error("--output is required.");
+      if (args.sources.length === 0) throw new Error("At least one Case module source is required.");
+      cases = await discoverCases(args.sources);
+      platform = args.platform;
+      output = args.output;
+      timeoutMs = args.timeoutMs;
+    } else {
+      const configured = await configuredRun(args);
+      cases = configured.cases;
+      platform = configured.platform;
+      output = configured.output;
+      timeoutMs = configured.timeoutMs;
+    }
     const timestamp = new Date().toISOString();
     const options: ExecuteCaseSuiteOptions = {
-      platform: args.platform,
+      platform,
       run: {
         id: args.runId ?? defaultRunId(timestamp),
         title: args.title ?? "SurfaceLoom Case 测试运行",
@@ -30,7 +49,7 @@ export async function runCli(
           name: args.appName ?? "SurfaceLoom Case Suite",
         },
       },
-      ...(args.timeoutMs === undefined ? {} : { defaults: { timeoutMs: args.timeoutMs } }),
+      ...(timeoutMs === undefined ? {} : { defaults: { timeoutMs } }),
       ...((args.ids.length === 0 && args.filters.length === 0) ? {} : {
         selection: {
           ...(args.ids.length === 0 ? {} : { ids: args.ids }),
@@ -38,7 +57,7 @@ export async function runCli(
         },
       }),
     };
-    const result = await runCaseSuite(cases, options, args.output);
+    const result = await runCaseSuite(cases, options, output);
     const { summary } = result.report;
     io.stdout.write([
       `Report: ${result.report.bundle.reportPath}`,
@@ -51,6 +70,33 @@ export async function runCli(
     io.stderr.write(`SurfaceLoom CLI: ${safeCliMessage(error)}\n`);
     return suiteExitCodes.cliError;
   }
+}
+
+async function configuredRun(args: ReturnType<typeof parseCliArguments>) {
+  const loaded = await loadProjectConfig(args.config!);
+  const hasOverrides = args.sources.length > 0 || args.platform !== undefined
+    || args.output !== undefined || args.timeoutMs !== undefined;
+  const resolved = resolveProject(loaded.project, {
+    configPath: loaded.configPath,
+    ...(hasOverrides ? { overrides: {
+      ...(args.sources.length === 0 ? {} : { sources: args.sources }),
+      ...(args.platform === undefined ? {} : { platform: args.platform }),
+      ...(args.output === undefined ? {} : { outputDir: args.output }),
+      ...(args.timeoutMs === undefined ? {} : { timeoutMs: args.timeoutMs }),
+    } } : {}),
+  });
+  if (resolved.platform === undefined) {
+    throw new Error("--platform is required unless supplied by --config.");
+  }
+  if (resolved.outputDir === undefined) {
+    throw new Error("--output is required unless supplied by --config.");
+  }
+  await preflightResolvedProject(resolved);
+  const loadedCases = await loadProjectCases(resolved, {
+    ...(loaded.typescriptRuntime === undefined ? {} : { typescriptRuntime: loaded.typescriptRuntime }),
+  });
+  return Object.freeze({ cases: loadedCases.cases, platform: resolved.platform,
+    output: resolved.outputDir, timeoutMs: resolved.timeoutMs });
 }
 
 function defaultRunId(timestamp: string): string {

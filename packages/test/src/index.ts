@@ -80,5 +80,41 @@ export type {
 } from "./worker-contracts.js";
 export { trackInProcessTask } from "./worker.js";
 export { trackNodeWorker } from "./worker-node.js";
+export type {
+  AcquireInteractiveSessionLeaseOptions,
+  InteractiveSessionLease,
+  InteractiveSessionLeaseClaim,
+  InteractiveSessionLeaseDiagnostic,
+  InteractiveSessionLeaseErrorCode,
+  InteractiveSessionReleaseReceipt,
+} from "./interactive-session-contracts.js";
+export {
+  acquireInteractiveSessionLease,
+  InteractiveSessionLeaseError,
+  releaseInteractiveSessionLease,
+} from "./interactive-session.js";
+export type {
+  ProjectDefinition,
+  ProjectDefinitionInput,
+  ProjectInvocationOverrides,
+  ProjectModuleFormat,
+  ResolvedProject,
+  ResolveProjectOptions,
+} from "./project-contracts.js";
+export {
+  defineProject,
+  preflightResolvedProject,
+  ProjectConfigurationError,
+  resolveProject,
+} from "./project.js";
+export type {
+  CaseModuleFormat,
+  CaseModuleLanguage,
+  CaseModuleLoadRequest,
+  LoadedProjectCases,
+  ProjectCaseLoaderOptions,
+  TypeScriptCaseRuntime,
+} from "./loader-contracts.js";
+export { loadProjectCases, ProjectLoadError } from "./loader.js";
 export * from "./cli/index.js";
 export * from "./report/index.js";

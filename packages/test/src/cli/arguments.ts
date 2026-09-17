@@ -2,6 +2,7 @@ import { testPlatforms, type TestPlatform } from "@surfaceloom/core";
 
 export interface CliArguments {
   readonly help: boolean;
+  readonly config?: string;
   readonly sources: readonly string[];
   readonly platform?: TestPlatform;
   readonly output?: string;
@@ -15,7 +16,7 @@ export interface CliArguments {
 }
 
 const valueOptions = new Set([
-  "--source", "--platform", "--output", "--case-id", "--filter", "--timeout-ms",
+  "--config", "--source", "--platform", "--output", "--case-id", "--filter", "--timeout-ms",
   "--run-id", "--title", "--app-id", "--app-name",
 ]);
 
@@ -50,6 +51,7 @@ export function parseCliArguments(argv: readonly string[]): CliArguments {
     sources: Object.freeze(sources),
     ids: Object.freeze(all(values, "--case-id")),
     filters: Object.freeze(all(values, "--filter")),
+    ...(one(values, "--config") === undefined ? {} : { config: one(values, "--config")! }),
     ...(platform === undefined ? {} : { platform }),
     ...(one(values, "--output") === undefined ? {} : { output: one(values, "--output")! }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
@@ -85,9 +87,10 @@ function parseTimeout(value: string): number {
   return timeout;
 }
 
-export const cliUsage = `Usage: sl-test --platform <web|macos|windows> --output <directory> [options] <module-or-directory>...
+export const cliUsage = `Usage: sl-test [--config <path>] [--platform <web|macos|windows>] [--output <directory>] [options] [module-or-directory...]
 
 Options:
+  --config <path>       Load a defineProject() config module
   --source <path>       Add an explicit Case module or discovery directory
   --case-id <id>       Run one exact Case id (repeatable)
   --filter <text>      Match id, suite name, or Case name (repeatable, OR)
