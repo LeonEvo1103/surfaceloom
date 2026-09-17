@@ -239,11 +239,14 @@ test("crash disconnects once and produces a real exit receipt", async () => {
   assert.equal(crashDisconnects, 1);
 });
 
-test("early stdout close disconnects once and is reaped", async () => {
-  const early = await collect("stdout-close");
-  assert.equal(early.disconnects, 1);
-  assert.notEqual(early.instance.snapshot().exit, null);
-});
+test("early stdout close disconnects once and is reaped",
+  { skip: process.platform === "win32"
+    ? "Node keeps its process stdout libuv handle open on Windows after fd closure." : false },
+  async () => {
+    const early = await collect("stdout-close");
+    assert.equal(early.disconnects, 1);
+    assert.notEqual(early.instance.snapshot().exit, null);
+  });
 
 test("exit does not discard buffered stdout, including an EOF tail", async () => {
   const result = await collect("buffered-exit");
