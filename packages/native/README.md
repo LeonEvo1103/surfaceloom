@@ -1,7 +1,8 @@
 # @surfaceloom/native protocol contract
 
-This package owns the product-neutral native wire protocol schema, golden vectors, and transport-neutral
-TypeScript client. It deliberately contains no host launcher, UIA/AX implementation, or live conformance claim.
+This package owns the product-neutral native wire protocol schema, golden vectors, TypeScript client,
+bounded Node child-process transport, and typed desktop-session contracts. It deliberately contains no
+platform binding, UIA/AX implementation, or live conformance claim.
 
 ## TypeScript client
 
@@ -11,7 +12,17 @@ checks, and host/session/handle identity. Platform packages provide result codec
 than adding UIA, AX, or DOM semantics here.
 
 ```ts
-import { NativeClient, jsonResultCodec } from "@surfaceloom/native";
+import {
+  NativeClient,
+  NodeProcessTransport,
+  jsonResultCodec,
+} from "@surfaceloom/native";
+
+const transport = new NodeProcessTransport({
+  executable: "/absolute/path/to/a/surfaceloom-native-host",
+  cwd: "/absolute/host-working-directory",
+  env: {},
+});
 
 const client = new NativeClient({ transport });
 const host = await client.connect();
@@ -28,10 +39,14 @@ const result = await client.invoke({
 await client.close();
 ```
 
+`NodeProcessTransport` can launch an explicitly configured native host with `shell: false`, bounded framing,
+write admission, stderr retention, startup/write/close deadlines, and separate process-exit and stdio-close
+facts. Its exit receipt proves only the owned host child state, not target-application or descendant cleanup.
+
 The client never automatically replays a request. A cancellation frame is best effort and does not prove
 that native work stopped. Request, operation, and cancellation identifiers are not reused within a client
 lifetime; late terminal responses therefore remain recognizable. The current evidence is contract testing
-against fake transports. Real host conformance is tracked separately.
+against fake transports plus adversarial real child processes. Real UI host conformance is tracked separately.
 
 ## Version and frame boundary
 

@@ -43,17 +43,19 @@ credentials, and business scenarios belong in downstream repositories.
 | --- | --- |
 | Core | Cross-platform `Driver`, `Session`, and `Locator` contracts; `CaseSpec`; actionability; fixture runtime; doctor checks; trace redaction |
 | Reporter | Reporter v2 single-platform compatibility; Reporter v3 host/surface/attempt/execution-platform records; conservative v2 importer; Chinese AI-review Markdown; lightweight HTML; evidence hashing |
-| Native protocol | `surfaceloom.native/1.0` NDJSON protocol; strict framing and duplicate-key rejection; deadlines; cancellation; ownership; normalized and late outcomes; observable close failure; golden vectors; transport-neutral TypeScript client |
+| Native protocol | `surfaceloom.native/1.0` NDJSON protocol; strict framing and duplicate-key rejection; deadlines; cancellation; ownership; normalized and late outcomes; observable close failure; golden vectors; bounded Node child-process transport |
+| Native session foundation | Typed application/system desktop-session contracts; AX/UIA locator separation; per-call cancellation; Windows v1 action mapping; ownership-aware, receipt-backed cleanup barriers. Platform bindings are not live yet |
 | Component catalog | 37 desktop, System Surface, and Agent manifests plus 7 fixture manifests. A manifest is a declaration, not proof of a live implementation |
 | Browser | Optional Playwright Core backend; semantic DOM locators; strict single-target actions; screenshots and traces. Browser installation is opt-in |
 | Agent loop | Extensible `TraceAdapter`; unified event schema; Codex, native, and third-party imports; cross-clock merge; explicit evidence correlation; static HTML timeline |
 | Execution kernel | Embeddable registration and execution; fixtures and resources; steps and criteria; observation polling; capability/effect preflight; deadlines and cooperative cancellation; minimal sequential CLI with filtering and Reporter v2 bundle output |
+| Release contracts | Separate release-plan and final-manifest schemas; exact artifact digests and inventory; SBOM, license, provenance and signature evidence validation; recursive fail-closed archive scanning. No registry publication is performed |
 | macOS | Swift Accessibility/AppKit backend; neutral fixture packaged as a stable `.app` build artifact; window, menu, text, collection, and file-panel interactions; owned launch and non-owning attach. The fixture build is not live AX evidence |
-| Windows | .NET 8 UIA/Win32 backend; `0.2` and `1.0` NDJSON host; neutral WPF fixture; process ownership; window lifecycle and UIA patterns. Verified on Windows 11 with 52/52 host tests and 5/5 live UIA/lifecycle tests, with zero skipped |
+| Windows | .NET 8 UIA/Win32 backend; `0.2` and `1.0` NDJSON host; neutral WPF fixture; process ownership; window lifecycle and UIA patterns. Verified on Windows 11 with 58/58 host tests and 5/5 live UIA/lifecycle tests, with zero skipped |
 
-Still missing are a Node host-process transport, a macOS stdio host, broad
-cross-platform native live conformance, and full runner features such as
-parallelism, sharding, and watch mode.
+Still missing are a macOS stdio host, platform-specific TypeScript native
+bindings, broad cross-platform native live conformance, and full runner
+features such as parallelism, sharding, and watch mode.
 
 The Agent computer-control and emergency-stop manifests describe UI exposed by
 an agent application. SurfaceLoom itself still drives that UI deterministically
@@ -197,6 +199,30 @@ or terminate the user's existing browser instance.
 See [the Playwright browser backend guide](docs/PLAYWRIGHT.md) for the complete
 API, locator model, safety boundaries, and reporter integration.
 
+## Native process transport
+
+The native package now includes a bounded Node child-process transport for a
+host that speaks `surfaceloom.native/1.0` over stdio:
+
+```ts
+import { NativeClient, NodeProcessTransport } from "@surfaceloom/native";
+
+const transport = new NodeProcessTransport({
+  executable: "/absolute/path/to/a/surfaceloom-native-host",
+  cwd: "/absolute/host-working-directory",
+  env: {},
+});
+
+const client = new NativeClient({ transport });
+const host = await client.connect();
+// Invoke only methods advertised by host.methods, then close explicitly.
+await client.close();
+```
+
+This transport and the typed DesktopSession/kernel binding are contract-tested.
+The repository does not yet claim a complete TypeScript-to-UIA/AX live path;
+Windows and macOS platform bindings remain separate P3 work.
+
 ## Agent-loop visualization
 
 Normalize, merge, and visualize one or more traces with:
@@ -286,7 +312,7 @@ npm --prefix .\packages\test ci
 npm --prefix .\packages\test test
 ```
 
-The latest verified Windows 11 baseline is 52/52 host tests plus 5/5 real
+The latest verified Windows 11 baseline is 58/58 host tests plus 5/5 real
 UIA/lifecycle tests, with zero skipped.
 
 ## macOS product-integration example
