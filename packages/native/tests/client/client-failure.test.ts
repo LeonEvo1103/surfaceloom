@@ -85,7 +85,7 @@ test("deadline uses the one relative budget, sends best-effort cancel, and never
 test("partial and full-write disconnects conservatively report unknown and do not replay", async () => {
   for (const mode of ["partial", "disconnect"] as const) {
     const transport = handshakeThen(() => {});
-    const client = new NativeClient({ transport });
+    const client = new NativeClient({ transport, runtime: new ManualRuntime() });
     await client.connect();
     if (mode === "partial") transport.writeBehavior = async () => {
       throw new NativeTransportWriteError("writing", "partial");

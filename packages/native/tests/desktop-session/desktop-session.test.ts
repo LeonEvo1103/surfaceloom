@@ -116,7 +116,7 @@ test("journal preserves executed receipt and identity when result decode fails",
     else current.receive(success(message, { invalid: true },
       { operationId: message.call.operationId, outcome: "executed" }));
   });
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   const launched = await client.launchSession({ payload: {}, timeoutMs: 100 });
   const journal = new BoundedDesktopSessionJournal();
