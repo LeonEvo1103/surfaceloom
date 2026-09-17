@@ -1,142 +1,159 @@
 # SurfaceLoom
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-面向 Agent 应用的跨 surface 语义化自动化测试框架实验。它把模型/工具 loop 与 macOS、
-Windows 和浏览器 UI 的行为放进同一套测试与证据模型。目标应用可以使用
-AppKit、SwiftUI、WPF、WinUI、Win32、Electron、Tauri 或其他技术，只要能暴露可靠的
-Accessibility/UI Automation 语义树。
+SurfaceLoom is an experimental, cross-surface semantic automation framework for
+testing agent applications. It brings the model/tool loop, macOS and Windows
+desktop UI, and browser UI into one test and evidence model.
 
-SurfaceLoom 把“要验证什么”与“系统如何操作 UI”分开：产品场景只调用可复用组件，
-macOS Accessibility 和 Windows UI Automation 后端负责定位、动作、窗口与进程生命周期。
-组件清单同时是机器可读数据，开发 Agent 可以先查询已有能力，再为功能改动补配套测试。
+The application under test may use AppKit, SwiftUI, WPF, WinUI, Win32,
+Electron, Tauri, or another toolkit, as long as it exposes reliable
+Accessibility or UI Automation semantics. SurfaceLoom separates **what a test
+means** from **how a platform performs the operation**.
 
-> 当前状态：可运行的工程实验，尚未发布稳定 API。适合验证架构、接入产品适配器和
-> 执行受控 smoke；不应把它理解成完整替代 XCUITest、Appium 或人工验收的成熟产品。
+SurfaceLoom is currently a runnable engineering experiment with no stable API
+guarantee. It is not yet a mature replacement for XCUITest, Appium, or manual
+acceptance testing.
 
-框架化执行路线、原子任务状态和完成证据以 [Framework SSOT](docs/FRAMEWORK_SSOT.md) 为准；
-[能力事实矩阵](docs/framework/capabilities.md) 区分接口声明、contract test、live fixture 和真实
-目标应用证据。SSOT 中处于 `planned`、`ready` 或 `in_progress` 的能力均不是当前已交付能力。
+The authoritative implementation plan is
+[`docs/FRAMEWORK_SSOT.md`](docs/FRAMEWORK_SSOT.md). The factual implementation
+status is tracked in
+[`docs/framework/capabilities.md`](docs/framework/capabilities.md). Items marked
+`planned`, `ready`, or `in_progress` are not delivered capabilities.
 
-本仓库只包含产品无关的框架、平台后端和模板，不内置任何具体产品适配器。框架不会修改
-被测产品源码，也不会把测试生成物写回产品仓库。
+This repository is product-neutral. Concrete product adapters, selectors,
+credentials, and business scenarios belong in downstream repositories.
 
-## 它解决什么问题
+## What SurfaceLoom solves
 
-- 用一套组件语义覆盖普通桌面应用和 Agent 类客户端。
-- 让产品文案、test id、AX role、UIA control type 集中在产品 adapter，而不是散落在场景中。
-- 默认严格定位，匹配多个元素时失败，不用隐式 `firstMatch` 掩盖问题。
-- 区分测试拥有的进程与用户正在运行的进程，避免测试结束时误杀客户端。
-- 通过副作用等级、fixture、doctor 和 trace 把真实模型、外部消息、权限流程等风险显式化。
-- 给开发 Agent 提供可查询的组件与 fixture manifest，减少重复造测试抽象。
-- 把 Agent、模型、工具、审批、桌面和浏览器事件归一为可脱敏、可合并、可视化的 loop trace。
+- One semantic component model for desktop surfaces and agent clients.
+- Product copy, test IDs, AX roles, and UIA control types stay in product
+  adapters instead of leaking into the framework.
+- Strict locators fail on ambiguity instead of silently choosing a target.
+- Owned processes and user-owned processes have different cleanup semantics.
+- Side-effect policy, fixtures, doctor checks, and traces are first-class.
+- Component and fixture manifests are queryable by tooling and development
+  agents.
+- Agent-loop traces can be normalized, redacted, merged, correlated with UI
+  evidence, and rendered as a static timeline.
 
-## 当前能力
+## Current capabilities
 
-| 层 | 已实现 |
-|---|---|
-| Core | 跨平台 Driver/Session/Locator 契约、CaseSpec、actionability、fixture runtime、doctor、trace 脱敏 |
-| Reporter | v2 单平台兼容报告；v3 host/surface/attempt/executionPlatforms、保守 v2 importer、中文 AI Markdown/浅色 HTML 与证据 hash |
-| Native Protocol | `surfaceloom.native/1.0` schema、NDJSON framing、deadline/cancel、ownership、operation outcome、golden vectors 与 transport-neutral TS client |
-| Component Catalog | 37 个桌面/System Surface/Agent 组件 manifest，7 个 fixture manifest；目录声明不等于行为实现 |
-| Browser | 可选 Playwright Core backend、语义 DOM locator、严格单目标动作、截图与 trace；浏览器按需安装 |
-| Agent Loop | 可扩展 TraceAdapter、统一 trace schema、Codex/原生/第三方 trace 导入、跨时钟合并、显式 evidence correlation 与静态 HTML 时间线 |
-| Execution Kernel | 可嵌入 Case 注册/执行、fixture/resource 生命周期、step/criterion、observation 自动等待、capability/effect preflight、deadline 与合作取消；最小顺序 CLI、过滤与 Reporter v2 bundle |
-| macOS | Swift、Accessibility API、AppKit、中性 fixture、窗口/菜单/文本/集合/文件面板、owned launch 与 non-owning attach |
-| Windows | .NET 8、UI Automation/Win32、0.2/1.0 双栈 NDJSON host、中性 WPF fixture、进程 ownership、窗口与常用 UIA Pattern；Windows 11 实测 host contracts 52/52、真实 UIA/lifecycle 5/5（0 skip） |
+| Area | Delivered today |
+| --- | --- |
+| Core | Cross-platform `Driver`, `Session`, and `Locator` contracts; `CaseSpec`; actionability; fixture runtime; doctor checks; trace redaction |
+| Reporter | Reporter v2 single-platform compatibility; Reporter v3 host/surface/attempt/execution-platform records; conservative v2 importer; Chinese AI-review Markdown; lightweight HTML; evidence hashing |
+| Native protocol | `surfaceloom.native/1.0` NDJSON protocol; deadlines; cancellation; ownership; normalized outcomes; golden vectors; transport-neutral TypeScript client |
+| Component catalog | 37 desktop, System Surface, and Agent manifests plus 7 fixture manifests. A manifest is a declaration, not proof of a live implementation |
+| Browser | Optional Playwright Core backend; semantic DOM locators; strict single-target actions; screenshots and traces. Browser installation is opt-in |
+| Agent loop | Extensible `TraceAdapter`; unified event schema; Codex, native, and third-party imports; cross-clock merge; explicit evidence correlation; static HTML timeline |
+| Execution kernel | Embeddable registration and execution; fixtures and resources; steps and criteria; observation polling; capability/effect preflight; deadlines and cooperative cancellation; minimal sequential CLI with filtering and Reporter v2 bundle output |
+| macOS | Swift Accessibility/AppKit backend; neutral fixture app; window, menu, text, collection, and file-panel interactions; owned launch and non-owning attach |
+| Windows | .NET 8 UIA/Win32 backend; `0.2` and `1.0` NDJSON host; neutral WPF fixture; process ownership; window lifecycle and UIA patterns. Verified on Windows 11 with 52/52 host tests and 5/5 live UIA/lifecycle tests, with zero skipped |
 
-当前已有 transport-neutral TypeScript native client，但尚没有通用 host process transport、macOS stdio host、跨平台 native live conformance，
-也没有并行、sharding、watch 等完整 runner。具体实现与证据边界见[能力事实矩阵](docs/framework/capabilities.md)。
+Still missing are a general host-process transport, a macOS stdio host, broad
+cross-platform native live conformance, and full runner features such as
+parallelism, sharding, and watch mode.
 
-组件 manifest `desktop.agent.computer-control` 与 `desktop.agent.emergency-stop` 表示“测试
-Agent 客户端自身显示的 Computer Use 状态和停止入口”。它们不等于让测试框架依靠
-Computer Use 操作电脑；确定性回归仍以 AX/UIA backend 为主，Computer Use 更适合探索
-未知界面和辅助诊断。
+The Agent computer-control and emergency-stop manifests describe UI exposed by
+an agent application. SurfaceLoom itself still drives that UI deterministically
+through AX, UIA, or the browser backend; it does not ask another agent to click
+the screen.
 
-## 仓库结构
+## Repository layout
 
 ```text
 packages/
-├── core/                         # TypeScript 跨平台契约与执行原语
-├── browser-playwright/           # 可选 Playwright DOM backend，不污染 Core
-├── agent-loop/                   # 通用 Agent loop schema、adapter 与静态可视化
-├── component-catalog/            # 机器可读组件和 fixture manifest
-├── reporter/                     # 机器/AI/人工三种测试报告视图
-├── native/                       # 共享 native wire contract、client 与 golden vectors
-└── test/                         # 可嵌入 Case execution kernel 与作者 API
-Sources/SurfaceLoomMacOS/      # Swift + Accessibility/AppKit backend
-Tests/SurfaceLoomMacOSTests/   # macOS backend contract tests
-native/windows-host/              # C# + UI Automation/Win32 NDJSON host
-native/windows-fixture/           # 产品无关的 WPF/UIA conformance fixture
-native/macos-fixture/             # 产品无关的 AppKit/AX conformance fixture
-projects/                         # 可选产品 adapter 的接入约定，不内置具体产品
-Templates/                        # 新组件和场景模板
-docs/                             # 架构、组件、Windows 和接入说明
+  core/                Platform-neutral contracts, fixtures, doctor checks, and traces
+  browser-playwright/  Optional Playwright Core browser backend
+  agent-loop/          Trace adapters, normalization, correlation, and visualization
+  component-catalog/   Desktop, System Surface, and Agent manifests
+  reporter/            Reporter v2/v3 schemas and report generators
+  native/              Versioned native protocol and TypeScript client
+  test/                Execution kernel, assertions, and minimal CLI
+Sources/
+  SurfaceLoomMacOS/    macOS Accessibility/AppKit backend
+Tests/
+  SurfaceLoomMacOSTests/
+native/
+  windows-host/        .NET UIA/Win32 NDJSON host
+  windows-fixture/     Neutral WPF conformance fixture
+  macos-fixture/       Neutral macOS conformance fixture
+projects/              Product-neutral framework examples
+Templates/             Scenario and fixture templates
+docs/                  Architecture, capability, and security documentation
 ```
 
-依赖方向固定为：
+The intended dependency direction is:
 
 ```text
-产品场景 → 产品适配器 → 通用/Agent 组件 → Core 契约 → 平台 backend
+Product scenario → Product adapter → Shared/Agent component → Core contract → Platform backend
 ```
 
-场景层不应出现 `AXUIElement`、UIA `ControlType`、虚拟键码或屏幕坐标。平台不具备所需
-能力时必须返回明确的 `unsupported`，不能静默改用不稳定的坐标点击。
+## Quick start
 
-## 快速开始
-
-### 通用契约与组件目录
-
-要求 Node.js 20 或更高版本。脚本首次运行时会通过各 package 的 lockfile 安装依赖。
+Prerequisite: Node.js 20 or later.
 
 ```bash
 git clone https://github.com/LeonEvo1103/surfaceloom.git
 cd surfaceloom
+
 ./scripts/run-typescript-tests.sh
 ./scripts/check-architecture.sh
+node scripts/check-framework-ssot.mjs
 ```
 
-`run-typescript-tests.sh` 会运行 Core、Playwright browser backend、Agent loop、组件目录、Reporter、仓库边界和自动发现的产品局部契约。
-每个产品在自己的 `contracts` 中按 CaseSpec 的正式 `platforms` 校验原生测试名双向映射，并可通过
-`projects/<product>/repository-checks.mjs` 自注册仓库报告检查；共享脚本不硬编码产品。生成一份不操作桌面的
-确定性报告示例：
+`run-typescript-tests.sh` installs and tests all seven TypeScript packages. It
+also runs product-contract discovery against any sibling repositories that
+explicitly declare a dependency on SurfaceLoom. Product names and paths are not
+hard-coded into this repository.
 
-首个 Agent 审批 showcase 还会启动本机 Chrome/Chromium，执行真实 DOM 动作，并验证独立工具账本：
+Run the real browser-backed Agent approval showcase with:
 
 ```bash
 ./scripts/run-framework-p1-tests.sh
 ```
 
-该命令不会在缺少浏览器时静默 skip；可用 `SURFACELOOM_BROWSER_EXECUTABLE` 显式指定 Chromium
-可执行文件。
+The showcase requires a usable Chromium-family browser and fails instead of
+silently skipping when one is unavailable. Set
+`SURFACELOOM_BROWSER_EXECUTABLE` when Chromium is installed at a custom path.
+
+Generate deterministic report fixtures:
 
 ```bash
 npm --prefix packages/reporter run example -- artifacts/reporter-example
 ```
 
-要实际执行当前平台可用的仓库验收，并把每条命令的真实退出状态、耗时和脱敏日志写入报告：
+Run the checks available on the current platform and record each command's real
+exit status, duration, and redacted logs:
 
 ```bash
 npm --prefix packages/reporter run repository-report
 ```
 
-macOS 会运行七个 TypeScript package、架构守卫和根 Swift contracts；Windows 会运行七个
-TypeScript package 与 .NET host contracts。这里汇总的是命令级检查，不是逐用例 importer。
-HTML 默认使用浅色界面。输出目录会打印在命令末尾，且 Reporter 仍拒绝覆盖已存在的报告目录。
+On macOS, the repository report runs all seven TypeScript packages, the
+architecture guard, and the root Swift contracts. On Windows, it runs all seven
+TypeScript packages and the .NET host contracts. These are command-level checks,
+not per-case imports.
 
-报告目录包含 `complete.json`、`report.json`、`ai-review.md`、`index.html` 和相对路径的
-`evidence/`。默认截图、
-视频只在失败或超时时保留；trace 始终保留。Reporter 已支持归档和展示媒体，但真实截图/录屏仍
-由各平台 runner/backend 显式提供，权限不足时必须记录 `unsupported`，不能主动弹出授权。
-详细设计见[测试报告与 AI 验收](docs/REPORTING.md)。
-每条用例必须先定义中文 Case 名、原始语义、前置条件和验收条件，详见
-[Case 编写规范](docs/CASE_SPEC.md)。
+The report directory contains `complete.json`, `report.json`, `ai-review.md`,
+`index.html`, and a relative `evidence/` tree. Screenshots and videos are
+retained by default only for failures or timeouts; traces are always retained.
+The reporter can archive and render media, but each runner or backend must
+capture it explicitly. Missing permissions must be reported as `unsupported`
+instead of triggering an authorization prompt. See
+[Reporting and AI review](docs/REPORTING.md).
 
-### Playwright 浏览器后端
+For authoring rules, lifecycle, and failure semantics, see
+[the Case specification](docs/CASE_SPEC.md). Every case must define a canonical
+Chinese name, original semantics, preconditions, and acceptance criteria.
 
-网页 DOM 自动化使用独立的 `packages/browser-playwright`，不会让 Core 或原生桌面 backend
-强制依赖 Playwright。安装 package 后，显式安装所需浏览器；只使用本机 Chrome 时可以在
-`launch` 中设置 `channel: "chrome"`。
+## Playwright browser backend
+
+Browser automation lives in `packages/browser-playwright` so that Core and the
+native backends do not depend on Playwright. Install browsers explicitly after
+installing the package. If you use only local Chrome, set `channel: "chrome"`
+when launching.
 
 ```bash
 npm --prefix packages/browser-playwright ci
@@ -152,35 +169,37 @@ import {
 const browser = await new PlaywrightBrowserBackend().launch({
   engine: "chromium",
   headless: true,
-  context: { baseURL: "https://example.test", locale: "zh-CN" },
+  context: { baseURL: "https://example.test", locale: "en-US" },
 });
 
 try {
   await browser.navigate("/login");
   await browser.fill(
-    defineDomLocator({ key: "login.email", kind: "label", text: "邮箱" }),
+    defineDomLocator({ key: "login.email", kind: "label", text: "Email" }),
     "fixture@example.test",
   );
   await browser.click({
     key: "login.submit",
     kind: "role",
     role: "button",
-    name: "登录",
+    name: "Sign in",
   });
 } finally {
   await browser.close();
 }
 ```
 
-浏览器窗口、菜单、系统权限和文件面板仍由 AX/UIA backend 管理；页面 DOM、导航和网页断言
-交给 Playwright。当前 backend 只启动并清理自己拥有的浏览器，不附加用户已运行的实例。
-完整 API、定位器、安全边界和 Reporter 接线见 [Playwright 浏览器后端](docs/PLAYWRIGHT.md)。
+Use AX or UIA for native windows, menus, permission prompts, and file panels.
+Use Playwright for DOM content, navigation, and browser assertions. The browser
+backend closes only browser processes that it launched; it does not attach to
+or terminate the user's existing browser instance.
 
-### Agent loop 可视化
+See [the Playwright browser backend guide](docs/PLAYWRIGHT.md) for the complete
+API, locator model, safety boundaries, and reporter integration.
 
-`packages/agent-loop` 把 Agent runtime、模型、工具、审批、原生桌面和浏览器 trace 归一到
-`surfaceloom.agent-loop/v1`。Codex rollout JSONL 和 SurfaceLoom 原生 trace 是内置参考
-adapter；第三方格式通过公开 adapter SDK 接入，无需修改 viewer。
+## Agent-loop visualization
+
+Normalize, merge, and visualize one or more traces with:
 
 ```bash
 npm --prefix packages/agent-loop ci
@@ -191,25 +210,48 @@ node packages/agent-loop/dist/cli.js \
   --format auto
 ```
 
-生成的 HTML 没有 JavaScript 或外部资源。原始 prompt、消息、reasoning、工具参数/输出、凭据和
-用户路径在导入时省略或脱敏。多来源 trace 可按绝对时钟合并；时钟不完整时会明确降级并产生
-warning。设计、安全边界与自定义 adapter 见 [Agent loop 轨迹与可视化](docs/AGENT_LOOPS.md)。
+The output is a self-contained static HTML document with no JavaScript and no
+external resources. Adapters redact sensitive values before normalization.
+Events with absolute timestamps are merged on a shared clock; relative-only
+streams remain visible in their own lanes with an explicit warning.
 
-### macOS
+Adapters may also attach UI evidence IDs, window IDs, process IDs, and case or
+step context. Correlation is conservative: it uses explicit shared identifiers
+and bounded time windows, and it records ambiguous candidates rather than
+inventing certainty.
 
-要求 macOS 14 或更高版本，以及包含 Swift Testing 的 Xcode 16+ 或对应 Command Line Tools；
-package manifest 的 tools version 为 Swift 5.10。
+Codex rollout JSONL and SurfaceLoom native traces are built-in reference
+adapters. Third-party formats integrate through the public adapter SDK without
+modifying the viewer. See [Agent-loop traces and visualization](docs/AGENT_LOOPS.md)
+and [the package README](packages/agent-loop/README.md).
+
+## macOS
+
+Requirements:
+
+- macOS 14 or later
+- Xcode 16 or later with Swift Testing
+- Swift tools 5.10
+
+Run the macOS backend and fixture tests:
 
 ```bash
 ./scripts/run-swift-tests.sh
 ```
 
-这条命令只运行无副作用的 contract tests。`MacOSAutomationDoctor` 以 `prompt: false` 读取
-辅助功能授权状态，不会主动弹出或接受 TCC 窗口。
+This command runs side-effect-free contract tests only.
+`MacOSAutomationDoctor` reads Accessibility authorization with `prompt: false`;
+it does not display or accept TCC prompts.
 
-### Windows
+## Windows
 
-要求 Windows 10 2004（build 19041）或更高版本、.NET 8 SDK 和可交互用户 session。
+Requirements:
+
+- Windows 10 version 2004 or later
+- .NET 8 SDK
+- An interactive desktop session for live UIA tests
+
+Build and run the protocol contract tests:
 
 ```powershell
 cd native\windows-host
@@ -219,11 +261,13 @@ cd ..\windows-fixture
 .\scripts\live-conformance.ps1
 ```
 
-Windows host 不自动化 UAC Secure Desktop，也不会修改系统安全设置。详细协议和限制见
-[Windows Host README](native/windows-host/README.md)。最后一条命令会通过真实 host 启动中性
-WPF fixture，执行 5 个不可跳过的 UIA/lifecycle Case，并生成本机 JSON 证据。
+The live suite launches and cleans up only the fixture process it owns. It does
+not automate UAC Secure Desktop or change security settings. A successful run
+executes five non-skipped UIA/lifecycle tests and writes local JSON evidence.
+See [the Windows host README](native/windows-host/README.md) for protocol and
+platform limitations.
 
-若 Windows 环境没有 Bash，可以分别运行仓库内 package 命令：
+Run the TypeScript packages on Windows:
 
 ```powershell
 npm --prefix .\packages\core ci
@@ -238,64 +282,76 @@ npm --prefix .\packages\agent-loop ci
 npm --prefix .\packages\agent-loop test
 npm --prefix .\packages\native ci
 npm --prefix .\packages\native test
+npm --prefix .\packages\test ci
+npm --prefix .\packages\test test
 ```
 
-## macOS 产品接入示例
+The latest verified Windows 11 baseline is 52/52 host tests plus 5/5 real
+UIA/lifecycle tests, with zero skipped.
 
-产品 adapter 负责 bundle、profile、定位器和组件，场景只表达行为：
+## macOS product-integration example
+
+The downstream product adapter owns bundle configuration, profiles, locators,
+and components. Scenarios express behavior only:
 
 ```swift
 struct SettingsComponent: MacOSComponent {
-	let driver: MacOSApplicationDriver
+    let driver: MacOSApplicationDriver
 
-	private static let button = MacOSAXLocator(
-		"Settings button",
-		identifiers: ["settings.open"],
-		labels: ["Settings", "设置"],
-		roles: [MacOSAXRole.button]
-	)
+    private static let button = MacOSAXLocator(
+        "Settings button",
+        identifiers: ["settings.open"],
+        labels: ["Settings", "Preferences"],
+        roles: [MacOSAXRole.button]
+    )
 
-	func open() throws { try driver.press(Self.button) }
+    func open() throws { try driver.press(Self.button) }
 }
 
 try MacOSTestHarness.withApplication(configuration: configuration) { app in
-	try app.component(SettingsComponent.self).open()
+    try app.component(SettingsComponent.self).open()
 }
 ```
 
-定位优先级是稳定 identifier，再回退到 adapter 维护的本地化 label；locator 默认要求唯一。
-新增产品与场景的完整步骤见[添加测试指南](docs/ADDING_TESTS.md)。
+Stable identifiers should come first. Localized labels are fallbacks. Locators
+are unique by default and throw when multiple elements match. See
+[Adding tests](docs/ADDING_TESTS.md) for the complete integration flow.
 
-## 安全模型
+## Security model
 
-### 进程 ownership
+### Process ownership
 
-- `owned`：由测试启动，允许在 teardown 中关闭或终止。
-- `attached` / `external`：用户或外部系统启动，只能释放自动化引用，不能被框架终止。
-- `system`：桌面、文件面板等系统 surface，不代表获得安全桌面权限。
+- `owned`: launched by SurfaceLoom and eligible for framework cleanup.
+- `attached` / `external`: launched by the user or another system; SurfaceLoom
+  releases automation references but never terminates it.
+- `system`: a system surface such as the desktop or file panel; it does not
+  imply access to a secure desktop.
 
-普通 runner 默认拒绝接管已运行的同产品实例。attach 必须由产品 runner 显式开放，并要求
-唯一目标，避免误操作其他窗口。
+The normal runner refuses to take over an already-running instance of the same
+product. A product runner must explicitly enable attach, and the target must be
+unique.
 
-### 副作用等级
+### Side-effect levels
 
-| 等级 | 示例 | 默认执行策略 |
-|---|---|---|
-| `readOnly` | 查看窗口和状态 | contract/CI 可运行 |
-| `reversible` | 打开后取消文件面板 | 隔离 profile |
-| `writesLocal` | 修改 fixture 文件 | 临时 workspace |
-| `externalEffect` | 发消息、调用真实服务 | fake 优先，真实 smoke 显式启用 |
-| `securitySensitive` | TCC、UAC、Computer Use 控制 | 专用用户或可恢复 VM |
+| Level | Example | Default policy |
+| --- | --- | --- |
+| `readOnly` | Inspect a window or state | Allowed in contract tests and CI |
+| `reversible` | Open and cancel a file panel | Use an isolated profile |
+| `writesLocal` | Modify a fixture file | Use a temporary workspace |
+| `externalEffect` | Send a message or call a real service | Prefer fakes; enable real smoke tests explicitly |
+| `securitySensitive` | TCC, UAC, or Computer Use control | Use a dedicated user or recoverable VM |
 
-框架不会自动接受 macOS TCC、Windows 隐私授权或 UAC；也不会调用 `tccutil reset`。完整首次
-授权流程应放到专用测试用户或可恢复虚拟机中。
+SurfaceLoom does not automatically accept macOS TCC prompts, Windows privacy
+prompts, or UAC dialogs. It does not run `tccutil reset` or equivalent commands.
+Use dedicated test users or disposable virtual machines for invasive live
+tests. GUI runners and target processes may inherit the current environment;
+never expose production tokens, cloud credentials, or real model credentials
+to live or CI runners. See [the security policy](SECURITY.md).
 
-GUI runner 与被测进程可能继承当前进程环境。不要在 live/CI runner 中携带生产 token、
-云平台密钥或真实模型凭据；只注入最小权限的测试变量。详见[安全说明](SECURITY.md)。
+## How development agents use the component catalog
 
-## 开发 Agent 如何使用组件库
-
-组件目录可以按 kind、platform、capability 和最大副作用等级查询：
+The catalog can be queried by kind, platform, capability, and maximum side
+effect level:
 
 ```ts
 import { listComponentManifests } from "@surfaceloom/component-catalog";
@@ -307,53 +363,67 @@ const safeAgentComponents = listComponentManifests({
 });
 ```
 
-这是仓库内 API；七个 TypeScript package 当前标记为 `private`，尚不能从 npm registry 安装。
-不执行 TypeScript 的工具也可以在 build 后读取 `dist/catalog.json` 与 `dist/fixtures.json`。
+All seven TypeScript packages are currently marked `private` and are not
+published to npm. Tools that do not execute TypeScript may read
+`dist/catalog.json` and `dist/fixtures.json` after a build.
 
-推荐修改顺序：
+Recommended change order:
 
-1. 查询现有 component manifest 与所需 fixture。
-2. 文案或 test id 变化只改 `projects/<product>` 的 schema/locator。
-3. 产品行为变化优先新增或修改产品 scenario。
-4. 只有出现跨产品复用语义时才扩展通用组件和 manifest。
-5. 新平台原语只进入 backend，并补 driver contract test。
+1. Query the existing component manifests and required fixtures.
+2. Keep copy and test-ID changes in `projects/<product>` schemas and locators.
+3. Add or change a product scenario for product behavior.
+4. Extend a shared component or manifest only for reusable cross-product
+   semantics.
+5. Put new platform primitives in the backend and add driver contract tests.
 
-## 文档导航
+Do not advertise a capability based only on an interface, manifest, or fake
+test.
 
-- [架构与依赖边界](docs/ARCHITECTURE_V2.md)
-- [组件目录与优先级](docs/COMPONENT_CATALOG_V2.md)
-- [组件实现现状](docs/COMPONENT_LIBRARY.md)
-- [开发 Agent 添加测试](docs/ADDING_TESTS.md)
-- [Case 编写规范](docs/CASE_SPEC.md)
-- [Windows 设计与选型](docs/WINDOWS.md)
-- [Playwright 浏览器后端](docs/PLAYWRIGHT.md)
-- [Agent loop 轨迹与可视化](docs/AGENT_LOOPS.md)
-- [开源框架借鉴与取舍](docs/OPEN_SOURCE_INSPIRATION.md)
-- [贡献指南](CONTRIBUTING.md)
-- [安全说明](SECURITY.md)
+## Documentation
 
-## 已知边界
+- [Framework SSOT](docs/FRAMEWORK_SSOT.md)
+- [Capability matrix](docs/framework/capabilities.md)
+- [Architecture and dependency boundaries](docs/ARCHITECTURE_V2.md)
+- [Component catalog and priorities](docs/COMPONENT_CATALOG_V2.md)
+- [Component implementation status](docs/COMPONENT_LIBRARY.md)
+- [Adding tests](docs/ADDING_TESTS.md)
+- [Case specification](docs/CASE_SPEC.md)
+- [Windows design](docs/WINDOWS.md)
+- [Playwright browser backend](docs/PLAYWRIGHT.md)
+- [Agent-loop traces and visualization](docs/AGENT_LOOPS.md)
+- [Open-source references and tradeoffs](docs/OPEN_SOURCE_INSPIRATION.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
 
-- API 与 manifest schema 仍可能变化，当前 package 标记为 `private`，尚未发布到 npm。
-- macOS backend 以 AX/AppKit 为主；发布候选中的完整 TCC、系统弹窗和 XCUITest 流程仍需
-  产品专属 target。
-- Windows backend 尚未实现键鼠注入、通知中心和系统文件选择器专用组件。
-- 真实 LLM、真实工具和跨进程 side-effect probe 只应作为少量显式 smoke，不属于默认回归。
-- live GUI 测试需要前台、未锁屏的用户 session，应串行运行。
+## Known boundaries
 
-## 许可证
+- APIs and manifests may change without notice; packages are private and not
+  published to npm.
+- The macOS backend currently focuses on AX/AppKit. Product-specific TCC flows,
+  system dialogs, and XCUITest targets still belong downstream.
+- The Windows backend does not yet provide keyboard/mouse injection,
+  Notification Center automation, or specialized system file-picker
+  components.
+- Real LLM calls, real tools, and cross-process probes should be explicit smoke
+  tests, not default deterministic tests.
+- Live GUI tests require a foreground, unlocked, serially controlled desktop.
 
-许可证信息见仓库根目录的 `LICENSE` 文件。
+## Validation baseline
 
-## 验证基线
-
-提交前至少运行：
+Before submitting a change, run:
 
 ```bash
 ./scripts/check-architecture.sh
 ./scripts/run-typescript-tests.sh
-./scripts/run-swift-tests.sh   # macOS
+./scripts/run-swift-tests.sh
+node scripts/check-framework-ssot.mjs
 ```
 
-Windows 改动还需运行 Windows Host 的 build 与 contract tests。不要仅凭 UI 截图判断通过；
-组件应断言语义状态，并对工具调用、外部写入等副作用使用 probe。
+On Windows, also run the .NET host contract suite and the five-test interactive
+UIA/lifecycle suite described above. Do not treat screenshots alone as proof:
+assert semantic state and use probes for tool calls, external writes, and other
+side effects.
+
+## License
+
+SurfaceLoom is available under the [MIT License](LICENSE).
