@@ -36,7 +36,7 @@ test("wrong protocol version during handshake closes and fails the connection", 
     current.receiveRaw(`${JSON.stringify({ protocol: "surfaceloom.native", version: "9.0", type: "response",
       id: message.id, ok: true, result: descriptor, operation: null })}\n`);
   });
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await assert.rejects(client.connect(), (error: unknown) =>
     error instanceof NativeClientError && error.code === "protocol_violation");
   assert.equal(client.snapshot().state, "disconnected");
@@ -48,7 +48,7 @@ test("response id correlation violation disconnects rather than accepting anothe
     protocol: "surfaceloom.native", version: "1.0", type: "response", id: `${request.id}-wrong`,
     ok: true, result: {}, operation: null,
   })));
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   await assert.rejects(client.invoke({ name: "desktop.observe", intent: "observe",
     scope: { kind: "host", hostInstanceId: "host-1" }, payload: {}, timeoutMs: 100,
@@ -108,7 +108,7 @@ test("partial and full-write disconnects conservatively report unknown and do no
 
 test("before-write failure is notExecuted but still is not automatically retried", async () => {
   const transport = handshakeThen(() => {});
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   transport.writeBehavior = async () => { throw new NativeTransportWriteError("beforeWrite", "closed"); };
   await assert.rejects(client.invoke({ name: "desktop.perform", intent: "mutate",
@@ -124,7 +124,7 @@ test("remote unknown receipt is surfaced and never interpreted as retry permissi
     error: { code: "backend_lost", category: "backend", message: "receipt unavailable", retry: "never" },
     operation: { operationId: request.call.operationId, outcome: "unknown" },
   })));
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   await assert.rejects(client.invoke({ name: "desktop.perform", intent: "mutate",
     scope: { kind: "host", hostInstanceId: "host-1" }, payload: {}, timeoutMs: 100,
@@ -140,7 +140,7 @@ test("negotiated frame boundary rejects oversized payload before write", async (
       current.receive(success(message, small));
     }
   });
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   const writes = transport.writes.length;
   await assert.rejects(client.invoke({ name: "desktop.observe", intent: "observe",
@@ -151,7 +151,7 @@ test("negotiated frame boundary rejects oversized payload before write", async (
 
 test("short successful write receipt is treated as partial write", async () => {
   const transport = handshakeThen(() => {});
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   transport.writeBehavior = async (frame) => ({ bytesWritten: Buffer.byteLength(frame, "utf8") - 1 });
   await assert.rejects(client.invoke({ name: "desktop.perform", intent: "mutate",
@@ -165,7 +165,7 @@ test("correlation failure after write preserves conservative unknown outcome", a
     protocol: "surfaceloom.native", version: "1.0", type: "response", id: request.id, ok: true,
     result: {}, operation: { operationId: "wrong-operation", outcome: "executed" },
   })));
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   await assert.rejects(client.invoke({ name: "desktop.perform", intent: "mutate",
     scope: { kind: "host", hostInstanceId: "host-1" }, payload: {}, timeoutMs: 100,
@@ -178,7 +178,7 @@ test("codec failure preserves a trusted executed receipt", async () => {
   const transport = handshakeThen((request, current) => current.receive(success(request, { malformed: true }, {
     operationId: request.call.operationId, outcome: "executed",
   })));
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   await assert.rejects(client.invoke({ name: "desktop.perform", intent: "mutate",
     scope: { kind: "host", hostInstanceId: "host-1" }, payload: {}, timeoutMs: 100,
@@ -190,7 +190,7 @@ test("codec failure preserves a trusted executed receipt", async () => {
 
 test("codec tracking is transactional when decoding later fails", async () => {
   const transport = handshakeThen((request, current) => current.receive(success(request, {})));
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   await assert.rejects(client.invoke({ name: "desktop.observe", intent: "observe",
     scope: { kind: "host", hostInstanceId: "host-1" }, payload: {}, timeoutMs: 100,
@@ -207,7 +207,8 @@ test("codec tracking is transactional when decoding later fails", async () => {
 test("reused request ids fail closed instead of overwriting a pending request", async () => {
   const ids = ["handshake-request", "reused-request", "reused-request"];
   const transport = handshakeThen(() => {});
-  const client = new NativeClient({ transport, idFactory: () => ids.shift() ?? "unexpected" });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime(),
+    idFactory: () => ids.shift() ?? "unexpected" });
   await client.connect();
   const first = client.invoke({ name: "desktop.observe", intent: "observe",
     scope: { kind: "host", hostInstanceId: "host-1" }, payload: {}, timeoutMs: 5_000,
@@ -226,7 +227,8 @@ test("reused request ids fail closed instead of overwriting a pending request", 
 test("request, operation, and cancel ids share a no-reuse allocation guard", async () => {
   const ids = ["handshake-request", "same-id", "same-id"];
   const transport = handshakeThen(() => {});
-  const client = new NativeClient({ transport, idFactory: () => ids.shift() ?? "unexpected" });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime(),
+    idFactory: () => ids.shift() ?? "unexpected" });
   await client.connect();
   await assert.rejects(client.invoke({ name: "desktop.perform", intent: "mutate",
     scope: { kind: "host", hostInstanceId: "host-1" }, payload: {}, timeoutMs: 100,
@@ -244,7 +246,7 @@ test("oversized inbound frame violates the negotiated boundary and keeps side ef
       type: "response", id: message.id, ok: true, result: { content: "x".repeat(500) },
       operation: { operationId: message.call.operationId, outcome: "executed" } }));
   });
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   await assert.rejects(client.invoke({ name: "desktop.perform", intent: "mutate",
     scope: { kind: "host", hostInstanceId: "host-1" }, payload: {}, timeoutMs: 100,
@@ -267,7 +269,7 @@ test("stripped inbound delimiter is still counted against negotiated frame bytes
     assert.equal(Buffer.byteLength(raw, "utf8"), limit);
     current.receiveRaw(raw);
   });
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   await assert.rejects(client.invoke({ name: "desktop.observe", intent: "observe",
     scope: { kind: "host", hostInstanceId: "host-1" }, payload: {}, timeoutMs: 100,
@@ -367,7 +369,7 @@ test("large legal payload is serialized a bounded number of times and reaches tr
     dispatchedBytes = Buffer.byteLength(JSON.stringify(request.call.payload), "utf8");
     current.receive(success(request, {}));
   });
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   await client.invoke({ name: "desktop.observe", intent: "observe",
     scope: { kind: "host", hostInstanceId: "host-1" },

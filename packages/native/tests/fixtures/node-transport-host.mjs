@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import { spawn } from "node:child_process";
+import { closeSync } from "node:fs";
 
 const mode = process.argv[2] ?? "echo";
 const argumentsAfterMode = process.argv.slice(3);
@@ -47,7 +48,7 @@ if (mode === "argv") {
 } else if (mode === "crash-on-data") {
   process.stdin.once("data", () => process.exit(23));
 } else if (mode === "stdout-close") {
-  process.stdout.end();
+  closeSync(1);
   setInterval(() => {}, 1_000);
 } else if (mode === "buffered-exit") {
   process.stdout.write("first\nsecond-tail", () => process.exit(0));

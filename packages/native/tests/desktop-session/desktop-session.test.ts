@@ -62,7 +62,7 @@ test("journaled operation port retains NativeClient success and error receipts",
     else if (!holdMutation) current.receive(success(message, null,
       { operationId: message.call.operationId, outcome: "executed" }));
   });
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   const launched = await client.launchSession({ payload: {}, timeoutMs: 100 });
   const journal = new BoundedDesktopSessionJournal();
@@ -140,7 +140,7 @@ test("late launch receipt is reconciled through NativeClient fake-transport inte
     else launchRequest = message;
   });
   const mailbox = new NativeLateAcquisitionMailbox();
-  const client = new NativeClient({ transport, onLateResponse: mailbox.accept });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime(), onLateResponse: mailbox.accept });
   await client.connect();
   const controller = new AbortController();
   const launch = client.launchSession({ payload: {}, timeoutMs: 100, signal: controller.signal });

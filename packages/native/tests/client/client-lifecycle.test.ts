@@ -36,7 +36,7 @@ function autoTransport(descriptor = host()): FakeNativeTransport {
 
 test("connect negotiates methods and launch tracks session and root handle", async () => {
   const transport = autoTransport();
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   const descriptor = await client.connect();
   assert.equal(descriptor.hostInstanceId, "host-current");
   const launched = await client.launchSession({ payload: { executable: "fixture" }, timeoutMs: 1_000 });
@@ -56,7 +56,7 @@ test("connect negotiates methods and launch tracks session and root handle", asy
 
 test("method intent/scope negotiation fails before a request is written", async () => {
   const transport = autoTransport();
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   const writeCount = transport.writes.length;
   await assert.rejects(client.invoke({ name: "accessibility.observe", intent: "mutate",
@@ -67,7 +67,7 @@ test("method intent/scope negotiation fails before a request is written", async 
 
 test("stale host, session, and handle scopes fail closed before transport dispatch", async () => {
   const transport = autoTransport();
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   await client.launchSession({ payload: {}, timeoutMs: 100 });
   const writeCount = transport.writes.length;
@@ -88,7 +88,7 @@ test("stale host, session, and handle scopes fail closed before transport dispat
 
 test("platform codecs can explicitly enroll returned handles without adding locator semantics", async () => {
   const transport = autoTransport();
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   await client.launchSession({ payload: {}, timeoutMs: 100 });
   const enrolled = await client.invoke({ name: "accessibility.observe", intent: "observe",
@@ -101,7 +101,7 @@ test("platform codecs can explicitly enroll returned handles without adding loca
 
 test("released session ids cannot be revived inside the same host instance", async () => {
   const transport = autoTransport();
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   const session = (await client.launchSession({ payload: {}, timeoutMs: 100 })).value;
   client.forgetSession(session.sessionId);
@@ -120,7 +120,7 @@ class DeferredOpenTransport extends FakeNativeTransport {
 
 test("disconnect during open settles connect and late open cannot start handshake", async () => {
   const transport = new DeferredOpenTransport();
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   const connecting = client.connect();
   const rejected = assert.rejects(connecting, (error: unknown) =>
     error instanceof NativeClientError && error.code === "disconnected");
@@ -134,7 +134,7 @@ test("disconnect during open settles connect and late open cannot start handshak
 
 test("close during open immediately settles connect and late open cannot revive ready", async () => {
   const transport = new DeferredOpenTransport();
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   const connecting = client.connect();
   const rejected = assert.rejects(connecting, (error: unknown) =>
     error instanceof NativeClientError && error.code === "closed");
@@ -193,7 +193,7 @@ test("concurrent explicit close calls await the same transport completion", asyn
   }
   const automatic = autoTransport();
   const transport = new DeferredCloseTransport(automatic.responder);
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   let firstDone = false;
   let secondDone = false;

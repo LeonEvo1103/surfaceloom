@@ -37,7 +37,7 @@ test("transport close failure is observable and stable across repeated close cal
   }
   const automatic = handshakeTransport();
   const transport = new FailingCloseTransport(automatic.responder);
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await client.connect();
   let firstFailure: unknown;
   await assert.rejects(client.close(), (error: unknown) => {
@@ -58,7 +58,7 @@ test("automatic close failure does not replace the connection failure and remain
   const transport = new MalformedHandshakeTransport((message, current) => {
     if (message.type === "request") current.receiveRaw("{\n");
   });
-  const client = new NativeClient({ transport });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime() });
   await assert.rejects(client.connect(), (error: unknown) =>
     error instanceof NativeClientError && error.code === "protocol_violation");
   await assert.rejects(client.close(), (error: unknown) =>
@@ -117,7 +117,8 @@ test("a duplicate timely response is not mislabeled as timeout reconciliation", 
       }, { operationId: message.call.operationId, outcome: "executed" }));
     }
   });
-  const client = new NativeClient({ transport, onLateResponse: () => { lateCount += 1; } });
+  const client = new NativeClient({ transport, runtime: new ManualRuntime(),
+    onLateResponse: () => { lateCount += 1; } });
   await client.connect();
   await client.launchSession({ payload: {}, timeoutMs: 100, operationId: "timely-launch" });
   assert.notEqual(launchRequest, null);
