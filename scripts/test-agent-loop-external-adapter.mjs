@@ -9,9 +9,13 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 const root = path.resolve(import.meta.dirname, "..");
 const packageDirectory = path.join(root, "packages/agent-loop");
+const corePackageDirectory = path.join(root, "packages/core");
 const temporary = await mkdtemp(path.join(tmpdir(), "surfaceloom-external-adapter-"));
 
 try {
+  const packedCore = await runNpm(["pack", "--json", "--pack-destination", temporary], { cwd: corePackageDirectory });
+  const corePackResult = JSON.parse(packedCore.stdout);
+  const coreTarball = path.join(temporary, corePackResult[0].filename);
   const packed = await runNpm(["pack", "--json", "--pack-destination", temporary], { cwd: packageDirectory });
   const packResult = JSON.parse(packed.stdout);
   const packedPaths = packResult[0].files.map((file) => file.path);
@@ -30,7 +34,10 @@ try {
   await writeFile(path.join(consumer, "package.json"), `${JSON.stringify({
     private: true,
     type: "module",
-    dependencies: { "@surfaceloom/agent-loop": `file:${tarball}` },
+    dependencies: {
+      "@surfaceloom/agent-loop": `file:${tarball}`,
+      "@surfaceloom/core": `file:${coreTarball}`,
+    },
   }, null, 2)}\n`, "utf8");
   await writeFile(path.join(consumer, "adapter.mjs"), runtimeSource(), "utf8");
   await writeFile(path.join(consumer, "adapter.ts"), typeSource(), "utf8");

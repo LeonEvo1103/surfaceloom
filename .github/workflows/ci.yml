@@ -24,9 +24,11 @@ jobs:
             packages/reporter/package-lock.json
             packages/browser-playwright/package-lock.json
             packages/agent-loop/package-lock.json
+            packages/test/package-lock.json
+            packages/native/package-lock.json
       - run: node ./scripts/check-license-contract.mjs
       - run: ./scripts/check-architecture.sh
-      - run: ./scripts/run-typescript-tests.sh
+      - run: ./scripts/run-framework-p1-tests.sh
 
   macos:
     name: macOS Swift contracts
@@ -56,6 +58,8 @@ jobs:
             packages/reporter/package-lock.json
             packages/browser-playwright/package-lock.json
             packages/agent-loop/package-lock.json
+            packages/test/package-lock.json
+            packages/native/package-lock.json
       - run: dotnet build .\SurfaceLoom.WindowsHost.sln -c Release
       - run: dotnet run --project .\tests\SurfaceLoom.WindowsHost.ContractTests -c Release
       - name: Artifact release contracts

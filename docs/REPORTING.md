@@ -3,7 +3,7 @@
 SurfaceLoom 的报告同时服务 CI、开发者和 AI，但三者共享一个事实源。Reporter 是独立横切包，
 不会修改 UI 组件，也不负责获得 Accessibility、Screen Recording 或其他系统权限。
 
-当前机器 schema 为 `surfaceloom.report/v2`。每条记录严格分成长期稳定的 `spec` 和单次
+当前兼容 schema 为 `surfaceloom.report/v2`，新多 surface schema 为 `surfaceloom.report/v3`。v2 每条记录严格分成长期稳定的 `spec` 和单次
 `result`：中文 Case 名、正式适用平台、原始语义、前置条件、验收条件与副作用属于 `spec`；状态、原因、耗时、
 步骤、错误和证据属于 `result`。完整 authoring 规则见 [Case 编写规范](CASE_SPEC.md)。
 
@@ -13,6 +13,12 @@ Reporter 会验证当前 run 的平台确实包含在每条 `spec.platforms` 中
 v2 早期 runner 提交的输入尚无 `spec.platforms`。Reporter 的输入边界兼容这类历史数据，并将其
 保守归一化为仅支持当前 `run.platform`；不会从 tag 或 Case 名推断额外平台。当前 writer 生成的
 新 v2 产物则始终要求并落盘非空 `spec.platforms`，因此下游可以直接按正式平台字段筛选。
+
+v3 在同一 Case 下显式记录 host catalog、surface catalog 和有序 attempt。known attempt 必须记录
+实际使用且属于 Case 声明的 `executionPlatforms`；最高 ordinal 的 attempt 才能成为 final verdict。
+v2 importer 只在 provenance 保留源 platform，并把缺失的 host、surface、attempt 标为 `unknown`，
+不会补成单 host、单 surface 或第 1 次执行。现有 `sl-test` 仍输出 v2，待 runner 能提供真实上下文后
+才切换 v3。
 
 ## 为什么不只照搬 Selenium
 
@@ -129,7 +135,7 @@ AI 只验收存在 `complete.json` 且其中 `files` hash 与三个视图一致�
 
 ## 当前完成度
 
-已完成：v2 `CaseSpec + result` 报告 schema、中文 Case/原始语义展示、状态一致性校验、
+已完成：v2 `CaseSpec + result` 与 v3 host/surface/attempt 报告 schema、保守 v2 importer、中文 Case/原始语义展示、状态一致性校验、
 `incomplete` 汇总、失败保留策略、附件复制/hash、采集
 失败降级、人类可写元数据与用户主目录脱敏、AI Markdown、HTML 图片/视频展示，以及相应契约
 测试。Reporter 的 Node 契约同时在 Linux 和 Windows CI 运行；Swift/macOS contract 在 macOS CI
@@ -142,7 +148,7 @@ AI 只验收存在 `complete.json` 且其中 `files` hash 与三个视图一致�
 仓库自身提供一条最小的 runner→Reporter 参考接线：
 
 ```bash
-./scripts/run-typescript-tests.sh  # 首次运行时安装并验证五个 package
+./scripts/run-typescript-tests.sh  # 首次运行时安装并验证七个 package
 npm --prefix packages/reporter run repository-report
 ```
 

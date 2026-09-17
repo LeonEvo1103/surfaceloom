@@ -1,4 +1,5 @@
 export * from "./adapter.js";
+export * from "./correlation/index.js";
 export * from "./discover.js";
 export * from "./import-codex.js";
 export * from "./import-surfaceloom.js";

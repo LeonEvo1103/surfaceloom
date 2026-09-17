@@ -52,6 +52,20 @@ public static class Program
             ("UIA diagnostics stay bounded and redact content", ElementContractTests.SafeDiagnosticsRemainBounded),
             ("NDJSON handshake is machine-readable", NdjsonHandshakeIsMachineReadable),
             ("NDJSON doctor is machine-readable and read-only", DoctorContractTests.NdjsonIsMachineReadable),
+            ("native v1 handshake is exact and advertised", NativeV1ContractTests.HandshakeIsExactAndAdvertised),
+            ("native v1 deadline and cancel stop before submission", NativeV1ContractTests.DeadlineAndCancelStopBeforeSubmission),
+            ("native v1 post-submission failure is unknown", NativeV1ContractTests.PostSubmissionFailureIsUnknownAndNeverRetried),
+            ("native v1 reader accepts cancel during dispatch", NativeV1ContractTests.ReaderAcceptsCancelDuringDispatch),
+            ("native v1 late success proves executed", NativeV1ContractTests.LateSuccessfulSideEffectProvesExecuted),
+            ("native v1 scope fails closed", NativeV1ContractTests.ScopeAndOwnershipFailClosed),
+            ("native v1 operation ids cannot replay", NativeV1ContractTests.OperationIdsAreConsumedWithoutReplay),
+            ("native v1 frame limit counts the actual delimiter", NativeV1ContractTests.FrameBoundaryCountsActualDelimiter),
+            ("native v1 never relabels legacy 0.2", NativeV1ContractTests.V1DoesNotRelabelLegacyFrames),
+            ("native v1 outbound frames are bounded", NativeV1TransportContractTests.OutboundFramesAreBoundedAndPreserveOutcome),
+            ("native v1 cancellation wakes idle input", NativeV1TransportContractTests.CancellationWakesIdleInputAndReachesCleanup),
+            ("native v1 prepare cannot race host disposal", NativeV1TransportContractTests.PrepareCannotRegisterAfterHostDispose),
+            ("native v1 outstanding ids own one terminal response", NativeV1TransportContractTests.OutstandingIdOwnsItsOnlyTerminalResponse),
+            ("native v1 routing requires one exact marker", NativeV1TransportContractTests.RoutingRequiresOneExactProtocolMarker),
         };
 
         var failures = 0;

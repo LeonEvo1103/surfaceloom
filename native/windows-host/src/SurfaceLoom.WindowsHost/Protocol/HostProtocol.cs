@@ -2,6 +2,8 @@ namespace SurfaceLoom.WindowsHost.Protocol;
 
 public static class HostProtocol
 {
+    // Deprecated Windows-only envelope. NativeV1Protocol is the shared wire contract;
+    // this value remains exact so legacy frames can never be relabelled as v1.
     public const string Version = "0.2";
 
     public const string Handshake = "host.handshake";

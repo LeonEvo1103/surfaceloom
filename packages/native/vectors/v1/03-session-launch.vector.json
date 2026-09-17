@@ -1,0 +1,18 @@
+{
+  "name": "owned session launch request",
+  "valid": true,
+  "message": {
+    "protocol": "surfaceloom.native",
+    "version": "1.0",
+    "type": "request",
+    "id": "request.launch.1",
+    "deadline": { "timeoutMs": 10000 },
+    "call": {
+      "name": "session.launch",
+      "intent": "lifecycle",
+      "operationId": "operation.launch.1",
+      "scope": { "kind": "host", "hostInstanceId": "host-7f3d" },
+      "payload": { "executable": { "path": "/fixture/application", "arguments": ["--test"] } }
+    }
+  }
+}

@@ -14,6 +14,10 @@ macOS Accessibility 和 Windows UI Automation 后端负责定位、动作、窗�
 > 当前状态：可运行的工程实验，尚未发布稳定 API。适合验证架构、接入产品适配器和
 > 执行受控 smoke；不应把它理解成完整替代 XCUITest、Appium 或人工验收的成熟产品。
 
+框架化执行路线、原子任务状态和完成证据以 [Framework SSOT](docs/FRAMEWORK_SSOT.md) 为准；
+[能力事实矩阵](docs/framework/capabilities.md) 区分接口声明、contract test、live fixture 和真实
+目标应用证据。SSOT 中处于 `planned`、`ready` 或 `in_progress` 的能力均不是当前已交付能力。
+
 本仓库只包含产品无关的框架、平台后端和模板，不内置任何具体产品适配器。框架不会修改
 被测产品源码，也不会把测试生成物写回产品仓库。
 
@@ -32,12 +36,17 @@ macOS Accessibility 和 Windows UI Automation 后端负责定位、动作、窗�
 | 层 | 已实现 |
 |---|---|
 | Core | 跨平台 Driver/Session/Locator 契约、CaseSpec、actionability、fixture runtime、doctor、trace 脱敏 |
-| Reporter | v2 CaseSpec/result JSON、中文 AI Markdown/浅色 HTML、截图/录屏附件、失败保留策略与证据 hash |
-| Component Catalog | 37 个桌面/System Surface/Agent 组件 manifest，7 个确定性 fixture manifest |
+| Reporter | v2 单平台兼容报告；v3 host/surface/attempt/executionPlatforms、保守 v2 importer、中文 AI Markdown/浅色 HTML 与证据 hash |
+| Native Protocol | `surfaceloom.native/1.0` schema、NDJSON framing、deadline/cancel、ownership、operation outcome、golden vectors 与 transport-neutral TS client |
+| Component Catalog | 37 个桌面/System Surface/Agent 组件 manifest，7 个 fixture manifest；目录声明不等于行为实现 |
 | Browser | 可选 Playwright Core backend、语义 DOM locator、严格单目标动作、截图与 trace；浏览器按需安装 |
-| Agent Loop | 可扩展 TraceAdapter、统一 trace schema、Codex/原生/第三方 trace 导入、跨时钟合并与静态 HTML 时间线 |
-| macOS | Swift、Accessibility API、AppKit、窗口/菜单/文本/集合/文件面板、owned launch 与 non-owning attach |
-| Windows | .NET 8、UI Automation/Win32、NDJSON host、进程 ownership、窗口与常用 UIA Pattern；真实 Windows conformance 待补 |
+| Agent Loop | 可扩展 TraceAdapter、统一 trace schema、Codex/原生/第三方 trace 导入、跨时钟合并、显式 evidence correlation 与静态 HTML 时间线 |
+| Execution Kernel | 可嵌入 Case 注册/执行、fixture/resource 生命周期、step/criterion、observation 自动等待、capability/effect preflight、deadline 与合作取消；最小顺序 CLI、过滤与 Reporter v2 bundle |
+| macOS | Swift、Accessibility API、AppKit、中性 fixture、窗口/菜单/文本/集合/文件面板、owned launch 与 non-owning attach |
+| Windows | .NET 8、UI Automation/Win32、0.2/1.0 双栈 NDJSON host、中性 WPF fixture、进程 ownership、窗口与常用 UIA Pattern；Windows 11 实测 host contracts 52/52、真实 UIA/lifecycle 5/5（0 skip） |
+
+当前已有 transport-neutral TypeScript native client，但尚没有通用 host process transport、macOS stdio host、跨平台 native live conformance，
+也没有并行、sharding、watch 等完整 runner。具体实现与证据边界见[能力事实矩阵](docs/framework/capabilities.md)。
 
 组件 manifest `desktop.agent.computer-control` 与 `desktop.agent.emergency-stop` 表示“测试
 Agent 客户端自身显示的 Computer Use 状态和停止入口”。它们不等于让测试框架依靠
@@ -52,10 +61,14 @@ packages/
 ├── browser-playwright/           # 可选 Playwright DOM backend，不污染 Core
 ├── agent-loop/                   # 通用 Agent loop schema、adapter 与静态可视化
 ├── component-catalog/            # 机器可读组件和 fixture manifest
-└── reporter/                     # 机器/AI/人工三种测试报告视图
+├── reporter/                     # 机器/AI/人工三种测试报告视图
+├── native/                       # 共享 native wire contract、client 与 golden vectors
+└── test/                         # 可嵌入 Case execution kernel 与作者 API
 Sources/SurfaceLoomMacOS/      # Swift + Accessibility/AppKit backend
 Tests/SurfaceLoomMacOSTests/   # macOS backend contract tests
 native/windows-host/              # C# + UI Automation/Win32 NDJSON host
+native/windows-fixture/           # 产品无关的 WPF/UIA conformance fixture
+native/macos-fixture/             # 产品无关的 AppKit/AX conformance fixture
 projects/                         # 可选产品 adapter 的接入约定，不内置具体产品
 Templates/                        # 新组件和场景模板
 docs/                             # 架构、组件、Windows 和接入说明
@@ -88,6 +101,15 @@ cd surfaceloom
 `projects/<product>/repository-checks.mjs` 自注册仓库报告检查；共享脚本不硬编码产品。生成一份不操作桌面的
 确定性报告示例：
 
+首个 Agent 审批 showcase 还会启动本机 Chrome/Chromium，执行真实 DOM 动作，并验证独立工具账本：
+
+```bash
+./scripts/run-framework-p1-tests.sh
+```
+
+该命令不会在缺少浏览器时静默 skip；可用 `SURFACELOOM_BROWSER_EXECUTABLE` 显式指定 Chromium
+可执行文件。
+
 ```bash
 npm --prefix packages/reporter run example -- artifacts/reporter-example
 ```
@@ -98,8 +120,8 @@ npm --prefix packages/reporter run example -- artifacts/reporter-example
 npm --prefix packages/reporter run repository-report
 ```
 
-macOS 会运行五个 TypeScript package、架构守卫和根 Swift contracts；Windows 会运行五个
-TypeScript package与 .NET host contracts。这里汇总的是命令级检查，不是逐用例 importer。
+macOS 会运行七个 TypeScript package、架构守卫和根 Swift contracts；Windows 会运行七个
+TypeScript package 与 .NET host contracts。这里汇总的是命令级检查，不是逐用例 importer。
 HTML 默认使用浅色界面。输出目录会打印在命令末尾，且 Reporter 仍拒绝覆盖已存在的报告目录。
 
 报告目录包含 `complete.json`、`report.json`、`ai-review.md`、`index.html` 和相对路径的
@@ -193,10 +215,13 @@ package manifest 的 tools version 为 Swift 5.10。
 cd native\windows-host
 dotnet build .\SurfaceLoom.WindowsHost.sln -c Release
 dotnet run --project .\tests\SurfaceLoom.WindowsHost.ContractTests -c Release
+cd ..\windows-fixture
+.\scripts\live-conformance.ps1
 ```
 
 Windows host 不自动化 UAC Secure Desktop，也不会修改系统安全设置。详细协议和限制见
-[Windows Host README](native/windows-host/README.md)。
+[Windows Host README](native/windows-host/README.md)。最后一条命令会通过真实 host 启动中性
+WPF fixture，执行 5 个不可跳过的 UIA/lifecycle Case，并生成本机 JSON 证据。
 
 若 Windows 环境没有 Bash，可以分别运行仓库内 package 命令：
 
@@ -211,6 +236,8 @@ npm --prefix .\packages\browser-playwright ci
 npm --prefix .\packages\browser-playwright test
 npm --prefix .\packages\agent-loop ci
 npm --prefix .\packages\agent-loop test
+npm --prefix .\packages\native ci
+npm --prefix .\packages\native test
 ```
 
 ## macOS 产品接入示例
@@ -280,7 +307,7 @@ const safeAgentComponents = listComponentManifests({
 });
 ```
 
-这是仓库内 API；五个 TypeScript package 当前标记为 `private`，尚不能从 npm registry 安装。
+这是仓库内 API；七个 TypeScript package 当前标记为 `private`，尚不能从 npm registry 安装。
 不执行 TypeScript 的工具也可以在 build 后读取 `dist/catalog.json` 与 `dist/fixtures.json`。
 
 推荐修改顺序：

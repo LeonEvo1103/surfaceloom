@@ -1,0 +1,33 @@
+{
+  "id": "reference-agent.approval.approve",
+  "locale": "zh-CN",
+  "platforms": ["web"],
+  "suite": {
+    "id": "reference-agent.approval",
+    "name": "参考智能体审批"
+  },
+  "name": "批准工具调用且只执行一次",
+  "intent": "验证用户在真实浏览器中批准工具请求后，完整工具账本与实际副作用均证明只执行一次。",
+  "preconditions": [
+    {
+      "id": "fixture-ready",
+      "text": "本地确定性参考智能体与独立工具账本已启动。"
+    }
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "approve-status",
+      "text": "浏览器界面显示该运行已完成。"
+    },
+    {
+      "id": "approve-one-execution",
+      "text": "完整运行边界内工具恰好执行并完成一次。"
+    },
+    {
+      "id": "approve-one-effect",
+      "text": "工具执行器实际记录的副作用恰好有一个。"
+    }
+  ],
+  "sideEffect": "reversible",
+  "tags": ["agent", "approval", "browser", "deterministic"]
+}

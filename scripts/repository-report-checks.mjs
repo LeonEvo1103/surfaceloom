@@ -50,6 +50,15 @@ export function defineRepositoryChecks(
         ["report-contracts-pass", "Reporter 包的全部契约测试成功完成。"],
       ],
     })),
+    packageCheck("test", repositorySpec({
+      id: "typescript-execution-kernel",
+      name: "执行内核契约测试",
+      sourceName: "Execution kernel contracts",
+      intent: "验证 Case 注册、Fixture 生命周期、步骤与验收关联、失败首因和清理结果能够形成合法报告输入。",
+      criteria: [
+        ["kernel-contracts-pass", "执行内核包的全部契约测试成功完成。"],
+      ],
+    })),
     check(repositorySpec({
       id: "repository-contracts",
       name: "仓库与产品边界契约测试",

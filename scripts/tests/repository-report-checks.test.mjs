@@ -12,10 +12,10 @@ test("Windows package checks execute npm's JavaScript entry point through Node",
     nodeExecPath: "C:\\Program Files\\nodejs\\node.exe",
     npmExecPath: "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
   });
-  const packageChecks = plan.checks.slice(0, 3);
+  const packageChecks = plan.checks.slice(0, 4);
 
   assert.equal(plan.platform, "windows");
-  assert.equal(packageChecks.length, 3);
+  assert.equal(packageChecks.length, 4);
   for (const check of packageChecks) {
     assert.equal(check.command, "C:\\Program Files\\nodejs\\node.exe");
     assert.equal(check.args[0], "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js");
@@ -80,7 +80,7 @@ test("repository cases declare only platforms on which their commands run", () =
     [["macos"], ["macos"]],
   );
   assert.deepEqual(windows.checks.at(-1)?.spec.platforms, ["windows"]);
-  assert.ok(windows.checks.slice(0, 4).every((entry) =>
+  assert.ok(windows.checks.slice(0, 5).every((entry) =>
     entry.spec.platforms.includes("windows")),
   );
 });

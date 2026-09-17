@@ -1,8 +1,12 @@
 # SurfaceLoom V2 架构
 
 > 状态：首个跨平台骨架已落地。TypeScript 契约/组件 manifest、Swift macOS backend、
-> C# Windows UIA host、可选 Playwright DOM backend 与独立产品适配器均已有代码；fixture app、双平台 conformance 和
+> C# Windows UIA host、中性 Windows fixture、可选 Playwright DOM backend 与独立产品适配器均已有代码；macOS fixture、双平台 live conformance 和
 > 完整组件实现仍按本文路线增量建设。
+
+> 框架 execution kernel、任务状态、阶段门槛和验收证据以 [Framework SSOT](FRAMEWORK_SSOT.md)
+> 为准；当前实现级别以[能力事实矩阵](framework/capabilities.md)为准。本文描述长期分层，示例中的
+> 目标接口不代表各 backend 已实现；如旧阶段文字与 SSOT 冲突，以 SSOT 为准并同步修正文档。
 
 ## 1. 决策摘要
 
@@ -14,6 +18,11 @@ SurfaceLoom 不绑定某个产品，也不把 macOS 或 Windows 的原生 API �
 4. **驱动契约层**定义跨平台动作、查询、等待和诊断协议。
 5. **原生后端层**当前分别使用 macOS AX/AppKit/CGEvent 和 Windows UIA/Win32。
    XCUITest 是后续发布候选专用测试层，不是现有日常 backend。
+
+测试框架的中心是可嵌入的 **CaseExecution kernel**：它负责 Case 生命周期、fixture、step、
+criterion、deadline、策略、证据和清理语义；browser、desktop、system 和 Agent probe 向它提供
+类型化能力。它不把 DOM click、AXPress、UIA Invoke 和真实鼠标注入伪装成同一个动作。
+该 kernel 按 SSOT 原子任务增量落地，未标记 `done` 的部分仍是设计契约。
 
 横切的 **Agent loop pipeline** 通过可插拔 TraceAdapter 归一模型、工具、审批、桌面和浏览器
 事件；它消费各层 trace，但不进入动作调用链。viewer 只依赖通用 schema，不依赖具体 runtime。
@@ -55,13 +64,17 @@ SurfaceLoom 不绑定某个产品，也不把 macOS 或 Windows 的原生 API �
     packages/agent-loop/            通用 Agent loop schema、adapter 与 viewer
     packages/component-catalog/     机器可读组件 manifest
     packages/reporter/              结果 schema、证据归档与 AI/HTML 报告
+    packages/native/                共享 native wire schema、framing、TS client 与 golden vectors
+    packages/test/                  可嵌入 execution kernel 与 CLI
     Sources/SurfaceLoomMacOS/    Swift + AX/AppKit backend
     native/windows-host/            .NET + Windows UI Automation host
+    native/windows-fixture/         产品无关的 WPF/UIA conformance fixture
+    native/macos-fixture/           产品无关的 AppKit/AX conformance fixture
     projects/                       可选产品适配器接入约定
     Tests/SurfaceLoomMacOSTests/ macOS backend contract
     docs/                            架构与平台说明
 
-后续再增加 macOS/Windows fixture app、共享 conformance、Appium bridge 和发布候选专用的
+后续再增加 macOS fixture app、共享 live conformance、Appium bridge 和发布候选专用的
 XCUITest/system-surface suites。目录可以演进，但层间依赖方向不可反转。
 
 Reporter 是横切消费者，不在 Scenario → Component → Core → backend 的动作依赖链中。平台
@@ -70,8 +83,9 @@ backend/runner 产生截图、录屏、trace 和诊断，Reporter 只归档并�
 
 ## 3. 驱动契约
 
-驱动契约是跨语言、可版本化的数据协议。TypeScript SDK 面向场景作者；当前 Windows
-.NET host 使用本地 stdio NDJSON，Swift/macOS backend 先保留直接 API，待 conformance
+驱动契约是跨语言、可版本化的数据协议。transport-neutral TypeScript native client 已实现 framing、
+correlation、deadline、capability 与 identity 合同；当前 Windows .NET host 使用本地 stdio NDJSON，
+但具体进程 transport 与真实 Windows 纵向 conformance 尚未接通。Swift/macOS backend 先保留直接 API，待 conformance
 稳定后再增加相同 sidecar 协议。默认不启动常驻高权限服务。
 
 目标驱动契约如下。TypeScript Core 已定义这些语义；各原生 backend 仍按 capability 渐进实现，
@@ -220,7 +234,7 @@ Manifest 至少包含：
 允许的 profile、optional capability 和逐 backend 验证状态仍属于后续 schema 演进项，
 不能把它们当成当前 manifest 已有字段。
 
-组件目录和 P0 计划见 COMPONENT_CATALOG_V2.md。
+组件目录设计见 COMPONENT_CATALOG_V2.md；框架阶段和任务状态只在 FRAMEWORK_SSOT.md 维护。
 
 ## 7. Fixture 与副作用门禁
 
@@ -338,7 +352,10 @@ Agent 流程默认使用确定性的 fake model/tool server：
 
 如果产品 UI 变更但找不到任何受影响组件，CI 应提示“测试影响未声明”，由开发 Agent 明确标记 no-test-impact 或补测试。
 
-## 12. 分阶段落地
+## 12. 历史平台建设阶段
+
+本节保留平台骨架形成过程，不再作为当前执行计划。当前 P0–P4 门槛、依赖和施工状态见
+FRAMEWORK_SSOT.md，避免把这里的 Phase A–E 与 SSOT 阶段混用。
 
 ### Phase A：去产品绑定
 

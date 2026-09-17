@@ -1,0 +1,19 @@
+{
+  "name": "owned session launch success",
+  "valid": true,
+  "message": {
+    "protocol": "surfaceloom.native",
+    "version": "1.0",
+    "type": "response",
+    "id": "request.launch.1",
+    "ok": true,
+    "result": {
+      "hostInstanceId": "host-7f3d",
+      "sessionId": "session-42",
+      "ownership": "owned",
+      "surface": "application",
+      "root": { "hostInstanceId": "host-7f3d", "sessionId": "session-42", "handleId": "root-1" }
+    },
+    "operation": { "operationId": "operation.launch.1", "outcome": "executed" }
+  }
+}

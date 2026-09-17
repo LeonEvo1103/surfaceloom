@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "surfaceloom.macos-fixture/1",
+  "platform": "macos",
+  "framework": "appkit",
+  "minimumOSVersion": "13.0",
+  "productNeutral": true,
+  "root": {
+    "controlType": "window",
+    "automationId": "surfaceloom.fixture.window.main",
+    "name": "SurfaceLoom AX Fixture"
+  },
+  "initialState": {
+    "invokeCount": 0,
+    "inputValue": "",
+    "ambiguousInvocationCount": 0,
+    "transientVisible": true,
+    "lifecycleState": "ready"
+  },
+  "controls": [
+    {
+      "key": "lifecycleState",
+      "controlType": "edit",
+      "automationId": "surfaceloom.fixture.lifecycle.state",
+      "name": "Lifecycle state",
+      "readOnly": true,
+      "initialValue": "ready"
+    },
+    {
+      "key": "close",
+      "controlType": "button",
+      "automationId": "surfaceloom.fixture.lifecycle.close",
+      "name": "Close fixture",
+      "action": "invoke"
+    },
+    {
+      "key": "invoke",
+      "controlType": "button",
+      "automationId": "surfaceloom.fixture.invoke",
+      "name": "Invoke once",
+      "action": "invoke"
+    },
+    {
+      "key": "invokeCount",
+      "controlType": "edit",
+      "automationId": "surfaceloom.fixture.invoke-count",
+      "name": "Invoke count",
+      "readOnly": true,
+      "initialValue": "0"
+    },
+    {
+      "key": "valueInput",
+      "controlType": "edit",
+      "automationId": "surfaceloom.fixture.value-input",
+      "name": "Fixture value",
+      "action": "setValue"
+    },
+    {
+      "key": "valueMirror",
+      "controlType": "edit",
+      "automationId": "surfaceloom.fixture.value-mirror",
+      "name": "Value mirror",
+      "readOnly": true,
+      "initialValue": ""
+    },
+    {
+      "key": "ambiguousA",
+      "controlType": "button",
+      "automationId": "surfaceloom.fixture.ambiguous.a",
+      "name": "Ambiguous action",
+      "action": "invoke"
+    },
+    {
+      "key": "ambiguousB",
+      "controlType": "button",
+      "automationId": "surfaceloom.fixture.ambiguous.b",
+      "name": "Ambiguous action",
+      "action": "invoke"
+    },
+    {
+      "key": "ambiguousInvocationCount",
+      "controlType": "edit",
+      "automationId": "surfaceloom.fixture.ambiguous-count",
+      "name": "Ambiguous invocation count",
+      "readOnly": true,
+      "initialValue": "0"
+    },
+    {
+      "key": "transient",
+      "controlType": "button",
+      "automationId": "surfaceloom.fixture.transient",
+      "name": "Dismiss transient control",
+      "action": "invoke"
+    },
+    {
+      "key": "transientRestore",
+      "controlType": "button",
+      "automationId": "surfaceloom.fixture.transient-restore",
+      "name": "Restore transient control",
+      "action": "invoke"
+    }
+  ],
+  "transitions": [
+    {
+      "operation": "invoke",
+      "target": "invoke",
+      "postcondition": { "field": "invokeCount", "delta": 1 }
+    },
+    {
+      "operation": "setValue",
+      "target": "valueInput",
+      "argument": "SurfaceLoom value ✓",
+      "postcondition": { "field": "inputValue", "equalsArgument": true }
+    },
+    {
+      "operation": "findStrict",
+      "locator": { "controlType": "button", "name": "Ambiguous action" },
+      "postcondition": { "error": "ambiguous", "candidateCount": 2, "sideEffects": 0 }
+    },
+    {
+      "operation": "invoke",
+      "target": "transient",
+      "postcondition": { "field": "transientVisible", "equals": false }
+    },
+    {
+      "operation": "invoke",
+      "target": "transientRestore",
+      "postcondition": { "field": "transientVisible", "equals": true }
+    },
+    {
+      "operation": "invoke",
+      "target": "close",
+      "precondition": { "field": "lifecycleState", "equals": "ready" },
+      "postcondition": { "processExited": true }
+    }
+  ],
+  "liveEvidenceRequired": true
+}

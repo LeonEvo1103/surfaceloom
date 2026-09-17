@@ -1,0 +1,121 @@
+<Window x:Class="SurfaceLoom.WindowsFixture.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SurfaceLoom UIA Fixture"
+        AutomationProperties.AutomationId="surfaceloom.fixture.window.main"
+        AutomationProperties.Name="SurfaceLoom UIA Fixture"
+        Width="760"
+        Height="560"
+        MinWidth="700"
+        MinHeight="520"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <TextBlock Grid.Row="0"
+                   FontSize="24"
+                   FontWeight="SemiBold"
+                   Text="SurfaceLoom UIA Fixture" />
+        <TextBlock Grid.Row="1"
+                   Margin="0,4,0,20"
+                   Text="Deterministic controls for native conformance" />
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+
+            <GroupBox Header="Owned lifecycle" Margin="0,0,0,12">
+                <StackPanel Margin="12">
+                    <TextBox AutomationProperties.AutomationId="surfaceloom.fixture.lifecycle.state"
+                             AutomationProperties.Name="Lifecycle state"
+                             IsReadOnly="True"
+                             IsTabStop="False"
+                             Text="{Binding LifecycleState, Mode=OneWay}" />
+                    <Button Margin="0,8,0,0"
+                            AutomationProperties.AutomationId="surfaceloom.fixture.lifecycle.close"
+                            AutomationProperties.Name="Close fixture"
+                            Click="CloseButton_Click"
+                            Content="Close fixture" />
+                </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Invoke" Margin="0,0,0,12">
+                <StackPanel Margin="12">
+                    <Button AutomationProperties.AutomationId="surfaceloom.fixture.invoke"
+                            AutomationProperties.Name="Invoke once"
+                            Click="InvokeButton_Click"
+                            Content="Invoke once" />
+                    <TextBox Margin="0,8,0,0"
+                             AutomationProperties.AutomationId="surfaceloom.fixture.invoke-count"
+                             AutomationProperties.Name="Invoke count"
+                             IsReadOnly="True"
+                             IsTabStop="False"
+                             Text="{Binding InvokeCountText, Mode=OneWay}" />
+                </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Set value" Margin="0,0,0,12">
+                <StackPanel Margin="12">
+                    <TextBox AutomationProperties.AutomationId="surfaceloom.fixture.value-input"
+                             AutomationProperties.Name="Fixture value"
+                             Text="{Binding InputValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Margin="0,8,0,0"
+                             AutomationProperties.AutomationId="surfaceloom.fixture.value-mirror"
+                             AutomationProperties.Name="Value mirror"
+                             IsReadOnly="True"
+                             IsTabStop="False"
+                             Text="{Binding ValueMirror, Mode=OneWay}" />
+                </StackPanel>
+            </GroupBox>
+
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+            <GroupBox Header="Strict ambiguity" Margin="0,0,0,12">
+                <StackPanel Margin="12">
+                    <UniformGrid Columns="2">
+                        <Button Margin="0,0,4,0"
+                                AutomationProperties.AutomationId="surfaceloom.fixture.ambiguous.a"
+                                AutomationProperties.Name="Ambiguous action"
+                                Click="AmbiguousButton_Click"
+                                Content="Ambiguous action" />
+                        <Button Margin="4,0,0,0"
+                                AutomationProperties.AutomationId="surfaceloom.fixture.ambiguous.b"
+                                AutomationProperties.Name="Ambiguous action"
+                                Click="AmbiguousButton_Click"
+                                Content="Ambiguous action" />
+                    </UniformGrid>
+                    <TextBox Margin="0,8,0,0"
+                             AutomationProperties.AutomationId="surfaceloom.fixture.ambiguous-count"
+                             AutomationProperties.Name="Ambiguous invocation count"
+                             IsReadOnly="True"
+                             IsTabStop="False"
+                             Text="{Binding AmbiguousInvocationCountText, Mode=OneWay}" />
+                </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Disappearing element">
+                <StackPanel x:Name="TransientHost" Margin="12">
+                    <Button x:Name="TransientActionButton"
+                            AutomationProperties.AutomationId="surfaceloom.fixture.transient"
+                            AutomationProperties.Name="Dismiss transient control"
+                            Click="TransientButton_Click"
+                            Content="Dismiss transient control" />
+                    <Button Margin="0,8,0,0"
+                            AutomationProperties.AutomationId="surfaceloom.fixture.transient-restore"
+                            AutomationProperties.Name="Restore transient control"
+                            Click="RestoreTransientButton_Click"
+                            Content="Restore transient control" />
+                </StackPanel>
+            </GroupBox>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>
