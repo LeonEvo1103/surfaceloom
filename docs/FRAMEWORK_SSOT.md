@@ -177,7 +177,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P0-010` | done | `SL-P0-001` | `docs/framework/capabilities.md` | 逐项链接源码、测试、验证级别；明确 manifest/实现、bridge/contract/live 差距 |
 | `SL-P0-020` | done | `SL-P0-001` | `scripts/check-framework-ssot.mjs`、对应 tests | 校验 ID、依赖、环、状态和 done 证据；不做调度系统 |
 | `SL-P0-030` | done | `SL-P0-001`,`SL-P0-010` | README、AGENTS、`ARCHITECTURE_V2.md` | 增加 SSOT 入口并修正冲突，不把规划写成已实现 |
-| `SL-P0-040` | review | `SL-P0-010` | `docs/framework/capabilities.md`、README 事实段 | 同步 Windows C# live、TS transport-neutral、macOS fixture build-only 与 P3/P4 边界；事实矩阵和 SSOT 不互相矛盾 |
+| `SL-P0-040` | done | `SL-P0-010` | `docs/framework/capabilities.md`、README 事实段 | 同步 Windows C# live、TS transport-neutral、macOS fixture build-only 与 P3/P4 边界；事实矩阵和 SSOT 不互相矛盾 |
 
 ### P1：首个可信 Agent Case
 
@@ -212,7 +212,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
-| `SL-P3-005` | review | `SL-P3-020` | macOS fixture app bundle/build/tests | 把裸 executable 封装为有稳定 bundle identity/Info.plist 的 `.app`；build 只算 artifact contract，不冒充 TCC/live AX |
+| `SL-P3-005` | done | `SL-P3-020` | macOS fixture app bundle/build/tests | 把裸 executable 封装为有稳定 bundle identity/Info.plist 的 `.app`；build 只算 artifact contract，不冒充 TCC/live AX |
 | `SL-P3-010` | planned | `SL-P2-060`,`SL-P3-005` | Package.swift、新 macOS codec/stdio host/tests | 同协议严格 frame/dispatcher；stdout 只承载 wire、错误脱敏、共享单调 deadline；不把 cancel arrival 冒充 AX 已停止 |
 | `SL-P3-015` | planned | `SL-P3-010` | macOS host lifecycle/handle/action adapter | opaque host/session handle、唯一 scope、单次提交、迟到 launch ownership、全部 cleanup 尝试；不隐式 fallback 坐标/键盘 |
 | `SL-P3-020` | done | `SL-P2-010` | 新 macOS fixture | 与 Windows 同一行为契约的中性 app |
@@ -226,7 +226,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P3-070` | planned | `SL-P3-055`,`SL-P3-060`,`SL-P3-065`,`SL-P3-086` | mixed-surface example 与 integration tests | browser + native Case；deny 0、approve 1、停止 outcome、ledger/trace 截断 fail closed、native criterion 失败令整 Case/CLI 失败；报告列两面和 cleanup |
 | `SL-P3-075` | ready | `SL-P1-070` | test package project config、loader、CLI tests | `defineProject` 只组织已有 kernel；冻结配置优先级/路径/ESM-CJS 边界/重复 ID/退出码；TS Case loader 不借源码树工具 |
 | `SL-P3-080` | planned | `SL-P3-025`,`SL-P3-075` | browser/native surface fixture factories 与 author facade | 可选 backend 显式注入，不让 core/test 强依赖 Playwright/native；旧 `defineCase` 签名继续通过 |
-| `SL-P3-085` | review | `SL-P1-030`,`SL-P1-060` | Agent observation provider/assertion wrappers 与 tests | 薄封装现有 observation assertion；run/call/resource/completeness 明确；“无外部 effect”只对有完成 barrier 的声明资源成立 |
+| `SL-P3-085` | done | `SL-P1-030`,`SL-P1-060` | Agent observation provider/assertion wrappers 与 tests | 薄封装现有 observation assertion；run/call/resource/completeness 明确；“无外部 effect”只对有完成 barrier 的声明资源成立 |
 | `SL-P3-086` | planned | `SL-P3-030`,`SL-P3-085` | reference-agent async executor、stop barrier、native effect probe | 可控暂停/取消/settle receipt；区分提交前停止、提交后 unknown、已发生 effect；稳定绑定 runId/callId/operationId |
 
 ### P4：可安装 alpha
@@ -269,6 +269,7 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | `SL-P0-020` | `aebb24c43af1c664f39bce9ab0b705c517a1d0c2` | `scripts/check-framework-ssot.mjs`、`scripts/lib/framework-ssot.mjs`、`scripts/tests/framework-ssot.test.mjs` | `node --test scripts/tests/framework-ssot.test.mjs && node scripts/check-framework-ssot.mjs` / 0 | macOS | 2 tests / 0 | `scripts/tests/framework-ssot.test.mjs` | 只验证账本结构，不调度任务，也不替代人工能力证据审查。 |
 | `SL-P0-010` | `aebb24c32f3dec0e7b51c369656cd2d27430dabb` | `docs/framework/capabilities.md` | `node` 本地链接检查与 `git diff --check` / 0 | macOS | 75 links（65 unique targets）/ 0 | `docs/framework/capabilities.md` | 无 target-app 证据；browser live smoke 未执行；macOS/Windows 仍缺统一 TS native bridge 和中性 fixture live conformance。 |
 | `SL-P0-030` | `dc1e6c67ae6d88e069f74efe1dc3091e120c7a1c` | `README.md`、`AGENTS.md`、`docs/ARCHITECTURE_V2.md` | `node scripts/check-framework-ssot.mjs && ./scripts/check-architecture.sh && git diff --check` / 0 | macOS | 2 contract checks / 0 | `README.md`、`AGENTS.md`、`docs/ARCHITECTURE_V2.md` | 只统一权威入口与事实措辞；未把 execution 规划计为实现。 |
+| `SL-P0-040` | `c9a235e2eaef8b379c0fd7748deea14e2cc73360` | `README.md`、`docs/framework/capabilities.md` | `node scripts/check-framework-ssot.mjs && ./scripts/check-architecture.sh && git diff --check` / 0 | macOS | 2 document/architecture checks / 0 | `README.md`、`docs/framework/capabilities.md` | 明确 Windows 5/5 live 经 C# client、macOS `.app` 只到 artifact contract、TS native 仍无 process transport/live；未提升任何未验能力。 |
 | `SL-P1-020` | `cbd21b9d43e681e924015cda20095583f31f478e` | `examples/reference-agent/**` | `npm ci --ignore-scripts && npm test && git diff --check` / 0 | macOS / Node 22 | 11 tests / 0 | `examples/reference-agent/test` | 内存 effect；无真实 browser/model/外部服务；ledger 不对任意伪造快照提供密码学认证。 |
 | `SL-P1-010` | `80f3302c09ab8967cc85a86e0abdbb4e55afc67f` | `packages/test/**` | `npm ci && npm run typecheck && npm test && npm pack --dry-run` / 0 | macOS / Node 22 | 24 tests / 0 | `packages/test/tests` | 无 CLI、deadline/强制取消、policy/effects、自动 observation 或真实 backend conformance；挂起的非合作 JavaScript 仍会等待。 |
 | `SL-P1-030` | `f72a0d21849dc256973faa92410fdf32b38d8214` | `packages/test/src/assertion*`、`observation*`、`errors.ts` 与对应 tests/exports | `npm run typecheck && npm test && npm pack --dry-run` / 0 | macOS / Node 22 | 32 scoped tests（77 package total）/ 0 | `packages/test/tests/assertion*.test.ts`、`observation.test.ts` | reader/provider 的真实重读与 completeness 是信任契约；无强制取消，挂起 reader 仍会等待。 |
@@ -286,8 +287,10 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | `SL-P2-040` | `8d047c7` | `native/windows-fixture/**` | Node tests + Docker WPF Release build + portable .NET model run + `git diff --check` / 0 | macOS + Linux ARM64 container targeting Windows | 8 Node tests + 16 model checks，WPF build 0 warnings/errors / 0 | `native/windows-fixture/tests`、`fixture-contract.v1.json` | 证明源码、XAML 与 portable model；没有在 Windows 启动 GUI、查询 UIA pattern 或验证 process exit，live 责任仍属于 `SL-P2-050`。 |
 | `SL-P2-050` | `7d79157c9bc2e582d79950ab68b97542243868f4` | `native/windows-host/**`、`native/windows-fixture/**` | `native/windows-fixture/scripts/live-conformance.ps1` / 0 | Windows 11 interactive session / .NET 8 | 5 live WPF/UIA/lifecycle cases / 0 | `native/windows-fixture/artifacts/windows-live-conformance.json`（runner-local） | 证明真实 UIA invoke/value/strict ambiguity/transient recovery/owned process exit；报告来自与该 revision 内容一致的远端工作树，未另行从 commit archive 重跑，生成制品不作为静态仓库文件提交。 |
 | `SL-P3-020` | `b4d53d6` | `native/macos-fixture/**` | `./scripts/verify.sh && git diff --check` / 0 | macOS / Swift 6 / Node 22 | 8 Swift model tests + 10 Node parity/static tests + AppKit Release build / 0 | `native/macos-fixture/Tests`、`fixture-contract.v1.json` | 未启动 GUI、未请求 TCC、未执行 live AX；只证明模型、源码、Windows 行为 parity 与可构建性。 |
+| `SL-P3-005` | `c9a235e2eaef8b379c0fd7748deea14e2cc73360` | `native/macos-fixture/AppBundle/**`、`scripts/build-app.sh`、artifact tests/docs | `./native/macos-fixture/scripts/verify.sh` / 0 | macOS / Swift 6 / Node 22 | 8 Swift model + 13 Node model/parity/artifact tests / 0 | `native/macos-fixture/Tests/app-bundle-contract.test.mjs` | 证明 `.app` bundle identity、Info.plist、Mach-O minimum OS、可重复及空格路径构建；没有启动 GUI、安装应用、请求 TCC 或执行 live AX。 |
 | `SL-P3-040` | `2ebc6ccae2ce97e373f09d8abb2c97e9c5755a1a` | `packages/reporter/src/v3/**`、`tests/v3/**`、公开 export | `npm run typecheck && npm test && npm pack --dry-run` / 0 | macOS / Node 22 | 18 v3 tests（54 reporter total）/ 0；111 packed files | `packages/reporter/tests/v3` | CLI 仍输出 report/v2；v3 需要 runner 提供真实 host/surface/attempt/executionPlatforms，不自动伪造。 |
 | `SL-P3-050` | `2dad348` | Core evidence context、agent-loop correlation、exports/peer/外部消费脚本 | Core/agent-loop test+typecheck+pack，external adapter，`git diff --check` / 0 | macOS / Node 22 | 10 Core evidence tests（53 total）+ 10 correlation tests（30 agent-loop total）/ 0；63/87 packed files | `packages/core/tests/evidence-context.test.ts`、`packages/agent-loop/tests/correlation` | 只接受显式 binding，不自动从时间/相邻事件/correlationId 猜因果；尚未物化为 report/v3 artifact，不能修改 authoritative verdict。 |
+| `SL-P3-085` | `c9a235e2eaef8b379c0fd7748deea14e2cc73360` | `packages/test/src/agent-observation.ts`、公共 exports、对应 tests | `npm --prefix packages/test run typecheck && npm --prefix packages/test test` / 0 | macOS / Node 22 | 7 scoped Agent assertion tests（193 package total）/ 0 | `packages/test/tests/agent-observation.test.ts` | provider/ledger 的真实性仍是 adapter 信任边界；exactly-once 与 zero-effect 只在匹配的完成 barrier 后成立，不能从 unknown/truncated/read-failed 推断。 |
 
 ## 12. 变更记录
 
@@ -301,3 +304,4 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | 2026-09-17 | 完成中性 macOS AppKit fixture 与显式 evidence correlation graph；两个 fixture 都不把 build/model tests 冒充 live AX/UIA，trace correlation 不拥有 verdict。 |
 | 2026-09-17 | 在 Windows 11 交互式环境完成 host contract 52/52 与真实 WPF/UIA conformance 5/5（0 skip），关闭 `SL-P2-020` 和 `SL-P2-050`；后续同范围变更必须重跑，不以跨平台编译替代。 |
 | 2026-09-17 | GPT-6 Xhigh 逐步审计 P3/P4：明确既有 Windows live 未经过 TS client，拆分协议/cleanup、Node transport、lease、双平台 TS live、runner-v3、作者层和候选/registry 发布门槛；禁止把 close/timeout/kill、截图或手写 revision 冒充资源清理与来源证明。 |
+| 2026-09-17 | 首批 5.6 Sol High 实现经主 Agent 回归：关闭事实矩阵同步、macOS `.app` artifact 与 Agent fail-closed 断言；native TS close/late/duplicate-key 加固保持 review，等待 Windows/macOS 跨语言协议证据后再关闭 `SL-P2-060`。 |
