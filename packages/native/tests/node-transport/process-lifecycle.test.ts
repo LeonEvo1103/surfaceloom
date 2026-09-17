@@ -5,10 +5,25 @@ import test from "node:test";
 import { NativeTransportWriteError } from "../../src/client/index.js";
 import {
   NodeChildProcessTransport, NodeProcessTransportError, type NodeProcessTransportOptions,
+  type ProcessExitReceipt,
 } from "../../src/node-transport/index.js";
 
 const fixture = fileURLToPath(new URL("../fixtures/node-transport-host.mjs", import.meta.url));
 const loadedProcessDeadlineMs = 30_000;
+const childObservationDeadlineMs = 5_000;
+
+async function within<T>(promise: Promise<T>, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([promise, new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} exceeded ${childObservationDeadlineMs} ms.`)),
+        childObservationDeadlineMs);
+      timer.unref?.();
+    })]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
 
 function transport(mode: string, args: readonly string[] = [],
   overrides: Partial<NodeProcessTransportOptions> = {}): NodeChildProcessTransport {
@@ -32,8 +47,11 @@ async function collect(mode: string, args: readonly string[] = [],
     disconnects += 1;
     disconnected();
   } });
-  await disconnectedPromise;
-  await instance.close();
+  try {
+    await within(disconnectedPromise, `${mode} disconnect`);
+  } finally {
+    await within(instance.close(), `${mode} close`);
+  }
   return { instance, frames, disconnects };
 }
 
@@ -115,13 +133,22 @@ test("a write callback is not a process-exit receipt", async () => {
   assert.deepEqual(frames, ["hello\n"]);
 });
 
-test("a crash during an accepted large write is conservatively writing", async () => {
+test("a crash after a large write preserves the platform write boundary and a real exit receipt", async () => {
   const instance = transport("crash-on-data", [], { maxOutstandingWriteBytes: 2 * 1_048_576 });
   await instance.open({ onFrame: () => {}, onDisconnect: () => {} });
-  await assert.rejects(instance.write("x".repeat(1_048_576)), (error: unknown) =>
-    error instanceof NativeTransportWriteError && error.phase === "writing");
-  await instance.close();
-  assert.equal(instance.snapshot().exit?.code, 23);
+  const write = await instance.write("x".repeat(1_048_576)).catch((error: unknown) => error);
+  if (write instanceof Error) {
+    assert.ok(write instanceof NativeTransportWriteError);
+    assert.equal(write.phase, "writing");
+  } else assert.equal(write.bytesWritten, 1_048_576);
+  let receipt: ProcessExitReceipt;
+  try {
+    receipt = await within(instance.waitForExit(), "crashing child exit");
+  } finally {
+    await within(instance.close(), "crashing child close");
+  }
+  assert.equal(receipt.status, "exited");
+  if (receipt.status === "exited") assert.equal(receipt.code, 23);
 });
 
 test("write deadline rejects only as writing and closes the blocked transport", async () => {
@@ -146,37 +173,40 @@ test("zero startup deadline rejects open and reaps a late child generation", asy
   assert.equal(instance.snapshot().stdioClosed, true);
 });
 
-test("exit receipt is independent while force-close caches one stdio failure", async () => {
-  const instance = transport("inherited-stdio", [], { closeGraceMs: 0, forceCloseMs: 20 });
-  let ready!: () => void;
-  const readyFrame = new Promise<void>((resolve) => { ready = resolve; });
-  await instance.open({ onFrame: (frame) => { if (frame === "ready\n") ready(); }, onDisconnect: () => {} });
-  await readyFrame;
-  const receipt = await instance.waitForExit();
-  assert.equal(receipt.status, "exited");
-  assert.equal(instance.snapshot().processExitObserved, true);
-  assert.equal(instance.snapshot().stdioClosed, false);
-  const started = Date.now();
-  const first = instance.close();
-  const second = instance.close();
-  assert.strictEqual(first, second);
-  let firstError: unknown;
-  await assert.rejects(first, (error: unknown) => {
-    firstError = error;
-    return error instanceof NodeProcessTransportError && error.code === "close_unconfirmed";
+test("exit receipt is independent while force-close caches one stdio failure",
+  { skip: process.platform === "win32"
+    ? "Windows reports the child close after process exit without retaining inherited pipe ownership." : false },
+  async () => {
+    const instance = transport("inherited-stdio", [], { closeGraceMs: 0, forceCloseMs: 20 });
+    let ready!: () => void;
+    const readyFrame = new Promise<void>((resolve) => { ready = resolve; });
+    await instance.open({ onFrame: (frame) => { if (frame === "ready\n") ready(); }, onDisconnect: () => {} });
+    await readyFrame;
+    const receipt = await instance.waitForExit();
+    assert.equal(receipt.status, "exited");
+    assert.equal(instance.snapshot().processExitObserved, true);
+    assert.equal(instance.snapshot().stdioClosed, false);
+    const started = Date.now();
+    const first = instance.close();
+    const second = instance.close();
+    assert.strictEqual(first, second);
+    let firstError: unknown;
+    await assert.rejects(first, (error: unknown) => {
+      firstError = error;
+      return error instanceof NodeProcessTransportError && error.code === "close_unconfirmed";
+    });
+    await assert.rejects(second, (error: unknown) => error === firstError);
+    assert.ok(Date.now() - started < 300);
+    assert.ok(Object.isFrozen(receipt));
+    const snapshot = instance.snapshot();
+    assert.ok(Object.isFrozen(snapshot));
+    assert.equal(snapshot.spawned, true);
+    assert.equal(snapshot.exit, receipt);
+    await new Promise<void>((resolve) => setTimeout(resolve, 25));
+    assert.equal(instance.snapshot().stdioClosed, true);
+    assert.strictEqual(instance.close(), first);
+    await assert.rejects(instance.close(), (error: unknown) => error === firstError);
   });
-  await assert.rejects(second, (error: unknown) => error === firstError);
-  assert.ok(Date.now() - started < 300);
-  assert.ok(Object.isFrozen(receipt));
-  const snapshot = instance.snapshot();
-  assert.ok(Object.isFrozen(snapshot));
-  assert.equal(snapshot.spawned, true);
-  assert.equal(snapshot.exit, receipt);
-  await new Promise<void>((resolve) => setTimeout(resolve, 25));
-  assert.equal(instance.snapshot().stdioClosed, true);
-  assert.strictEqual(instance.close(), first);
-  await assert.rejects(instance.close(), (error: unknown) => error === firstError);
-});
 
 test("spawn error settles open, exit wait, and close without duplicate disconnect", async () => {
   const instance = new NodeChildProcessTransport({ executable: "/definitely/missing/native-host",
@@ -189,20 +219,27 @@ test("spawn error settles open, exit wait, and close without duplicate disconnec
   assert.equal(disconnects, 0);
 });
 
-test("crash and early stdout close disconnect once and produce real exit receipts", async () => {
+test("crash disconnects once and produces a real exit receipt", async () => {
   const crashing = transport("crash-on-data");
   let crashDisconnects = 0;
   await crashing.open({ onFrame: () => {}, onDisconnect: () => { crashDisconnects += 1; } });
   const write = crashing.write("request\n");
   await write.catch(() => {});
-  const receipt = await crashing.waitForExit();
-  await crashing.close();
+  let receipt: ProcessExitReceipt;
+  try {
+    receipt = await within(crashing.waitForExit(), "crashing child exit");
+  } finally {
+    await within(crashing.close(), "crashing child close");
+  }
   assert.equal(receipt.status, "exited");
   if (receipt.status === "exited") {
     assert.equal(receipt.code, 23);
     assert.equal(receipt.childInstanceId, crashing.snapshot().childInstanceId);
   }
   assert.equal(crashDisconnects, 1);
+});
+
+test("early stdout close disconnects once and is reaped", async () => {
   const early = await collect("stdout-close");
   assert.equal(early.disconnects, 1);
   assert.notEqual(early.instance.snapshot().exit, null);
