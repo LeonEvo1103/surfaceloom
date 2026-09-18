@@ -1,6 +1,6 @@
 import { redactReportText, RequiredArtifactPublicationError } from "@surfaceloom/reporter";
 import type { TestPlatform } from "@surfaceloom/core";
-import { loadProjectCases } from "../loader.js";
+import { loadProjectCases, loadProjectCasesV3 } from "../loader.js";
 import { preflightResolvedProject, resolveProject } from "../project.js";
 import { suiteExitCodes, type SuiteExitCode } from "../report/contracts.js";
 import { RunCaseV3Error } from "../runner-v3-error.js";
@@ -9,6 +9,7 @@ import { loadProjectConfig } from "./config-loader.js";
 import type { CliIO, ExecuteCaseSuiteOptions, RunnableCase } from "./contracts.js";
 import { discoverCases } from "./discovery.js";
 import { runCaseSuite } from "./execute-suite.js";
+import { executeConfiguredV3 } from "./execute-v3.js";
 
 const defaultIO: CliIO = { stdout: process.stdout, stderr: process.stderr };
 
@@ -24,6 +25,7 @@ export async function runCli(
     let platform: TestPlatform;
     let output: string;
     let timeoutMs: number | undefined;
+    let configured: Awaited<ReturnType<typeof configuredRun>> | undefined;
     if (args.config === undefined) {
       if (args.platform === undefined) throw new Error("--platform is required.");
       if (args.output === undefined) throw new Error("--output is required.");
@@ -33,30 +35,36 @@ export async function runCli(
       output = args.output;
       timeoutMs = args.timeoutMs;
     } else {
-      const configured = await configuredRun(args);
+      configured = await configuredRun(args);
       cases = configured.cases;
       platform = configured.platform;
       output = configured.output;
       timeoutMs = configured.timeoutMs;
     }
     const timestamp = new Date().toISOString();
+    const run = {
+      id: args.runId ?? defaultRunId(timestamp),
+      title: args.title ?? "SurfaceLoom Case 测试运行",
+      app: {
+        id: args.appId ?? "surfaceloom.case-suite",
+        name: args.appName ?? "SurfaceLoom Case Suite",
+      },
+    };
+    const selection = (args.ids.length === 0 && args.filters.length === 0) ? undefined : {
+      ...(args.ids.length === 0 ? {} : { ids: args.ids }),
+      ...(args.filters.length === 0 ? {} : { filters: args.filters }),
+    };
+    if (configured?.loadedV3 !== undefined) {
+      return await executeConfiguredV3({ runner: configured.loadedV3.project.runner!,
+        cases: configured.loadedV3.cases, rootDir: configured.loadedV3.project.rootDir,
+        platform, outputDirectory: output, ...(timeoutMs === undefined ? {} : { timeoutMs }),
+        ...(selection === undefined ? {} : { selection }), run }, io);
+    }
     const options: ExecuteCaseSuiteOptions = {
       platform,
-      run: {
-        id: args.runId ?? defaultRunId(timestamp),
-        title: args.title ?? "SurfaceLoom Case 测试运行",
-        app: {
-          id: args.appId ?? "surfaceloom.case-suite",
-          name: args.appName ?? "SurfaceLoom Case Suite",
-        },
-      },
+      run,
       ...(timeoutMs === undefined ? {} : { defaults: { timeoutMs } }),
-      ...((args.ids.length === 0 && args.filters.length === 0) ? {} : {
-        selection: {
-          ...(args.ids.length === 0 ? {} : { ids: args.ids }),
-          ...(args.filters.length === 0 ? {} : { filters: args.filters }),
-        },
-      }),
+      ...(selection === undefined ? {} : { selection }),
     };
     const result = await runCaseSuite(cases, options, output);
     const { summary } = result.report;
@@ -100,10 +108,17 @@ async function configuredRun(args: ReturnType<typeof parseCliArguments>) {
     throw new Error("--output is required unless supplied by --config.");
   }
   await preflightResolvedProject(resolved);
-  const loadedCases = await loadProjectCases(resolved, {
+  const loaderOptions = {
     ...(loaded.typescriptRuntime === undefined ? {} : { typescriptRuntime: loaded.typescriptRuntime }),
-  });
-  return Object.freeze({ cases: loadedCases.cases, platform: resolved.platform,
+  };
+  if (resolved.runner?.version === "v3") {
+    const loadedV3 = await loadProjectCasesV3(resolved, loaderOptions);
+    return Object.freeze({ cases: Object.freeze([]) as readonly RunnableCase[], loadedV3,
+      platform: resolved.platform, output: resolved.outputDir, timeoutMs: resolved.timeoutMs });
+  }
+  const loadedCases = await loadProjectCases(resolved, loaderOptions);
+  return Object.freeze({ cases: loadedCases.cases, loadedV3: undefined,
+    platform: resolved.platform,
     output: resolved.outputDir, timeoutMs: resolved.timeoutMs });
 }
 

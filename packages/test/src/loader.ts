@@ -1,12 +1,15 @@
 import { lstat, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { types } from "node:util";
 import { discoverCases } from "./cli/discovery.js";
+import { requireCaseV3 } from "./definition-v3.js";
 import type {
-  CaseModuleFormat, CaseModuleLoadRequest, LoadedProjectCases,
+  CaseModuleFormat, CaseModuleLoadRequest, LoadedProjectCases, LoadedProjectCasesV3,
   ProjectCaseLoaderOptions, TypeScriptCaseRuntime,
 } from "./loader-contracts.js";
 import type { ResolvedProject } from "./project-contracts.js";
+import type { CaseDefinitionV3 } from "./runner-v3-contracts.js";
 import { requireResolvedProject } from "./project.js";
 import { plainRecord, safeErrorMessage, stringValue } from "./project-validation.js";
 
@@ -25,24 +28,112 @@ export class ProjectLoadError extends Error {
 /** Loads only Case modules; execution remains owned by the existing suite/kernel. */
 export async function loadProjectCases(project: ResolvedProject,
   options: ProjectCaseLoaderOptions = {}): Promise<LoadedProjectCases> {
+  return loadProjectCasesForRunner(project, options, "v2");
+}
+
+/** @internal The CLI-only v3 loader preserves defineCaseV3 identity. */
+export async function loadProjectCasesV3(project: ResolvedProject,
+  options: ProjectCaseLoaderOptions = {}): Promise<LoadedProjectCasesV3> {
+  return loadProjectCasesForRunner(project, options, "v3");
+}
+
+async function loadProjectCasesForRunner(project: ResolvedProject,
+  options: ProjectCaseLoaderOptions, runner: "v2"): Promise<LoadedProjectCases>;
+async function loadProjectCasesForRunner(project: ResolvedProject,
+  options: ProjectCaseLoaderOptions, runner: "v3"): Promise<LoadedProjectCasesV3>;
+async function loadProjectCasesForRunner(project: ResolvedProject,
+  options: ProjectCaseLoaderOptions, runner: "v2" | "v3"):
+  Promise<LoadedProjectCases | LoadedProjectCasesV3> {
   try {
     requireResolvedProject(project);
+    if ((project.runner?.version === "v3") !== (runner === "v3")) {
+      throw failure("runnerLoaderMismatch", runner === "v3"
+        ? "The internal v3 loader requires an explicit v3 project."
+        : "Explicit v3 projects must be loaded through the v3 CLI path.");
+    }
     const loader = snapshotLoaderOptions(options);
     const modules = await caseModulePaths(project);
     const plans = modules.paths.map((filePath) => moduleRequest(project, modules.root, filePath));
     preflightTypeScript(plans, loader.typescriptRuntime);
     const byUrl = new Map(plans.map((plan) => [plan.url, plan]));
-    const cases = await discoverCases(modules.paths, { loadModule: async (url) => {
+    const loadModule = async (url: string) => {
       const request = byUrl.get(url);
       if (request === undefined) throw failure("modulePathMismatch", "Discovery requested an unknown module path.");
       if (request.language === "typescript") return loader.typescriptRuntime!.load(request);
       return loader.loadJavaScriptModule(request);
-    } });
+    };
+    if (runner === "v3") {
+      const cases = await discoverCasesV3(modules.paths, loadModule);
+      return Object.freeze({ project, cases });
+    }
+    const cases = await discoverCases(modules.paths, { loadModule });
     return Object.freeze({ project, cases });
   } catch (error) {
     if (error instanceof ProjectLoadError) throw error;
     throw failure("projectLoadFailed", safeErrorMessage(error));
   }
+}
+
+async function discoverCasesV3(paths: readonly string[],
+  loadModule: (url: string) => Promise<unknown>): Promise<readonly CaseDefinitionV3[]> {
+  const cases: CaseDefinitionV3[] = [];
+  const ids = new Map<string, string>();
+  for (const filePath of paths) {
+    const loaded = await loadModule(pathToFileURL(filePath).href);
+    const entries = caseModuleEntries(loaded, filePath);
+    for (const entry of entries) {
+      requireCaseV3(entry as CaseDefinitionV3);
+      const definition = entry as CaseDefinitionV3;
+      const prior = ids.get(definition.spec.id);
+      if (prior !== undefined) {
+        throw failure("duplicateCaseId",
+          `Duplicate Case id ${definition.spec.id} in ${prior} and ${filePath}.`);
+      }
+      ids.set(definition.spec.id, filePath);
+      cases.push(definition);
+    }
+  }
+  if (cases.length === 0) throw failure("noCases", "Discovered modules did not export any v3 Cases.");
+  return Object.freeze(cases);
+}
+
+function caseModuleEntries(input: unknown, filePath: string): readonly unknown[] {
+  if (typeof input !== "object" || input === null || types.isProxy(input)) {
+    throw failure("invalidCaseModule", `Case module ${filePath} has no exports.`);
+  }
+  let descriptors: Record<PropertyKey, PropertyDescriptor>;
+  try { descriptors = Object.getOwnPropertyDescriptors(input) as Record<PropertyKey, PropertyDescriptor>; }
+  catch { throw failure("invalidCaseModule", `Case module ${filePath} exports could not be inspected.`); }
+  const cases = descriptors.cases;
+  const defaultExport = descriptors.default;
+  if (cases !== undefined && defaultExport !== undefined) {
+    throw failure("ambiguousCaseModule", `V3 Case module ${filePath} has ambiguous Case exports.`);
+  }
+  const selected = cases ?? defaultExport;
+  if (selected === undefined || !("value" in selected) || !selected.enumerable) {
+    throw failure("invalidCaseModule", `V3 Case module ${filePath} must export Case data.`);
+  }
+  const payload = selected.value;
+  if (types.isProxy(payload) || !Array.isArray(payload)) {
+    throw failure("invalidCaseModule", `V3 Case module ${filePath} must export a cases array.`);
+  }
+  const values: unknown[] = [];
+  let arrayDescriptors: Record<PropertyKey, PropertyDescriptor>;
+  try { arrayDescriptors = Object.getOwnPropertyDescriptors(payload) as unknown as
+    Record<PropertyKey, PropertyDescriptor>; }
+  catch { throw failure("invalidCaseModule", `V3 Case module ${filePath} cases could not be inspected.`); }
+  const length = arrayDescriptors.length;
+  if (length === undefined || !("value" in length) || !Number.isSafeInteger(length.value)) {
+    throw failure("invalidCaseModule", `V3 Case module ${filePath} cases length is invalid.`);
+  }
+  for (let index = 0; index < (length.value as number); index += 1) {
+    const item = arrayDescriptors[String(index)];
+    if (item === undefined || !("value" in item) || !item.enumerable) {
+      throw failure("invalidCaseModule", `V3 Case module ${filePath} cases must not contain holes or accessors.`);
+    }
+    values.push(item.value);
+  }
+  return Object.freeze(values);
 }
 
 async function caseModulePaths(project: ResolvedProject): Promise<{

@@ -3,6 +3,7 @@ import type {
   BrowserObservationHandle, BrowserObservationOptions, BrowserOperationOptions,
   BrowserSession, BrowserStorageStateOptions, DomElementState, DomLocator, DomWaitState,
 } from "./contracts.js";
+import type { BrowserAction, SurfaceBackendCall } from "@surfaceloom/test";
 import { BrowserAutomationError, isBrowserAutomationError } from "./errors.js";
 import { resolveDomLocator } from "./locator.js";
 import type { PlaywrightBrowserLike, PlaywrightContextLike, PlaywrightLocatorLike, PlaywrightPageLike } from "./playwright-shapes.js";
@@ -10,6 +11,7 @@ import { readElementState } from "./element-state.js";
 import { SessionArtifacts } from "./session-artifacts.js";
 import { SessionObservations } from "./session-observations.js";
 import { operationOptions, timeoutOptions } from "./session-operations.js";
+import { invokeSurfaceAction } from "./v3-session-operations.js";
 
 export class PlaywrightBrowserSession implements BrowserSession {
   public readonly engine: BrowserEngine;
@@ -122,22 +124,22 @@ export class PlaywrightBrowserSession implements BrowserSession {
     return this.observations.observe(options);
   }
 
+  /** v3 operations keep preparation outside the single irreversible submission boundary. */
+  public invokeSurface(action: BrowserAction, call: SurfaceBackendCall): Promise<unknown> {
+    return invokeSurfaceAction(this.page, action, call, () => this.requireOpen());
+  }
+
   public async close(): Promise<void> {
     if (this.closed) return;
     // Detach before the page and context go away, so no listener outlives the session.
     this.observations.stopAll();
     this.closed = true;
-    const failures: unknown[] = [];
-    try {
-      await this.context.close();
-    } catch (error) {
-      failures.push(error);
-    }
-    try {
-      await this.browser.close();
-    } catch (error) {
-      failures.push(error);
-    }
+    const attempts = await Promise.allSettled([
+      Promise.resolve().then(() => this.context.close()),
+      Promise.resolve().then(() => this.browser.close()),
+    ]);
+    const failures = attempts.flatMap((attempt) =>
+      attempt.status === "rejected" ? [attempt.reason] : []);
     if (failures.length > 0) {
       throw new BrowserAutomationError(
         "operationFailed",

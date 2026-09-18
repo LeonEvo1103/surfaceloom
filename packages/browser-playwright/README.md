@@ -68,6 +68,33 @@ them to Reporter `SourceArtifact` records and let the existing evidence policy d
 whether to retain them. The backend never attaches to or closes a user-owned browser;
 its current launch API owns every browser process that it creates.
 
+## v3 surface port
+
+Cases executed by `runCaseV3` should import the explicit v3 adapter entry and
+install the matching `@surfaceloom/test` version:
+
+```ts
+import { createPlaywrightBrowserSurfaceBackend } from "@surfaceloom/browser-playwright/v3";
+
+const backend = createPlaywrightBrowserSurfaceBackend({
+  hostId: "playwright.local",
+  channel: "chrome",
+});
+```
+
+The factory returns the frozen plain-data port required by the runner snapshot
+boundary. The legacy package root remains usable without `@surfaceloom/test`.
+Acquisition validates and loads Playwright before calling the v3 submission
+boundary, then calls `beforeSubmit()` immediately before `browserType.launch()`.
+DOM actions likewise keep strict target preparation before the one action
+submission. Abort or deadline after that point is conservatively reported as an
+unknown outcome by the runner; a late browser acquisition remains owned by the
+runner controller and is closed during cleanup.
+
+The session returns `browserSessionClosed` only after both Playwright context and
+browser close operations complete. A failed or hanging close never manufactures a
+release proof, and a failed close result is sticky across repeated calls.
+
 Proxy settings are scoped to the owned browser context. Supported servers use
 `http`, `https`, or `socks5` and contain only scheme, host, and port. HTTP(S)
 credentials must be supplied through the separate

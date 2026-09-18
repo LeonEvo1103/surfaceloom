@@ -15,6 +15,13 @@ test("public declarations do not leak playwright-core types", async () => {
   assert.doesNotMatch(source, /import\(["']playwright-core["']\)/u);
 });
 
+test("legacy root types stay independent while the explicit v3 entry requires test SPI", async () => {
+  const legacy = await readFile("dist/index.d.ts", "utf8");
+  const v3 = await readFile("dist/v3-port.d.ts", "utf8");
+  assert.doesNotMatch(legacy, /@surfaceloom\/test/u);
+  assert.match(v3, /@surfaceloom\/test/u);
+});
+
 test("Core stays installable without the optional Playwright package", async () => {
   const manifest = JSON.parse(
     await readFile("../core/package.json", "utf8"),

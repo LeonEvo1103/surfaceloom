@@ -1,5 +1,6 @@
 import type { RunnableCase } from "./cli/contracts.js";
 import type { ProjectModuleFormat, ResolvedProject } from "./project-contracts.js";
+import type { CaseDefinitionV3 } from "./runner-v3-contracts.js";
 
 export type CaseModuleLanguage = "javascript" | "typescript";
 export type CaseModuleFormat = ProjectModuleFormat | "node";
@@ -25,7 +26,13 @@ export interface ProjectCaseLoaderOptions {
   readonly loadJavaScriptModule?: (request: CaseModuleLoadRequest) => Promise<unknown>;
 }
 
+/** Compatible public v2 loader result. */
 export interface LoadedProjectCases {
   readonly project: ResolvedProject;
   readonly cases: readonly RunnableCase[];
+}
+
+export interface LoadedProjectCasesV3 {
+  readonly project: ResolvedProject;
+  readonly cases: readonly CaseDefinitionV3[];
 }

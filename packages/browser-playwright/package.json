@@ -15,6 +15,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./v3": {
+      "types": "./dist/v3.d.ts",
+      "import": "./dist/v3.js"
     }
   },
   "files": [
@@ -30,7 +34,16 @@
   "dependencies": {
     "playwright-core": "^1.63.0"
   },
+  "peerDependencies": {
+    "@surfaceloom/test": "0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@surfaceloom/test": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@surfaceloom/test": "file:../test",
     "@types/node": "^22.10.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"

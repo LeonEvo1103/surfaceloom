@@ -1,11 +1,14 @@
 # Deterministic reference agent
 
-This local fixture implements the `SL-P1-020` approval behavior and the `SL-P1-060`
-browser showcase from [the framework SSOT](../../docs/FRAMEWORK_SSOT.md). The fixture
-itself has no model or external service. Its E2E Cases use the repository's Playwright
-backend and execution kernel against a real owned Chrome/Chromium process.
+This local fixture implements the `SL-P1-020` approval behavior, the `SL-P1-060`
+browser showcase, and the `SL-P3-092` public Agent-provider adapter from
+[the framework SSOT](../../docs/FRAMEWORK_SSOT.md). The fixture itself has no model or
+external service. Its E2E Cases import framework APIs only from public package roots and
+use the repository's Playwright backend and execution kernel against a real owned
+Chrome/Chromium process.
 
 ```sh
+npm --prefix examples/reference-agent ci --ignore-scripts
 npm --prefix examples/reference-agent test
 npm --prefix examples/reference-agent run test:e2e
 ```
@@ -52,6 +55,20 @@ terminal run without another tool execution; a conflicting decision returns 409.
 The executor writes its own append-only ledger, independently of the run's claimed
 status. Every call has `requested`, then (only when executed) `started` and `completed`
 events. The actual effect is an in-memory note, scoped to this fixture.
+
+`ReferenceAgentBrowserAdapter` implements the public `AgentObservationProvider` contract.
+It binds a Case author facade to the exact `runId`, `callId`, and `append-note` tool and
+uses the named `reference-agent.run-ended:<runId>` barrier for exact lifecycle claims.
+Run-state and pre-decision approval assertions each reread one strict atomic JSON snapshot
+from the browser UI, so independently changing DOM fields cannot create a torn run/call
+identity. Tool lifecycle assertions reread the independent ledger.
+
+The note resource is explicitly `local`, not `external`. Cases therefore use the public
+`assertObservation()` reader contract for the independent local resource probe and never
+call the external-effect assertion. Deny-zero and its local effect count both require the
+same completed run barrier; an incomplete ledger leaves both observations `unknown`.
+The Case waits for both probes to settle before returning a failure, so a faster failed
+assertion cannot leave the other reader polling after fixture cleanup.
 
 `inspectToolCalls()` requires a closed run boundary, a complete contiguous event
 interval, matching identity, and valid tool lifecycle. It throws `LedgerIncompleteError`

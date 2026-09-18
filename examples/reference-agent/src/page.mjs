@@ -5,6 +5,7 @@ export const approvalPage = `<!doctype html>
 <p>This local fixture requests one deterministic append-note tool operation.</p>
 <button data-testid="run.start">Start run</button>
 <p data-testid="run.id"></p><p data-testid="run.status" role="status">idle</p>
+<script type="application/json" data-testid="run.snapshot">{}</script>
 <section data-testid="approval.gate" hidden>
 <h2>Allow append-note?</h2>
 <button data-testid="approval.approve">Approve</button>
@@ -26,6 +27,9 @@ function render(run) {
   byId('run.id').textContent = runId;
   byId('run.status').textContent = run.status;
   byId('approval.gate').hidden = run.status !== 'awaiting-approval';
+  byId('run.snapshot').textContent = JSON.stringify({
+    runId: run.runId, callId: run.callId, status: run.status, approvalRequested: true,
+  });
   history.replaceState(null, '', '?run=' + encodeURIComponent(runId));
 }
 async function act(action) {

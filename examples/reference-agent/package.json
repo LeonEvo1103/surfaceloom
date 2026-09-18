@@ -9,5 +9,10 @@
     "test": "node --test test/*.test.mjs",
     "test:e2e": "node --test tests/e2e/*.test.mjs"
   },
+  "dependencies": {
+    "@surfaceloom/browser-playwright": "file:../../packages/browser-playwright",
+    "@surfaceloom/core": "file:../../packages/core",
+    "@surfaceloom/test": "file:../../packages/test"
+  },
   "engines": { "node": ">=20" }
 }

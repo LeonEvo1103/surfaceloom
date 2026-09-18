@@ -119,7 +119,9 @@ test("HTTP fixture is loopback-only and exposes a same-origin approval page", as
   const response = await fetch(app.baseUrl);
   assert.equal(response.status, 200);
   const html = await response.text();
-  for (const id of ["run.start", "run.id", "run.status", "approval.approve", "approval.deny"]) {
+  for (const id of [
+    "run.start", "run.id", "run.status", "run.snapshot", "approval.approve", "approval.deny",
+  ]) {
     assert.ok(html.includes(`data-testid="${id}"`));
   }
   const crossOrigin = await fetch(`${app.baseUrl}/api/runs`, {

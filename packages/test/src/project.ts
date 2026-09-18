@@ -3,7 +3,7 @@ import path from "node:path";
 import { testPlatforms, type TestPlatform } from "@surfaceloom/core";
 import type {
   ProjectDefinition, ProjectDefinitionInput, ProjectInvocationOverrides,
-  ProjectModuleFormat, ResolveProjectOptions, ResolvedProject,
+  ProjectModuleFormat, ProjectRunnerV3, ProjectRunnerV3Context, ResolveProjectOptions, ResolvedProject,
 } from "./project-contracts.js";
 import {
   plainRecord, positiveInteger, ProjectConfigurationError, stringArray, stringValue,
@@ -15,7 +15,7 @@ const resolutions = new WeakSet<object>();
 
 export function defineProject(input: ProjectDefinitionInput): ProjectDefinition {
   const value = plainRecord(input, "project", [
-    "rootDir", "cases", "platform", "outputDir", "timeoutMs", "typescript",
+    "rootDir", "cases", "platform", "outputDir", "timeoutMs", "typescript", "runner",
   ]);
   const rootDir = configuredPath(value.rootDir ?? ".", "project.rootDir");
   const cases = configuredPaths(value.cases, "project.cases");
@@ -25,12 +25,14 @@ export function defineProject(input: ProjectDefinitionInput): ProjectDefinition 
   const timeoutMs = value.timeoutMs === undefined ? undefined
     : positiveInteger(value.timeoutMs, "project.timeoutMs");
   const typescript = value.typescript === undefined ? undefined : typescriptOptions(value.typescript);
+  const runner = value.runner === undefined ? undefined : runnerOptions(value.runner);
   const project: ProjectDefinition = Object.freeze({
     rootDir, cases,
     ...(platform === undefined ? {} : { platform }),
     ...(outputDir === undefined ? {} : { outputDir }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(typescript === undefined ? {} : { typescript }),
+    ...(runner === undefined ? {} : { runner }),
   });
   definitions.add(project);
   return project;
@@ -62,6 +64,7 @@ export function resolveProject(project: ProjectDefinition,
     ...(outputDir === undefined ? {} : { outputDir }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(project.typescript === undefined ? {} : { typescript: project.typescript }),
+    ...(project.runner === undefined ? {} : { runner: project.runner }),
   });
   resolutions.add(resolved);
   return resolved;
@@ -147,6 +150,21 @@ function typescriptOptions(input: unknown): Readonly<{ moduleFormat: ProjectModu
       "project.typescript.moduleFormat must be 'esm' or 'commonjs'.");
   }
   return Object.freeze({ moduleFormat: value.moduleFormat });
+}
+
+function runnerOptions(input: unknown): ProjectRunnerV3 {
+  const value = plainRecord(input, "project.runner", ["version", "options"]);
+  if (value.version !== "v3") {
+    throw new ProjectConfigurationError("invalidRunnerVersion",
+      "project.runner.version must be 'v3'; omit runner for the compatible v2 path.");
+  }
+  if (typeof value.options !== "function") {
+    throw new ProjectConfigurationError("invalidRunnerOptions",
+      "project.runner.options must be a function.");
+  }
+  const options = value.options as ProjectRunnerV3["options"];
+  return Object.freeze({ version: "v3", options: (context: ProjectRunnerV3Context) =>
+    Reflect.apply(options, undefined, [context]) });
 }
 
 function optionalPlatform(input: unknown, label: string): TestPlatform | undefined {

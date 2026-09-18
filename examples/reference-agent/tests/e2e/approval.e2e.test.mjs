@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { executeCase } from "../../../../packages/test/dist/index.js";
+import { executeCase } from "@surfaceloom/test";
 import { resolveBrowserLaunchOptions } from "../../adapter/browser-launch.mjs";
 import {
   approveSpec,
@@ -19,6 +19,7 @@ test("真实浏览器拒绝审批，完整账本证明执行次数为零", async
     executionOptions(denySpec),
   );
   assert.equal(report.result.status, "passed", diagnostic(report));
+  assertCriterion(report, "deny-approval-requested", "passed");
   assertCriterion(report, "deny-status", "passed");
   assertCriterion(report, "deny-zero-executions", "passed");
 });
@@ -29,6 +30,7 @@ test("真实浏览器批准审批，账本与实际副作用均恰好一次", as
     executionOptions(approveSpec),
   );
   assert.equal(report.result.status, "passed", diagnostic(report));
+  assertCriterion(report, "approve-approval-requested", "passed");
   assertCriterion(report, "approve-status", "passed");
   assertCriterion(report, "approve-one-execution", "passed");
   assertCriterion(report, "approve-one-effect", "passed");
@@ -40,6 +42,7 @@ test("真实浏览器拒绝后若工具仍执行，同一零调用 Case 必须�
     executionOptions(denySpec),
   );
   assert.equal(report.result.status, "failed");
+  assertCriterion(report, "deny-approval-requested", "passed");
   assertCriterion(report, "deny-status", "passed");
   const failed = assertCriterion(report, "deny-zero-executions", "failed");
   assert.match(failed.diagnostic ?? "", /Observation assertion timedOut/);
@@ -48,15 +51,30 @@ test("真实浏览器拒绝后若工具仍执行，同一零调用 Case 必须�
 });
 
 test("真实浏览器拒绝后若账本不完整，不能把未知状态判成零调用", async () => {
-  const report = await executeCase(
-    createDenialCase({ browserLaunchOptions, fault: "incomplete-ledger" }),
-    executionOptions(denySpec),
-  );
-  assert.equal(report.result.status, "failed");
-  assertCriterion(report, "deny-status", "passed");
-  const failed = assertCriterion(report, "deny-zero-executions", "failed");
-  assert.match(failed.diagnostic ?? "", /Observation assertion timedOut/);
-  assert.match(failed.diagnostic ?? "", /unknown/);
+  const originalFetch = globalThis.fetch;
+  let providerReads = 0;
+  globalThis.fetch = (...args) => {
+    if (String(args[0]).includes("/api/runs/")) providerReads += 1;
+    return originalFetch(...args);
+  };
+  try {
+    const report = await executeCase(
+      createDenialCase({ browserLaunchOptions, fault: "incomplete-ledger" }),
+      executionOptions(denySpec),
+    );
+    assert.equal(report.result.status, "failed");
+    assertCriterion(report, "deny-approval-requested", "passed");
+    assertCriterion(report, "deny-status", "passed");
+    const failed = assertCriterion(report, "deny-zero-executions", "failed");
+    assert.match(failed.diagnostic ?? "", /Observation assertion timedOut/);
+    assert.match(failed.diagnostic ?? "", /unknown/);
+    const readsAtReturn = providerReads;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    assert.equal(providerReads, readsAtReturn,
+      "Case returned while an observation reader was still polling");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 function assertCriterion(report, criterionId, expectedStatus) {

@@ -222,9 +222,9 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P3-088` | planned | `SL-P3-087`,`SL-P3-094` | 故障变体、CaseSpec、E2E/报告断言 | 固定覆盖拒绝却执行、跨 callId 重复业务 effect、账本缺失/截断、提交前停止、提交后 unknown、cleanup 未确认；同时核对业务 verdict 与证据，不只相信 fixture 自述 |
 | `SL-P3-089` | planned | `SL-P3-087`,`SL-P3-060` | native effect executor/probe 与 scoped integration tests | 一个受控 native 操作产生可观察 effect；关联 run/call/逻辑操作与真实 operation receipt；probe 读取实际 effect，停止与断线后保守报告不确定性 |
 | `SL-P3-090` | done | `SL-P3-075`,`SL-P3-080`,`SL-P3-085` | 作者/adapter 公开 export、reference 入口契约与 type tests | 补齐示例所需公开扩展点；消费者不 import `packages/*/src`、`dist` 或内部子路径；只复用现有 kernel/v3/Agent API，不建设第二套框架 |
-| `SL-P3-091` | ready | `SL-P3-090` | Playwright→v3 surface port 与 contracts/live tests | 真实 browser acquisition/action/deadline/cancel/close 进入现有 facade；strict locator 保持；提交边界不得过早，迟到 acquisition 或失败 close 不伪造 released |
-| `SL-P3-092` | ready | `SL-P3-090` | reference-agent adapter/provider/cases | adapter 实现现有 `AgentObservationProvider`；Case 使用高层断言；零执行与 local resource probe 共用完整 run barrier，不复制 policy/ledger/lifecycle 实现 |
-| `SL-P3-093` | ready | `SL-P3-055`,`SL-P3-075`,`SL-P3-090` | CLI/config 显式 v3 分支与 tests | 配置选择现有 `runCaseV3`，保留 v2 兼容入口；不创建第二 kernel；通过、业务失败、配置和发布失败的退出语义明确 |
+| `SL-P3-091` | in_progress | `SL-P3-090` | Playwright→v3 surface port 与 contracts/live tests | 真实 browser acquisition/action/deadline/cancel/close 进入现有 facade；strict locator 保持；提交边界不得过早，迟到 acquisition 或失败 close 不伪造 released |
+| `SL-P3-092` | in_progress | `SL-P3-090` | reference-agent adapter/provider/cases | adapter 实现现有 `AgentObservationProvider`；Case 使用高层断言；零执行与 local resource probe 共用完整 run barrier，不复制 policy/ledger/lifecycle 实现 |
+| `SL-P3-093` | in_progress | `SL-P3-055`,`SL-P3-075`,`SL-P3-090` | CLI/config 显式 v3 分支与 tests | 配置选择现有 `runCaseV3`，保留 v2 兼容入口；不创建第二 kernel；通过、业务失败、配置和发布失败的退出语义明确 |
 | `SL-P3-094` | planned | `SL-P3-091`,`SL-P3-092`,`SL-P3-093` | reference-agent E2E、入口脚本、真实报告验收与说明 | 一条命令运行 M1 四项矩阵并生成 v3 bundle；真实 browser 0 skip；报告关联 criterion、run/call、ledger/probe、完整性与 cleanup，不借私有代码入口 |
 | `SL-P3-110` | planned | `SL-P3-060`,`SL-P3-094` | 第三方 backend adapter、同 fixture 对照与 conformance | 首选评估 winapp；相同 Windows fixture、Case 语义和预期 verdict 不变；记录 capability、锁、deadline、operation outcome 与 cleanup 差距后再决定是否替代 direct UIA |
 

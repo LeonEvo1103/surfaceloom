@@ -16,12 +16,16 @@
   ],
   "acceptanceCriteria": [
     {
+      "id": "deny-approval-requested",
+      "text": "作出决定前，浏览器中的精确运行与调用已请求审批。"
+    },
+    {
       "id": "deny-status",
       "text": "浏览器界面显示该运行已被拒绝。"
     },
     {
       "id": "deny-zero-executions",
-      "text": "完整运行边界内工具执行次数为零。"
+      "text": "同一完整运行边界内工具执行次数和本地资源实际副作用均为零。"
     }
   ],
   "sideEffect": "reversible",

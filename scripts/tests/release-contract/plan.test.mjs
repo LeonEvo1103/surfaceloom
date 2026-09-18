@@ -3,7 +3,7 @@ import test from "node:test";
 import { packageDescriptor, validatePackageSet } from "../../release/package-graph.mjs";
 import { createReleasePlanFromPackageManifests, validateReleasePlan } from "../../release/release-plan.mjs";
 import { ReleaseContractError } from "../../release/shape.mjs";
-import { loadPackageManifests } from "./helpers/release-fixture.mjs";
+import { loadPackageManifests, publishableManifests } from "./helpers/release-fixture.mjs";
 
 test("plan is generated from all seven real package manifests without mutating publish blockers", () => {
   const manifests = loadPackageManifests();
@@ -18,10 +18,65 @@ test("plan is generated from all seven real package manifests without mutating p
   }
   assert.deepEqual(plan.packageBuildOrder, [
     "@surfaceloom/core", "@surfaceloom/component-catalog", "@surfaceloom/reporter",
-    "@surfaceloom/agent-loop", "@surfaceloom/native", "@surfaceloom/browser-playwright",
-    "@surfaceloom/test",
+    "@surfaceloom/agent-loop", "@surfaceloom/native", "@surfaceloom/test",
+    "@surfaceloom/browser-playwright",
   ]);
+  const browser = plan.packages.find((item) => item.name === "@surfaceloom/browser-playwright");
+  assert.deepEqual(Object.keys(browser.peerDependenciesMeta), ["@surfaceloom/test"]);
+  assert.deepEqual(browser.peerDependenciesMeta["@surfaceloom/test"], { optional: true });
   assert.doesNotThrow(() => validateReleasePlan(plan));
+});
+
+test("peer metadata is strict release data and never executes hostile objects", () => {
+  const browser = loadPackageManifests().find((item) =>
+    item.name === "@surfaceloom/browser-playwright");
+
+  const unknown = structuredClone(browser);
+  unknown.peerDependenciesMeta["@surfaceloom/absent"] = { optional: true };
+  assert.throws(() => packageDescriptor(unknown), contract("unknownPeerMetadata"));
+
+  const nonBoolean = structuredClone(browser);
+  nonBoolean.peerDependenciesMeta["@surfaceloom/test"].optional = "true";
+  assert.throws(() => packageDescriptor(nonBoolean), contract("invalidPeerMetadata"));
+
+  const extra = structuredClone(browser);
+  extra.peerDependenciesMeta["@surfaceloom/test"].reason = "optional subpath";
+  assert.throws(() => packageDescriptor(extra), contract("unexpectedField"));
+
+  const accessor = structuredClone(browser);
+  Object.defineProperty(accessor.peerDependenciesMeta["@surfaceloom/test"], "optional", {
+    enumerable: true,
+    get() { throw new Error("must not execute"); },
+  });
+  assert.throws(() => packageDescriptor(accessor), contract("accessor"));
+
+  let traps = 0;
+  const proxied = structuredClone(browser);
+  proxied.peerDependenciesMeta = new Proxy(proxied.peerDependenciesMeta, {
+    get() { traps += 1; throw new Error("must not execute"); },
+  });
+  assert.throws(() => packageDescriptor(proxied), contract("invalidRecord"));
+  assert.equal(traps, 0);
+});
+
+test("an optional internal peer participates in graph order and release version blocking", () => {
+  const packages = loadPackageManifests().map(packageDescriptor);
+  const graph = validatePackageSet(packages, { allowLocalDependencies: true });
+  assert.ok(graph.buildOrder.indexOf("@surfaceloom/test")
+    < graph.buildOrder.indexOf("@surfaceloom/browser-playwright"));
+
+  const incompatibleManifests = publishableManifests();
+  incompatibleManifests.find((item) => item.name === "@surfaceloom/browser-playwright")
+    .peerDependencies["@surfaceloom/test"] = "0.1.1";
+  const incompatible = incompatibleManifests.map(packageDescriptor);
+  assert.throws(() => validatePackageSet(incompatible, { allowLocalDependencies: false }),
+    contract("dependencyVersion"));
+
+  const fabricated = structuredClone(packages);
+  fabricated.find((item) => item.name === "@surfaceloom/browser-playwright")
+    .peerDependenciesMeta["@surfaceloom/absent"] = { optional: true };
+  assert.throws(() => validatePackageSet(fabricated, { allowLocalDependencies: true }),
+    contract("unknownPeerMetadata"));
 });
 
 test("package dependency graph rejects a cycle and a missing internal package", () => {

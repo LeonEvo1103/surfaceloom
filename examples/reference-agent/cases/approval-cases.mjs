@@ -1,14 +1,20 @@
 import { readFileSync } from "node:fs";
 
-import { defineFixture } from "../../../packages/core/dist/index.js";
-import { PlaywrightBrowserBackend } from "../../../packages/browser-playwright/dist/index.js";
+import { PlaywrightBrowserBackend } from "@surfaceloom/browser-playwright";
+import { defineFixture } from "@surfaceloom/core";
 import {
   assertObservation,
   defineCase,
   defineEffect,
   defineExecutionPlan,
-} from "../../../packages/test/dist/index.js";
-import { ReferenceAgentBrowserAdapter, runBarrier } from "../adapter/reference-agent-browser.mjs";
+  expectAgent,
+} from "@surfaceloom/test";
+import {
+  ReferenceAgentBrowserAdapter,
+  referenceAgentLocalResource,
+  referenceAgentToolId,
+  runBarrier,
+} from "../adapter/reference-agent-browser.mjs";
 import { startReferenceAgent } from "../src/index.mjs";
 
 export const denySpec = readSpec("deny.case-spec.json");
@@ -45,20 +51,15 @@ export function createDenialCase(options) {
         runId = await context.dispatch(runControl, () => app.createRun({ fault }).runId);
         await context.dispatch(browserRead, () => browser.openRun(runId));
       }
+      const agent = await browser.bindRun(runId);
+      const barrier = runBarrier(runId);
+      await approvalCriterion(context, agent, "deny-approval-requested");
       await context.dispatch(approvalDecision, () => browser.decide("deny"));
-      await statusCriterion(context, browser, "deny-status", "denied");
-      await context.criterion("deny-zero-executions", () => assertObservation(
-        () => browser.toolCountsObservation(runId),
-        {
-          expectation: {
-            kind: "negative-value", expected: { requested: 1, started: 0, completed: 0 },
-            matches: (counts) => counts.requested === 1
-              && counts.started === 0 && counts.completed === 0,
-            completeness: runBarrier(runId),
-          },
-          timeoutMs: 300, pollIntervalMs: 25, criterionId: "deny-zero-executions",
-        },
-      ));
+      await statusCriterion(context, agent, "deny-status", "denied");
+      await context.criterion("deny-zero-executions", () => settleAssertions([
+        assertNoToolExecution(browser, agent.tool(referenceAgentToolId), barrier),
+        assertLocalEffectCount(browser, runId, 0, barrier, "deny-zero-executions"),
+      ]));
     },
   });
 }
@@ -72,42 +73,33 @@ export function createApprovalCase(options) {
       const browser = context.fixture(browserFixture);
       await context.dispatch(browserRead, () => browser.openHome());
       const runId = await context.dispatch(runControl, () => browser.startRun());
+      const agent = await browser.bindRun(runId);
+      const barrier = runBarrier(runId);
+      await approvalCriterion(context, agent, "approve-approval-requested");
       await context.dispatch(approvalDecision, () => browser.decide("approve"));
-      await statusCriterion(context, browser, "approve-status", "completed");
-      await context.criterion("approve-one-execution", () => assertObservation(
-        () => browser.toolCountsObservation(runId),
-        {
-          expectation: {
-            kind: "value", expected: { requested: 1, started: 1, completed: 1 },
-            matches: (counts) => counts.requested === 1
-              && counts.started === 1 && counts.completed === 1,
-          },
-          timeoutMs: 1_000, pollIntervalMs: 25, criterionId: "approve-one-execution",
-        },
-      ));
-      await context.criterion("approve-one-effect", () => assertObservation(
-        () => browser.effectCountObservation(runId),
-        {
-          expectation: { kind: "value", expected: 1, matches: (count) => count === 1 },
-          timeoutMs: 1_000, pollIntervalMs: 25, criterionId: "approve-one-effect",
-        },
-      ));
+      await statusCriterion(context, agent, "approve-status", "completed");
+      await context.criterion("approve-one-execution", () =>
+        expectAgent(agent.tool(referenceAgentToolId)).toHaveExecutedExactlyOnce({
+          barrier, criterionId: "approve-one-execution",
+        }));
+      await context.criterion("approve-one-effect", () =>
+        assertLocalEffectCount(browser, runId, 1, barrier, "approve-one-effect"));
     },
   });
 }
 
-/** @returns {import("../../../packages/test/dist/index.js").ExecuteCaseOptions} */
+/** @returns {import("@surfaceloom/test").ExecuteCaseOptions} */
 export function executionOptions(spec) {
   const capabilities = /** @type {const} */ (
     ["browser.navigate", "browser.dom.inspect", "browser.dom.invoke"]
   );
-  /** @type {import("../../../packages/test/dist/index.js").ExecutionEnvironment} */
+  /** @type {import("@surfaceloom/test").ExecutionEnvironment} */
   const environment = {
     platform: "web",
     host: { os: hostOS() },
     surfaces: { approvalUi: { kind: "browser", capabilities } },
   };
-  /** @type {import("../../../packages/test/dist/index.js").ExecutionEffectPolicy} */
+  /** @type {import("@surfaceloom/test").ExecutionEffectPolicy} */
   const policy = {
     maximumSideEffect: "reversible",
     grants: effects.map((effect) => ({
@@ -152,14 +144,58 @@ function fixtures(browserLaunchOptions) {
   return { appFixture, browserFixture };
 }
 
-async function statusCriterion(context, browser, criterionId, expected) {
-  await context.criterion(criterionId, () => assertObservation(
-    () => browser.statusObservation(),
+async function statusCriterion(context, agent, criterionId, expected) {
+  await context.criterion(criterionId, () =>
+    expectAgent(agent).toHaveRunState(expected, { criterionId }));
+}
+
+async function approvalCriterion(context, agent, criterionId) {
+  await context.criterion(criterionId, () =>
+    expectAgent(agent).toHaveRequestedApproval({ criterionId }));
+}
+
+async function settleAssertions(assertions) {
+  const settled = await Promise.allSettled(assertions);
+  const failure = settled.find((result) => result.status === "rejected");
+  if (failure) throw failure.reason;
+  return settled.map((result) => result.value);
+}
+
+function assertNoToolExecution(provider, tool, barrier) {
+  return assertObservation(
+    (readContext) => provider.readToolCall({ runId: tool.runId, callId: tool.callId }, readContext),
     {
-      expectation: { kind: "value", expected, matches: (status) => status === expected },
+      expectation: {
+        kind: "negative-value",
+        expected: { runId: tool.runId, callId: tool.callId, requested: 1, started: 0, completed: 0 },
+        matches: (value) => value.runId === tool.runId && value.callId === tool.callId
+          && value.requested === 1 && value.started === 0 && value.completed === 0,
+        completeness: barrier,
+      },
+      timeoutMs: 300, pollIntervalMs: 25, criterionId: "deny-zero-executions",
+    },
+  );
+}
+
+function assertLocalEffectCount(provider, runId, expectedCount, barrier, criterionId) {
+  return assertObservation(
+    (readContext) => provider.readLocalEffects(
+      { runId, resource: referenceAgentLocalResource }, readContext,
+    ),
+    {
+      expectation: {
+        kind: "negative-value",
+        expected: {
+          runId, resource: referenceAgentLocalResource, boundary: "local", count: expectedCount,
+        },
+        matches: (value) => value.runId === runId
+          && value.resource === referenceAgentLocalResource
+          && value.boundary === "local" && value.count === expectedCount,
+        completeness: barrier,
+      },
       timeoutMs: 1_000, pollIntervalMs: 25, criterionId,
     },
-  ));
+  );
 }
 
 function readSpec(fileName) {

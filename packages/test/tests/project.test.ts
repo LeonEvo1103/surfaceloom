@@ -91,6 +91,21 @@ test("forged project definitions fail closed", () => {
     { configPath: "surfaceloom.config.mjs" }), errorCode("undefinedProject"));
 });
 
+test("v3 runner selection is explicit, validated, and snapshots the options callback", async () => {
+  const original = async () => { throw new Error("original callback"); };
+  const runner = { version: "v3" as const, options: original };
+  const project = defineProject({ cases: ["cases"], runner });
+  runner.options = async () => { throw new Error("mutated callback"); };
+  assert.equal(project.runner?.version, "v3");
+  await assert.rejects(project.runner!.options({} as never), /original callback/u);
+  assert.throws(() => defineProject({ cases: ["cases"], runner: {
+    version: "v2", options: original,
+  } as never }), errorCode("invalidRunnerVersion"));
+  assert.throws(() => defineProject({ cases: ["cases"], runner: {
+    version: "v3", options: "not-a-function",
+  } as never }), errorCode("invalidRunnerOptions"));
+});
+
 test("output preflight rejects an existing node_modules symlink to an external directory", async (context) => {
   const parent = await mkdtemp(path.join(tmpdir(), "surfaceloom-output-preflight-"));
   context.after(() => rm(parent, { recursive: true, force: true }));

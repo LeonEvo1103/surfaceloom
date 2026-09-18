@@ -16,6 +16,10 @@
   ],
   "acceptanceCriteria": [
     {
+      "id": "approve-approval-requested",
+      "text": "作出决定前，浏览器中的精确运行与调用已请求审批。"
+    },
+    {
       "id": "approve-status",
       "text": "浏览器界面显示该运行已完成。"
     },

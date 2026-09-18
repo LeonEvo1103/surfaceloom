@@ -2,22 +2,25 @@ import { releasePackageNames, strictSemverPattern } from "./constants.mjs";
 import { dictionary, fail, list, record, sameJson, string } from "./shape.mjs";
 
 const packageFields = [
-  "name", "version", "dependencies", "peerDependencies", "optionalDependencies",
-  "exports", "bin", "assets", "license",
+  "name", "version", "dependencies", "peerDependencies", "peerDependenciesMeta",
+  "optionalDependencies", "exports", "bin", "assets", "license",
 ];
 const sourceManifestFields = [
   "name", "version", "license", "private", "repository", "type", "main", "types",
   "exports", "bin", "files", "scripts", "dependencies", "peerDependencies",
-  "optionalDependencies", "devDependencies", "engines",
+  "peerDependenciesMeta", "optionalDependencies", "devDependencies", "engines",
 ];
 
 export function packageDescriptor(packageJson) {
   const source = record(packageJson, "package manifest", sourceManifestFields, ["name", "version", "license"]);
+  const peerDependencies = dependencyMap(source.peerDependencies, "peerDependencies");
   return Object.freeze({
     name: string(source.name, "package name"),
     version: string(source.version, "package version", strictSemverPattern),
     dependencies: dependencyMap(source.dependencies, "dependencies"),
-    peerDependencies: dependencyMap(source.peerDependencies, "peerDependencies"),
+    peerDependencies,
+    peerDependenciesMeta: peerDependencyMetadata(
+      source.peerDependenciesMeta, peerDependencies, "peerDependenciesMeta"),
     optionalDependencies: dependencyMap(source.optionalDependencies, "optionalDependencies"),
     exports: jsonValue(source.exports ?? {}, "exports"),
     bin: jsonValue(source.bin ?? {}, "bin"),
@@ -43,6 +46,8 @@ export function validatePackageSet(value, { allowLocalDependencies }) {
         }
       }
     }
+    item.peerDependenciesMeta = peerDependencyMetadata(
+      item.peerDependenciesMeta, item.peerDependencies, `${item.name}.peerDependenciesMeta`);
     item.exports = jsonValue(item.exports, `${item.name}.exports`);
     item.bin = jsonValue(item.bin, `${item.name}.bin`);
     const assets = list(item.assets, `${item.name}.assets`);
@@ -119,6 +124,24 @@ function dependencyMap(value, label) {
   const input = dictionary(value, label);
   const output = Object.create(null);
   for (const [name, range] of Object.entries(input)) output[string(name, `${label} name`)] = string(range, `${label}.${name}`);
+  return Object.freeze(output);
+}
+
+function peerDependencyMetadata(value, peerDependencies, label) {
+  if (value === undefined) return Object.freeze({});
+  const input = dictionary(value, label);
+  const output = Object.create(null);
+  for (const [name, value] of Object.entries(input)) {
+    string(name, `${label} name`);
+    if (!Object.hasOwn(peerDependencies, name)) {
+      fail("unknownPeerMetadata", `${label}.${name} does not name a declared peer dependency.`);
+    }
+    const metadata = record(value, `${label}.${name}`, ["optional"]);
+    if (typeof metadata.optional !== "boolean") {
+      fail("invalidPeerMetadata", `${label}.${name}.optional must be boolean.`);
+    }
+    output[name] = Object.freeze({ optional: metadata.optional });
+  }
   return Object.freeze(output);
 }
 

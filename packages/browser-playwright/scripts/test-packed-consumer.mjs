@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,8 +22,11 @@ try {
     path.join(temporary, archive.filename)], temporary);
   const manifest = JSON.parse(readFileSync(
     path.join(temporary, "node_modules/@surfaceloom/browser-playwright/package.json"), "utf8"));
-  assert.deepEqual(Object.keys(manifest.exports), ["."]);
+  assert.deepEqual(Object.keys(manifest.exports), [".", "./v3"]);
   assert(!Object.values(manifest.dependencies ?? {}).some((value) => value.startsWith("file:")));
+  assert.equal(manifest.peerDependenciesMeta?.["@surfaceloom/test"]?.optional, true);
+  assert.equal(Boolean(manifest.dependencies?.["@surfaceloom/test"]), false);
+  assert.equal(existsSync(path.join(temporary, "node_modules/@surfaceloom/test")), false);
   for (const fixture of ["packed-consumer.mjs", "packed-consumer.mts"]) {
     copyFileSync(path.join(fixtureRoot, fixture), path.join(temporary, fixture));
   }
