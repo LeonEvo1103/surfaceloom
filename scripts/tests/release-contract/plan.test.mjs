@@ -18,9 +18,12 @@ test("plan is generated from all seven real package manifests without mutating p
   }
   assert.deepEqual(plan.packageBuildOrder, [
     "@surfaceloom/core", "@surfaceloom/component-catalog", "@surfaceloom/reporter",
-    "@surfaceloom/agent-loop", "@surfaceloom/native", "@surfaceloom/test",
+    "@surfaceloom/agent-loop", "@surfaceloom/test", "@surfaceloom/native",
     "@surfaceloom/browser-playwright",
   ]);
+  const native = plan.packages.find((item) => item.name === "@surfaceloom/native");
+  assert.deepEqual(Object.keys(native.peerDependenciesMeta), ["@surfaceloom/test"]);
+  assert.deepEqual(native.peerDependenciesMeta["@surfaceloom/test"], { optional: true });
   const browser = plan.packages.find((item) => item.name === "@surfaceloom/browser-playwright");
   assert.deepEqual(Object.keys(browser.peerDependenciesMeta), ["@surfaceloom/test"]);
   assert.deepEqual(browser.peerDependenciesMeta["@surfaceloom/test"], { optional: true });
@@ -62,6 +65,8 @@ test("peer metadata is strict release data and never executes hostile objects", 
 test("an optional internal peer participates in graph order and release version blocking", () => {
   const packages = loadPackageManifests().map(packageDescriptor);
   const graph = validatePackageSet(packages, { allowLocalDependencies: true });
+  assert.ok(graph.buildOrder.indexOf("@surfaceloom/test")
+    < graph.buildOrder.indexOf("@surfaceloom/native"));
   assert.ok(graph.buildOrder.indexOf("@surfaceloom/test")
     < graph.buildOrder.indexOf("@surfaceloom/browser-playwright"));
 

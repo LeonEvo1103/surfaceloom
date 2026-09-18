@@ -58,10 +58,10 @@ export class SurfaceCallContext implements SurfaceBackendCall {
 
   async wait<T>(pending: Promise<T>): Promise<T> {
     if (aborted(this.signal) || aborted(this.#context.signal)) {
-      return this.failForStop("aborted");
+      return this.failForStop("aborted", pending);
     }
     const budget = this.remaining(this.#now());
-    if (budget <= 0) return this.failForStop("deadline");
+    if (budget <= 0) return this.failForStop("deadline", pending);
     let timer: ReturnType<typeof setTimeout> | undefined;
     const stopped = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
@@ -113,9 +113,14 @@ export class SurfaceCallContext implements SurfaceBackendCall {
     return Math.min(setupRemaining, setupDeadlineRemaining, explicit, 2_147_483_647);
   }
 
-  private failForStop(kind: "deadline" | "aborted"): Promise<never> {
+  private failForStop(kind: "deadline" | "aborted", pending: Promise<unknown>): Promise<never> {
+    const primary = this.stopError(kind);
+    // The backend already returned this Promise. Observe its eventual result so
+    // an immediate caller-side stop cannot leak a detached rejection.
+    void pending.catch(() => undefined);
+    if (!aborted(this.signal)) this.#controller.abort(primary);
     this.dispose();
-    return Promise.reject(this.stopError(kind));
+    return Promise.reject(primary);
   }
 
   private stopError(kind: "deadline" | "aborted"): SurfaceProviderError {

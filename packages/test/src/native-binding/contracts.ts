@@ -102,6 +102,10 @@ export interface NativeBindingOptions {
   readonly port: NativeBindingPort;
   readonly ownsHost?: boolean;
   readonly ownsProtocol?: boolean;
+  /** Stable prefix used when more than one native surface shares one Case. */
+  readonly resourceNamespace?: string;
+  /** False when an adapter synchronously registered the host controller before handshake. */
+  readonly registerHostResource?: boolean;
   readonly reconciliationTimeoutMs?: number;
   readonly cleanupSettleTimeoutMs?: number;
   readonly cleanupClock?: Readonly<{ readonly now: () => number }>;

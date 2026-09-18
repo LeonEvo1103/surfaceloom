@@ -116,11 +116,14 @@ export function registerNativeResources(options: {
   readonly targetOwnership: NativeSessionIdentity["ownership"];
   readonly ownsProtocol: boolean;
   readonly ownsHost: boolean;
+  readonly resourceNamespace?: string;
+  readonly registerHostResource?: boolean;
   readonly cleanupSettleTimeoutMs: number;
   readonly cleanupClock?: () => number;
   readonly lease?: InteractiveSessionLease;
 }): void {
   const cleanupSettleTimeoutMs = validateCleanupBudget(options.cleanupSettleTimeoutMs);
+  const namespace = validateResourceNamespace(options.resourceNamespace ?? "native");
   const state = { reason: "" };
   const retainReason = (reason: string): void => mark(state, reason);
   const clock = new ValidatedCleanupClock(options.cleanupClock ?? systemNow);
@@ -135,7 +138,7 @@ export function registerNativeResources(options: {
   const tail = options.ownsHost ? host : options.ownsProtocol ? protocol : target;
 
   if (options.lease !== undefined) {
-    options.context.registerResource({ id: `native.gui-lease.${options.lease.leaseToken}`,
+    options.context.registerResource({ id: `${namespace}.gui-lease.${options.lease.leaseToken}`,
       ownership: "owned", cleanup: async () => {
         const result = tail.snapshot();
         if (result === undefined) {
@@ -149,7 +152,7 @@ export function registerNativeResources(options: {
         return options.lease!.release();
       } });
   }
-  options.context.registerResource({ id: "native.cleanup-barrier", ownership: "owned", cleanup: async () => {
+  options.context.registerResource({ id: `${namespace}.cleanup-barrier`, ownership: "owned", cleanup: async () => {
     const result = tail.snapshot();
     if (result === undefined) {
       mark(state, "Native cleanup remained pending at the cleanup barrier.");
@@ -158,17 +161,17 @@ export function registerNativeResources(options: {
     if (result.status === "unconfirmed") mark(state, result.reason);
     return state.reason === "" ? released() : unconfirmed(state.reason);
   } });
-  registerHost(options, host, hostPrior, state);
-  registerProtocol(options, protocol, protocolPrior, state);
-  registerTarget(options, target, state);
+  registerHost(options, host, hostPrior, state, namespace);
+  registerProtocol(options, protocol, protocolPrior, state, namespace);
+  registerTarget(options, target, state, namespace);
 }
 
 function registerTarget(options: Parameters<typeof registerNativeResources>[0], layer: CleanupLayer,
-  state: { reason: string }): void {
+  state: { reason: string }, namespace: string): void {
   if (options.targetOwnership === "borrowed") {
-    options.context.registerResource({ id: "native.target", ownership: "borrowed" }); return;
+    options.context.registerResource({ id: `${namespace}.target`, ownership: "borrowed" }); return;
   }
-  options.context.registerResource({ id: "native.target", ownership: "owned", cleanup: () => layer.run(async () => {
+  options.context.registerResource({ id: `${namespace}.target`, ownership: "owned", cleanup: () => layer.run(async () => {
     const acquired = await options.acquisition.settled();
     const result = acquired.status === "acquired"
       ? await proof(() => options.port.cleanupTarget(acquired.session), (item) => targetMatches(item, acquired.session), "target exit")
@@ -178,11 +181,11 @@ function registerTarget(options: Parameters<typeof registerNativeResources>[0], 
 }
 
 function registerProtocol(options: Parameters<typeof registerNativeResources>[0], layer: CleanupLayer,
-  prior: CleanupLayer, state: { reason: string }): void {
+  prior: CleanupLayer, state: { reason: string }, namespace: string): void {
   if (!options.ownsProtocol) {
-    options.context.registerResource({ id: "native.protocol", ownership: "borrowed" }); return;
+    options.context.registerResource({ id: `${namespace}.protocol`, ownership: "borrowed" }); return;
   }
-  options.context.registerResource({ id: "native.protocol", ownership: "owned", cleanup: () => layer.run(async () => {
+  options.context.registerResource({ id: `${namespace}.protocol`, ownership: "owned", cleanup: () => layer.run(async () => {
     const earlier = await prior.promise;
     const acquired = await options.acquisition.settled();
     const own = acquired.status === "acquired"
@@ -194,11 +197,12 @@ function registerProtocol(options: Parameters<typeof registerNativeResources>[0]
 }
 
 function registerHost(options: Parameters<typeof registerNativeResources>[0], layer: CleanupLayer,
-  prior: CleanupLayer, state: { reason: string }): void {
+  prior: CleanupLayer, state: { reason: string }, namespace: string): void {
+  if (options.registerHostResource === false) return;
   if (!options.ownsHost) {
-    options.context.registerResource({ id: "native.host", ownership: "borrowed" }); return;
+    options.context.registerResource({ id: `${namespace}.host`, ownership: "borrowed" }); return;
   }
-  options.context.registerResource({ id: "native.host", ownership: "owned", cleanup: () => layer.run(async () => {
+  options.context.registerResource({ id: `${namespace}.host`, ownership: "owned", cleanup: () => layer.run(async () => {
     const earlier = await prior.promise;
     const own = await proof(() => options.port.closeHost(),
       (item) => hostMatches(item, options.handshake), "host child exit");
@@ -238,6 +242,13 @@ function retain(state: { reason: string }, value: LayerResult): LayerResult {
   return value;
 }
 function mark(state: { reason: string }, reason: string): void { state.reason ||= reason; }
+function validateResourceNamespace(value: string): string {
+  if (value.length === 0 || value.length > 512
+      || !/^[A-Za-z0-9][A-Za-z0-9._:@-]*$/u.test(value)) {
+    throw new Error("Native resource namespace must be a stable identifier.");
+  }
+  return value;
+}
 function released(): NativeCleanupReceipt { return Object.freeze({ status: "released" }); }
 function unconfirmed(reason: string): NativeCleanupReceipt { return Object.freeze({ status: "unconfirmed", reason }); }
 function message(error: unknown): string { return error instanceof Error ? error.message : "unknown error"; }

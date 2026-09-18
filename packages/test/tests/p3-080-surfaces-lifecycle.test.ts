@@ -82,6 +82,33 @@ test("same-turn resolution after the monotonic deadline is still unknown", async
   await assert.rejects(call.wait(pending), code("unknownOutcome"));
 });
 
+test("synchronous backend overrun aborts its call and observes a detached rejection", async () => {
+  let actions = 0;
+  let operationSignal: AbortSignal | undefined;
+  const unhandled: unknown[] = [];
+  const listener = (reason: unknown): void => { unhandled.push(reason); };
+  process.on("unhandledRejection", listener);
+  try {
+    const context = setupContext();
+    const author = await createBrowserSurfaceFactory(backend(async (_requirement, call) => {
+      call.beforeSubmit();
+      return session({ invoke: (_action, operation) => {
+        operationSignal = operation.signal;
+        const started = performance.now();
+        while (performance.now() - started < 30) { /* deterministic synchronous overrun */ }
+        assert.equal(operation.signal.aborted, false);
+        return Promise.reject(new Error("late backend rejection"));
+      } });
+    })).setup(requirement(), context.value);
+    await assert.rejects(author.perform({ kind: "navigate", url: "https://example.test" },
+      { timeoutMs: 10 }), code("deadline"));
+    await delay(5);
+    assert.equal(operationSignal?.aborted, true);
+    assert.equal(actions, 0);
+    assert.deepEqual(unhandled, []);
+  } finally { process.removeListener("unhandledRejection", listener); }
+});
+
 test("setup evidence failure retains the acquired controller for cleanup", async () => {
   let closes = 0;
   const scope = new ResourceScope({ cleanupTimeoutMs: 50 });

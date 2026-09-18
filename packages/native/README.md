@@ -1,8 +1,9 @@
 # @surfaceloom/native protocol contract
 
 This package owns the product-neutral native wire protocol schema, golden vectors, TypeScript client,
-bounded Node child-process transport, and typed desktop-session contracts. It deliberately contains no
-platform binding, UIA/AX implementation, or live conformance claim.
+bounded Node child-process transport, typed desktop-session contracts, and thin platform bindings. The
+Windows binding maps the existing `surfaceloom.native/1.0` Windows host; it does not reimplement UIA and
+does not by itself establish live UIA conformance.
 
 ## TypeScript client
 
@@ -59,9 +60,58 @@ against fake transports plus adversarial real child processes. Real UI host conf
 - Breaking field or semantic changes require a new major version. A new optional feature still requires an
   advertised namespaced method; receivers never infer support from a higher minor version.
 
-Windows NDJSON `0.2` is source material, not an alias or compatibility version of this protocol. Its UIA
-locator, action, feature, and error shapes are intentionally absent. A later Windows adapter must explicitly
-map `0.2` or migrate the host to `surfaceloom.native/1.0`; it must not relabel `0.2` frames as `1.0`.
+Windows NDJSON `0.2` remains an isolated legacy route, not an alias or compatibility version of this
+protocol. The Windows TypeScript binding uses only the host's separate `surfaceloom.native/1.0` route and
+never falls back to `0.2`.
+
+## Windows binding
+
+`@surfaceloom/native/windows` exposes a typed controller and session over the existing Windows v1 host.
+The host executable and working directory are mandatory absolute paths: there is no PATH discovery,
+download, build-on-demand, or legacy-protocol fallback.
+Launch acquisition always waits for a root window. `waitForWindow: false` is rejected before host startup or
+wire submission because the v1 host cannot bind a process-only launch to a trustworthy root UIA identity.
+
+```ts
+import { WindowsNativeController } from "@surfaceloom/native/windows";
+
+const controller = new WindowsNativeController({
+  hostId: "windows.local",
+  process: {
+    executable: "C:\\absolute\\path\\SurfaceLoom.WindowsHost.exe",
+    cwd: "C:\\absolute\\path",
+  },
+});
+
+const host = await controller.connect();
+const session = await controller.attach({ processId: 1234 });
+// Strict locators reject an empty selector and matchIndex.
+const result = await session.find({
+  automationIds: ["display-name"], names: [], controlTypes: ["edit"],
+  classNames: [], frameworkIds: [], nativeWindowHandle: null,
+  scope: "descendants", matchIndex: null,
+});
+await session.cleanupPort.release();
+await controller.close();
+```
+
+`launch()` returns an owned `ApplicationDesktopSession` with `lifecyclePort`; `attach()` returns a borrowed
+session whose public type exposes release but no close or terminate authority. Both expose the shared
+`surface`, `backend`, `nativeIdentity`, `nativeActions`, `operationPort`, `evidence`, and `cleanupPort` fields.
+
+The controller validates both handshake identity (`platform: windows`, `backend: uia`) and the
+`capabilities.get` identity (`backend: windows-ui-automation`). Effective capabilities are the intersection
+of implemented operations, host methods/features, and the configured environment. Handles retain their
+full host/session/element tuple; checked actions carry the original strict locator, root, and process id.
+Remote operation receipts, including `unknown`, are preserved without replay.
+
+`@surfaceloom/native/windows/v3` is an optional bridge to `@surfaceloom/test`. Configure stable target ids
+separately from absolute launch paths or attach PIDs, then inject the returned plain backend object into a
+v3 native surface. Importing the root or `/windows` entrypoint does not load `@surfaceloom/test`; the v3
+entrypoint requires the matching optional peer.
+
+The scoped evidence for this entrypoint uses a real Node child process speaking scripted v1 NDJSON and a
+real v3 runner Case. Actual Node→Windows host→WPF/UIA execution remains the separate P3-060 live gate.
 
 ## Calls, scope, and ownership
 

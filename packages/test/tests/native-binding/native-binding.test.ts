@@ -229,6 +229,23 @@ test("borrowed gaps do not bypass a hanging owned layer", async () => {
   assert.equal(port.calls.includes("lease"), false, "a late proof cannot make a published failure reusable");
 });
 
+test("adapter-owned host registration supports namespaced target and protocol cleanup", async () => {
+  const run = harness();
+  const port = fakePort();
+  await acquireNativeApplication({ ...options(run.context, port), ownsHost: false,
+    registerHostResource: false, resourceNamespace: "native.desktop.session" },
+  "launch", { timeoutMs: 100 });
+  port.calls.length = 0;
+  const result = await run.scope.close();
+  assert.equal(result.status, "passed");
+  assert.deepEqual(port.calls, ["target", "protocol"]);
+  assert.deepEqual(result.outcomes.map((item) => item.id), [
+    "native.desktop.session.target",
+    "native.desktop.session.protocol",
+    "native.desktop.session.cleanup-barrier",
+  ]);
+});
+
 function fakeLease(events: string[]): InteractiveSessionLease {
   return { directory: "/tmp", name: "gui", pid: 1, processCreationMarker: "marker",
     ownerNonce: "owner", leaseToken: "lease", acquiredAt: new Date(0).toISOString(), path: "/tmp/lease",

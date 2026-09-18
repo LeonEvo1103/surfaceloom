@@ -40,6 +40,8 @@ export async function acquireNativeApplication(options: NativeBindingOptions,
   registerNativeResources({ context: options.context, acquisition, handshake: options.handshake,
     port: options.port, targetOwnership: contract.ownership!, ownsProtocol: options.ownsProtocol ?? true,
     ownsHost: options.ownsHost ?? true, cleanupSettleTimeoutMs,
+    resourceNamespace: options.resourceNamespace ?? "native",
+    registerHostResource: options.registerHostResource ?? true,
     ...(options.cleanupClock === undefined ? {} : { cleanupClock: options.cleanupClock.now }),
     ...(options.lease === undefined ? {} : { lease: options.lease }) });
   try {

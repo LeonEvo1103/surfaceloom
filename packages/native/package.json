@@ -15,18 +15,36 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./windows": {
+      "types": "./dist/windows/index.d.ts",
+      "import": "./dist/windows/index.js"
+    },
+    "./windows/v3": {
+      "types": "./dist/windows/v3/index.d.ts",
+      "import": "./dist/windows/v3/index.js"
     }
   },
   "files": ["dist", "vectors", "README.md"],
   "scripts": {
     "build": "node ../../scripts/clean-package-dist.mjs && tsc -p tsconfig.json && node ../../scripts/copy-package-license.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node ../../scripts/run-typescript-package-tests.mjs"
+    "test": "npm run build && node ../../scripts/run-typescript-package-tests.mjs && node scripts/test-packed-consumer.mjs",
+    "test:packed": "npm run build && node scripts/test-packed-consumer.mjs"
   },
   "devDependencies": {
+    "@surfaceloom/test": "file:../test",
     "@types/node": "^22.10.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
+  },
+  "peerDependencies": {
+    "@surfaceloom/test": "0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@surfaceloom/test": {
+      "optional": true
+    }
   },
   "engines": { "node": ">=20" }
 }
