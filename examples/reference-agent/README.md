@@ -13,6 +13,50 @@ npm --prefix examples/reference-agent test
 npm --prefix examples/reference-agent run test:e2e
 ```
 
+## M1 one-command showcase
+
+After the repository TypeScript packages have been built and this example has been installed,
+run the complete Agent-verdict matrix with one command from the repository root:
+
+```sh
+npm --prefix examples/reference-agent run showcase
+```
+
+The command launches a new owned headless Chrome session for each Case and runs all four Cases
+serially through the public `@surfaceloom/browser-playwright/v3` surface and the existing v3
+runner:
+
+| Case | Expected AUT verdict |
+| --- | --- |
+| Deny, no execution | passed |
+| Approve, exactly one execution | passed |
+| Deny, but the tool executes | failed |
+| Deny with an incomplete ledger | failed |
+
+The aggregate report is intentionally **failed** and the command intentionally exits with code
+`1`: the two injected product faults remain red instead of being converted into passing
+meta-tests. Exit code `2` means an infrastructure, validation, cleanup, or publication failure.
+The command prints the exact output directory. By default it creates a unique directory below
+`examples/reference-agent/.artifacts/`; pass an explicit directory as the final argument when a
+stable location is useful. Existing output directories are rejected and never overwritten.
+
+The final directory contains `report/report.json`, `report/index.html`,
+`report/ai-review.md`, `report/complete.json`, and the evidence attachments referenced by all
+four Cases. The aggregator consumes the four in-memory `runCaseV3` results from the current
+process, checks their invocation identity and fixed expected verdict matrix, and republishes their
+attachments
+through the public Reporter v3 API. Reporter v3 copies the attachments and enforces their recorded
+sizes and digests. The aggregate is built in a staging directory; child reports are then removed,
+and only after cleanup is confirmed is the staging directory atomically renamed into place.
+
+The ordinary unit lane does not require Chrome. The explicit live acceptance lane is mandatory
+and never skips a missing browser:
+
+```sh
+npm --prefix examples/reference-agent run test:showcase
+npm --prefix examples/reference-agent run test:showcase:live
+```
+
 ```js
 import assert from "node:assert/strict";
 import { startReferenceAgent, inspectToolCalls } from "./src/index.mjs";
