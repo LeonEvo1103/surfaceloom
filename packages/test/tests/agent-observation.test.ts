@@ -120,6 +120,36 @@ test("tool-call assertions reject impossible lifecycle count ordering", async ()
   }
 });
 
+test("tool phase and Agent completion requirements are runtime-validated before provider reads", () => {
+  const interval = Object.freeze({ kind: "interval" as const, fromMs: 0, toMs: 10 });
+  let reads = 0;
+  const source = provider({
+    readToolCall: (scope) => {
+      reads += 1;
+      return { state: "available", value: {
+        ...scope, requested: 0, started: 0, completed: 0,
+      }, completeness: { ...interval, complete: true } };
+    },
+    readExternalEffects: (scope) => {
+      reads += 1;
+      return { state: "available", value: {
+        ...scope, boundary: "external", count: 0,
+      }, completeness: { ...interval, complete: true } };
+    },
+  });
+  const numericCall = Object.freeze({ ...run, callId: "2" });
+  assert.throws(() => assertAgentToolCall(source, numericCall, "callId" as never, {
+    timeoutMs: 1, clock: fakeTime().clock,
+  }), /phase must be requested, started, or completed/u);
+  assert.throws(() => assertAgentToolCallExactlyOnce(source, call, {
+    completeness: interval as never, timeoutMs: 1, clock: fakeTime().clock,
+  }), /named completion barrier/u);
+  assert.throws(() => assertAgentResourceHasNoExternalEffect(source, resource, {
+    completeness: interval as never, timeoutMs: 1, clock: fakeTime().clock,
+  }), /named completion barrier/u);
+  assert.equal(reads, 0);
+});
+
 test("zero external effects require exact resource scope and the requested complete barrier", async () => {
   const time = fakeTime();
   const barrier = Object.freeze({ kind: "barrier" as const, id: "run-000001.done" });
@@ -179,7 +209,7 @@ test("invalid scopes and barrier requirements reject before a provider read", as
       completeness: { kind: "barrier", id: "run-000001.done" },
       timeoutMs: 1, clock: fakeTime().clock,
     }), /stable machine id/);
-  await assert.rejects(assertAgentResourceHasNoExternalEffect(source, resource,
+  assert.throws(() => assertAgentResourceHasNoExternalEffect(source, resource,
     { timeoutMs: 1, clock: fakeTime().clock } as never), /completion barrier/);
   assert.equal(reads, 0);
 });

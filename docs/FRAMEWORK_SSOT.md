@@ -1,162 +1,148 @@
-# SurfaceLoom 框架化 SSOT
+# SurfaceLoom Agent 测试框架 SSOT
 
 > 状态：Active
 >
-> 当前验收 revision：`9a0171386834c5b906d3d6a424641e35697ed85c`
+> 当前代码基线：`099274b3d44a2e0ee72e6ea1791e883ea81293d2`
 >
-> 审计日期：2026-09-17
+> 重新审计日期：2026-09-18
 >
-> 当前阶段：P1、Windows C#→host→UIA live、Node process transport、typed DesktopSession/kernel
-> binding contract、release plan/final-manifest 验证器、中性 macOS fixture、evidence correlation 与
-> report/v3 已完成；下一门槛是 macOS stdio host、双平台 TypeScript live 与 mixed-surface Case
+> 当前里程碑：M1——把已存在的 Agent 验证内核交付为一个外部作者能理解、能一键运行、能查看
+> Reporter v3 结果的 Browser 纵向闭环；在此之前冻结新的底层驱动和组件目录扩张。
 
-本文档是 SurfaceLoom 框架执行模型、实施顺序和完成证据的唯一事实源（SSOT）。
-`ARCHITECTURE_V2.md` 描述已有分层；两者冲突时，以本文明确列出的新决策为准，并由负责该任务的
-集成 PR 同步修正旧文档。规划接口不等于已经实现的能力。
+本文档是 SurfaceLoom 产品边界、执行语义、实施顺序和完成证据的唯一事实源（SSOT）。
+`docs/framework/capabilities.md` 只记录事实能力矩阵；README 只做对外说明。三者冲突时，先按源码和
+可复现实验证据修正事实矩阵，再同步 README，不能用规划文字抬高能力等级。
 
-## 1. 产品目标
+## 1. 产品定义与成功标准
 
-SurfaceLoom 是面向 Agent 应用的多 surface 自动化测试框架。它在一次可重复执行中关联：
+SurfaceLoom 是 **Agent 行为验证与测试编排框架**。Playwright、UIA、AX、winapp、XCTest 或其他
+工具是可替换执行后端，不是产品中心。框架的中心对象是一次 `CaseExecution`：它把 UI 行为、
+Agent run、tool lifecycle、实际资源 effect、证据完整性和 cleanup 组合为一个保守 verdict。
 
-- browser、desktop 与 system surface 上的可见行为；
-- Agent run、模型与工具的结构化观察；
-- 实际副作用和完整性可验证的 probe/ledger；
-- Case 验收条件、动作提交语义、诊断和证据。
+首个必须做透的用户故事只有一个：
 
-框架的中心对象是 `CaseExecution`，不是 `Page`、`Driver` 或万能 `Element`。普通应用测试只依赖
-基础 Case、surface、fixture、assertion 和 Reporter，不强制加载 Agent fixture。
+> Agent 请求向受控资源写入一条记录；审批 UI 允许或拒绝；Case 必须证明指定 run/call 的工具
+> 生命周期、资源实际变化和清理结果，而不是只相信 UI 状态或 trace 文本。
 
-第一条代表性闭环是：确定性模型请求一次工具操作，UI 显示审批，拒绝后 Agent run 结束，独立
-工具账本证明该 run 的完整观察区间内执行次数为零；批准变体必须证明恰好执行一次。
+项目是否具有独立价值，由以下三个实验判定：
 
-## 2. 已冻结架构决策
+1. **故障识别：** UI 显示相同状态时，实际执行、截断账本、延迟 effect、未确认 cleanup 必须得到
+   不同且正确的失败原因。
+2. **后端替换：** 更换 browser/native backend 后，业务 Case 和预期 verdict 不变，变化限制在
+   backend adapter 与 conformance。
+3. **第二消费者：** 独立应用只新增 adapter/probe 就能复用 approval、duplicate、unknown 和 cleanup
+   契约；若必须重写 ledger 和判定内核，则通用性假设失败。
 
-### 2.1 统一边界
+## 2. 当前事实基线
 
-统一 Case/attempt、资源 ownership、fixture、deadline/cancellation、capability negotiation、
-effect policy、step/assertion/criterion、结构化错误、证据关联、cleanup 和最终 verdict。
+### 2.1 已交付且应保留
 
-保留 surface 差异：DOM click/fill/navigation/network、AX/UIA invoke/setValue/window/menu 和
-system dialog 不伪装成同一种低层动作；DOM、AX、UIA locator 与 role 维持强类型差异。
+- observation 的 `unknown`、`read-failed`、截断或不完整状态不能满足负断言；零次与恰好一次需要
+  稳定 `runId`/`callId` 和完成 barrier。
+- execution kernel 会等待 action/step drain、逆序尝试全部 cleanup，并把正文失败、迟到失败、
+  evidence 失败和 cleanup 失败共同纳入最终结果。
+- native 协议区分 `notExecuted`、`executed`、`unknown`，并把 session release、target exit、host
+  child exit 分开记录；timeout、kill 或 stdio close 不冒充资源已清理。
+- Reporter v3、evidence materialization、显式 correlation、Browser/Native author facade、macOS stdio
+  host 和 Windows C# UIA live fixture 已有独立合同或实验证据，具体等级以事实矩阵为准。
 
-### 2.2 作者与扩展者
+### 2.2 尚未交付
 
-- 业务 Case 优先调用产品 adapter 暴露的语义行为和 observation。
-- adapter/component 作者使用 typed surface primitives 与低层 query/action。
-- backend 实现 Core surface contract 和 capability，不把原生对象暴露给 Case。
-- Agent run、model fixture 和 tool probe 是资源/观察源，不伪装成 UI surface。
-- Reporter、TraceAdapter 和 viewer 只消费结果/证据，不反向操作 UI。
+- reference-agent 仍从仓库相对路径导入内部 `dist`，使用低层 `assertObservation`，没有展示公开的
+  Agent assertion facade，也没有由一条外部作者命令生成最终 Reporter v3 bundle。
+- Playwright 的现有 `BrowserSession` 尚未实现 v3 `BrowserSurfaceBackendPort` 的完整提交、deadline、
+  identity 和 cleanup receipt 语义；`runCaseV3` 存在不等于真实 Playwright v3 Case 已贯通。
+- Windows 5/5 live 经 C# client，不证明 TypeScript→host→UIA；macOS host contract 不证明 TCC 下的
+  TypeScript→host→AX live。
+- 没有仓库外 packed consumer，没有第二个公开消费者，也没有 npm alpha 发布证据。
 
-### 2.3 Runner
+### 2.3 第三方复用的真实状态
 
-SurfaceLoom 拥有可嵌入 execution kernel。`sl test` 是官方 front-end，但不是唯一入口；未来
-`node:test`、Jest 或内部 kit 集成必须调用同一 kernel，不能绕过 policy、cleanup 或结果校验。
+当前只有 Playwright 明确作为第三方 browser backend。winapp、Swift Wright、AXorcist、Appium Mac2
+和 OpenTelemetry 都尚未集成；它们是候选基础设施，不能写成已交付架构。现有 Windows UIA、macOS
+AX、native host/protocol 大量为自研代码。替换只能在同一 fixture conformance 和 verdict 不变后进行。
 
-首版 CLI 只负责发现、过滤、顺序执行、timeout、报告和 exit code；worker pool、sharding、
-watch、分布式调度和通用插件市场不在 P1 范围。
+## 3. 冻结的产品边界
 
-### 2.4 Native 顺序
+### 3.1 SurfaceLoom 拥有的语义
 
-Native 路线固定为 Windows → macOS：从已有 Windows NDJSON 0.2 行为提取最小共享协议，先实现
-Windows TypeScript client 与真实 Windows fixture conformance，再由 macOS stdio host 实现同一
-协议。Windows 0.2 不是直接冻结的跨平台标准。
+- Case/attempt、fixture、effect policy、deadline/cancellation、resource ownership 和 cleanup。
+- Agent observation provider，以及 run/call/resource identity 与 completeness barrier。
+- `notExecuted`、`executed`、`unknown` 和不可安全重试的动作提交语义。
+- canonical result、证据来源/散列/correlation 与保守 Reporter verdict。
 
-### 2.5 动作与断言
+`ExecutionPolicyGate.dispatch()` 只保证框架本次调用回调一次，不证明 AUT 的业务操作只发生一次。
+`assertAgentToolCallExactlyOnce()` 只证明指定 `callId` 的生命周期；还必须用独立资源 probe 检查同一
+逻辑操作是否以其他 `callId` 重复产生 effect。
 
-- observation 可以轮询，动作 dispatch 不自动重放。
-- 动作结果至少区分 `notExecuted`、`executed`、`unknown`；断线且无可信 receipt 时为 unknown。
-- assertion 必须重新读取 observation，并记录 expected/actual/deadline/criterion/evidence。
-- 负断言必须有完整观察区间或完成 barrier；缺少事件、截断 trace 或读取失败不等于零次。
-- 只有全部必需 criterion 通过且 cleanup 完成，Case 才能 passed。
-- 后续 teardown/证据错误不得覆盖更早的正文失败，但必须改变最终运行状态并保留全部原因。
+### 3.2 Backend 拥有的语义
 
-### 2.6 GPT-6 审计后冻结的 Native 与发布边界
+- Playwright、UIA、AX、winapp、XCTest 等只负责查找、观察和执行平台动作，并如实声明 capability。
+- backend 无法证明动作是否提交时必须返回 `unknown`，不得由 adapter 猜成成功或未执行。
+- DOM、AX、UIA locator 和 action 保持强类型差异，不制造万能 `Element.click()`。
+- 第三方 backend 可以直接实现公开 SPI；`surfaceloom.native/1.0` 是 first-party host 的可选协议，
+  不是所有 backend 的强制传输层。
 
-- Windows 已有 5 项 live conformance 走 C# fixture client，不经过 TypeScript `NativeClient`；它证明
-  Windows host/UIA 行为，不证明 Node transport、统一 `DesktopSession` 或跨平台闭环。
-- `surfaceloom.native/1.0` 的 `HostDescriptor` 是严格 schema。OS、architecture、host build
-  version 不直接追加到旧 descriptor；由显式协商的 metadata method 或 release manifest 承载，
-  需要改 wire 时必须显式演进版本。
-- 请求 deadline 到达、连接关闭或调用方停止等待都不证明动作未提交，也不证明 owned 资源已清理。
-  迟到 launch、transport close 失败、host crash 与目标进程退出必须分别产生可审计 outcome。
-- 统一 `DesktopSession` 适配现有 Core driver/session，不建立第二个竞争执行内核；browser 与 native
-  保留 typed locator、typed action 和平台 capability，不能把 DOM click、AX press 与 UIA invoke
-  伪装为完全相同的低层动作。
-- Reporter v3 schema/validator/view 已完成。后续任务是 runner 产生真实 host/surface/attempt identity、
-  物化 evidence 与 correlation；不重新实现 v3，也不借 v2 importer 伪造多 surface 事实。
-- npm 版本、wire、report schema、trace schema、component behavior 和 native host 制品各自版本化。
-  “七个 npm 包同版本”不等于 native 制品只有七项，也不等于所有 schema 同步升级。
-- 候选制品验收、registry 发布、发布后精确版本安装是三个不同门槛。外部 consumer 必须隐藏源码树、
-  不借用仓库 TypeScript/node_modules、不使用 fake backend，并以 `npx --no-install` 调用本地 bin。
+### 3.3 作者、adapter 与 runner
 
-## 3. 包拓扑
+- Case 作者只写业务动作和业务断言；plan、policy、barrier、provider 和资源接线由可复用 adapter/config
+  提供，不能要求每个 Case 重写底层仪式。
+- 产品 adapter 负责 selector、run/call identity、ledger、effect probe 和语义行为；产品细节不得进入
+  core/test/reporter。
+- `sl-test` 与嵌入调用必须经过同一 kernel。首版只做发现、过滤、顺序执行、deadline、报告和 exit
+  code，不自研通用 runner 生态。
 
-| 包 | 权威职责 |
-| --- | --- |
-| `@surfaceloom/core` | 无 backend 依赖的 Case、fixture、surface、capability、effect、observation 契约 |
-| `@surfaceloom/test` | execution kernel、作者 API、CLI、自动等待断言、资源协调；P1 新增 |
-| `@surfaceloom/native` | TS native client、host 启动和 wire compatibility；P2 新增 |
-| `@surfaceloom/browser-playwright` | 可选 browser backend，不成为 Core/native 的依赖 |
-| `@surfaceloom/reporter` | canonical result 校验、证据归档和视图，不依赖 backend |
-| `@surfaceloom/agent-loop` | trace 导入、归一和展示，不承担运行或 authoritative verdict |
-| `@surfaceloom/component-catalog` | 组件/fixture manifest 目录，不把声明冒充行为实现 |
+## 4. 明确冻结和非目标
 
-P1 只新增 `@surfaceloom/test`。协议 schema/golden vectors 先随 `@surfaceloom/native` 管理，不单独
-创建 protocol 包。形成第二个真实消费者前，不新增通用 Agent testing 包。
+当前阶段冻结：
 
-## 4. 首版执行契约
+- 新增 component/fixture manifest，以及没有真实消费者的组件行为扩张；现有 37 个组件主要是声明，
+  不作为首页核心卖点。
+- 通用 DOM/AX/UIA 动作扩张；仅当 M1/M2 参考闭环缺少必需能力且候选 backend 无法提供时补充。
+- watch、sharding、worker pool、分布式调度、通用插件市场和 AI 自动评分器。
+- 豪华 trace viewer、通用日志平台和新的 Agent testing npm 包；trace/OTel 只作为证据导入导出，
+  不拥有 verdict。
+- native wire 新特性；现有 ownership、receipt 和安全语义继续维护，除修复合同缺陷外不扩协议。
 
-`CaseSpec` 继续表达长期不变的测试语义；`ExecutionPlan` 表达本次执行资源，二者分离：
+不立即删除现有 Windows UIA 或 macOS AX 实现，也不发动全面第三方替换。先证明候选 backend 能通过
+同一中性 fixture、保留 operation/cleanup 语义并降低维护成本，再决定淘汰范围。
+
+## 5. 黄金闭环与作者体验
+
+M1 的 reference-agent 必须通过真实 Playwright surface port 和 v3 runner 执行，最终报告至少回答：
+
+- 哪项 criterion 失败；
+- UI 声称的 run/approval 状态；
+- 指定 run/call/resource 的实际观察以及观察是否完整；
+- 动作结果是否 unknown；
+- cleanup 是否确认。
+
+M1 最小矩阵：拒绝后 0 次和批准后 1 次为绿色；拒绝但执行、ledger 缺失/截断为红色。重复业务
+effect、停止边界和 cleanup 未确认属于 M2 故障矩阵。预期失败的故障注入 Case 自身可以被测试套件
+正确捕获，但其报告中的 AUT verdict 不得显示为 passed。
+
+作者层目标形态如下，具体命名由实现任务在兼容现有 API 的前提下确定：
 
 ```ts
-interface ExecutionRequirements {
-  host?: { os: readonly ("macos" | "windows" | "linux")[] };
-  surfaces: Readonly<Record<string, {
-    kind: "browser" | "desktop" | "system";
-    capabilities: readonly string[];
-  }>>;
-}
-
-interface EffectDescriptor {
-  resource: string;
-  operation: "read" | "write" | "execute";
-  boundary: "local" | "external";
-  securitySensitive: boolean;
-  recovery: "notNeeded" | "resettable" | "unknown";
-}
+await expectAgent(run).toHaveRequestedApproval();
+await expectAgent(run.tool("write-note")).toHaveExecutedExactlyOnce({ barrier });
 ```
 
-现有 `CaseSpec.platforms` 与 `sideEffect` 保持兼容，不把 OS、surface 和 Agent 混入同一个枚举。
-P1 不向严格的 CaseSpec 或 report/v2 静默增加字段；ExecutionPlan 暂由 `packages/test` 管理。
-新 effects 存在时必须不超出旧摘要；旧 enum 不能被伪造为具体资源或恢复保证。
+这段示例是体验约束，不是已实现 API；不能先把它写入 README 冒充交付。
 
-`executeCase(definition, options)` 返回可转换为 Reporter `CaseReportInput` 的逐 Case 结果。第一波
-复用现有 CaseSpec、FixtureRuntime 和 report/v2 输入，不宣称已经解决任意不合作 JavaScript 的
-强制取消；该问题由 `SL-P1-050` 单独验收。
+当前 reference-agent 的 effect 是内存中的 `local` resource。M1 必须用工具生命周期断言和独立 local
+resource probe 验证它，不能调用只适用于 `boundary: "external"` 的零外部副作用断言来抬高证据等级。
+真正 external resource 的否定断言留给提供可信完成 barrier 的后续消费者。
 
-工具账本使用稳定 `runId`/`callId`，区分 requested/started/completed。Agent fixture 必须提供
-run 完成边界和 ledger completeness；一次空快照不构成零调用证据。
+## 6. 里程碑门槛
 
-## 5. 执行状态机
-
-```text
-discover → validate → plan → acquire leases → setup fixtures
-         → execute steps/assertions → finalize evidence
-         → reverse cleanup → validate result → publish
-```
-
-结果保留原始失败、清理失败、证据失败和动作未知状态。共享桌面焦点、输入、剪贴板等资源必须用
-跨进程 interactive-session lease；browser isolated context 可按资源隔离能力并行。
-
-## 6. 阶段门槛
-
-| 阶段 | 唯一主要闭环 | 完成门槛 | 非目标/停止条件 |
+| 里程碑 | 唯一主要闭环 | 完成门槛 | No-go |
 | --- | --- | --- | --- |
-| P0 | 可审阅、可执行的框架契约 | SSOT、事实矩阵、账本检查器和旧文档入口一致 | 新接口文字不算实现 |
-| P1 | Agent 审批 Case 从作者入口到可信报告 | browser + 确定性 model/tool fixture；拒绝 0、批准 1、故障注入失败；普通 Case 不加载 Agent fixture | 不做 native parity、sharding、真实模型评分 |
-| P2 | Node → Windows host → fixture app → 报告 | 共享协议、真实 process transport、Windows typed session 与交互式 conformance；错误、receipt 和 ownership 覆盖 | 既有 C# live 保留，但不冒充 TS live；fake 不替代 |
-| P3 | 同一执行语义跨 native 平台与多 surface | macOS 同协议 conformance；一个 browser + native/system Case；report/v3 保留 surface/attempt | 不要求全部 manifest 双平台实现 |
-| P4 | 仓库外消费者独立安装和接入 | 无源码树偶然依赖；启动 host、运行参考 Case、实现外部 adapter、生成报告 | 安装/制品不闭合不发布；不承诺 1.0 |
+| M1：可理解的 Agent Case | Browser approval 从高层作者 API 到 Reporter v3 | 真实 Playwright port；四项最小矩阵；一条仓库内命令生成 JSON/HTML/AI review；文档与事实矩阵同步 | 相对路径内部导入冒充外部 API；假报告；扩 manifest/native 驱动 |
+| M2：执行边界与可替换 backend | 异步 stop + 一条 Browser→Native effect | 提交前取消、提交后 unknown、effect 已发生三态；Windows TS live；候选 backend 用同 fixture 比较；mixed Case 报告两面和 cleanup | cancel arrival 冒充 stopped；UI 状态冒充 effect；一次重写所有 backend |
+| M3：独立消费与第二应用 | 源码树不可见的安装和复用 | packed consumer 用精确版本运行真实 Case/report；第二消费者只新增 adapter/probe；发布字节通过扫描和 provenance 门禁 | 借仓库 node_modules/tsc；产品规则进入 core；安装未闭合先发布 |
+
+M1 与 M3 严格分开：M1 证明公开作者入口和产品体验，M3 才证明打包安装与源码树隔离。
 
 ## 7. 任务状态和完成证据
 
@@ -178,6 +164,8 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P0-020` | done | `SL-P0-001` | `scripts/check-framework-ssot.mjs`、对应 tests | 校验 ID、依赖、环、状态和 done 证据；不做调度系统 |
 | `SL-P0-030` | done | `SL-P0-001`,`SL-P0-010` | README、AGENTS、`ARCHITECTURE_V2.md` | 增加 SSOT 入口并修正冲突，不把规划写成已实现 |
 | `SL-P0-040` | done | `SL-P0-010` | `docs/framework/capabilities.md`、README 事实段 | 同步 Windows C# live、TS transport-neutral、macOS fixture build-only 与 P3/P4 边界；事实矩阵和 SSOT 不互相矛盾 |
+| `SL-P0-050` | review | `SL-P0-040` | `docs/FRAMEWORK_SSOT.md` | 将路线收紧为 Agent 验证闭环优先，保留历史 done 证据；账本校验、架构检查和 GPT-6 反向审查通过后，由集成人关闭 |
+| `SL-P0-060` | planned | `SL-P0-050`,`SL-P3-094` | README、`docs/framework/capabilities.md`、相关入口文档 | 按 M1 实际证据同步对外事实；修正“无 macOS stdio host”等过时措辞，同时继续区分 host contract、TS binding 和 live AX/UIA |
 
 ### P1：首个可信 Agent Case
 
@@ -217,50 +205,65 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P3-015` | done | `SL-P3-010` | macOS host lifecycle/handle/action adapter | opaque host/session handle、唯一 scope、单次提交、迟到 launch ownership、全部 cleanup 尝试；不隐式 fallback 坐标/键盘 |
 | `SL-P3-020` | done | `SL-P2-010` | 新 macOS fixture | 与 Windows 同一行为契约的中性 app |
 | `SL-P3-025` | done | `SL-P2-060`,`SL-P1-050` | native typed DesktopSession contract、Core per-call cancellation seam 与 kernel binding | 兼容现有 Core session；legacy void 不伪造 receipt；late acquisition 先登记 controller；borrowed target 与 owned reference 分离；unconfirmed cleanup 不释放 GUI 安全资格 |
-| `SL-P3-030` | planned | `SL-P2-070`,`SL-P3-015`,`SL-P3-025` | native package Windows/macOS bindings/tests | 两平台 typed session 与 locator/action codec；声明 capability 必须与实际 handshake 核对 |
+| `SL-P3-030` | planned | `SL-P3-031`,`SL-P3-032` | native platform binding 聚合门槛 | 本轮不直接排期；交付拆为 Windows `SL-P3-031` 和 macOS `SL-P3-032`，完成两项后再关闭本聚合任务，避免重复实现 |
+| `SL-P3-031` | planned | `SL-P2-020`,`SL-P2-070`,`SL-P3-025`,`SL-P3-094` | Windows TS binding/codec 与 scoped tests | 接通既有 Windows host、typed DesktopSession 和 v3 native port；capability 与 handshake 对照；保留 ownership/receipt/unknown，只覆盖首条 native slice 所需动作 |
+| `SL-P3-032` | planned | `SL-P3-015`,`SL-P3-025`,`SL-P3-031` | macOS TS binding/codec 与 scoped tests | 复用既有 macOS stdio host，不重做 host；M2 首条 Windows native 闭环完成或第二消费者明确需要 macOS 后再排期 |
 | `SL-P3-040` | done | `SL-P1-080` | reporter package | report/v3 host/surface/attempt 和 v2 importer；不静默降级 |
 | `SL-P3-050` | done | `SL-P3-040` | Core evidence context、agent-loop/tests | 显式 correlation；时间相邻不冒充因果，trace 不改 verdict |
 | `SL-P3-055` | done | `SL-P3-025`,`SL-P3-040`,`SL-P3-050` | test runner report/v3 与 evidence materialization | runner 产生真实 host/surface/attempt/executionPlatforms；归档 trace/probe/graph，校验引用与脱敏，不改 authoritative verdict |
-| `SL-P3-060` | planned | `SL-P2-050`,`SL-P2-070`,`SL-P2-080`,`SL-P3-025`,`SL-P3-030` | Windows TS live tests/scripts/CI | Node→typed session→host→WPF/UIA 同一必需 Case 集，0 skip；原 C# 5/5 继续回归，最终报告在 cleanup 后写出 |
-| `SL-P3-065` | planned | `SL-P2-080`,`SL-P3-005`,`SL-P3-015`,`SL-P3-030` | macOS TS live tests/scripts/CI | Node→typed session→host→AppKit/AX 同一必需 Case 集，0 skip；TCC 由实际 host identity 预检且不自动授权 |
-| `SL-P3-070` | planned | `SL-P3-055`,`SL-P3-060`,`SL-P3-065`,`SL-P3-086` | mixed-surface example 与 integration tests | browser + native Case；deny 0、approve 1、停止 outcome、ledger/trace 截断 fail closed、native criterion 失败令整 Case/CLI 失败；报告列两面和 cleanup |
+| `SL-P3-060` | planned | `SL-P2-050`,`SL-P2-080`,`SL-P3-031` | Windows TS live tests/scripts/CI | 真实 Node→binding→host→WPF/UIA 必需 Case 0 skip；原 C# 5/5 继续回归；lease 与 cleanup 实际参与，最终报告只能在 cleanup 后发布 |
+| `SL-P3-065` | planned | `SL-P2-080`,`SL-P3-005`,`SL-P3-015`,`SL-P3-032` | macOS TS live tests/scripts/CI | Node→binding→host→AppKit/AX 同一必需 Case 集，0 skip；TCC 由实际 host identity 预检且不自动授权；不得用 Windows live 替代 |
+| `SL-P3-070` | planned | `SL-P3-055`,`SL-P3-088`,`SL-P3-089` | mixed-surface example 与 integration tests | 先交付 Browser + Windows Native 的真实 Case；同一业务验收、native criterion、ledger/probe 和 cleanup 共同决定 verdict；报告含两种 surface。`SL-P3-065` 只证明 macOS TS native conformance；macOS mixed Agent parity 另行立项，不在本任务完成声明内 |
 | `SL-P3-075` | done | `SL-P1-070` | test package project config、loader、CLI tests | `defineProject` 只组织已有 kernel；冻结配置优先级/路径/ESM-CJS 边界/重复 ID/退出码；TS Case loader 不借源码树工具 |
 | `SL-P3-080` | done | `SL-P3-025`,`SL-P3-075` | browser/native surface fixture factories 与 author facade | 可选 backend 显式注入，不让 core/test 强依赖 Playwright/native；旧 `defineCase` 签名继续通过 |
-| `SL-P3-085` | done | `SL-P1-030`,`SL-P1-060` | Agent observation provider/assertion wrappers 与 tests | 薄封装现有 observation assertion；run/call/resource/completeness 明确；“无外部 effect”只对有完成 barrier 的声明资源成立 |
-| `SL-P3-086` | planned | `SL-P3-030`,`SL-P3-085` | reference-agent async executor、stop barrier、native effect probe | 可控暂停/取消/settle receipt；区分提交前停止、提交后 unknown、已发生 effect；稳定绑定 runId/callId/operationId |
+| `SL-P3-085` | done | `SL-P1-030`,`SL-P1-060` | Agent observation provider/assertion wrappers 与 tests | 薄封装现有 observation assertion；run/call/resource/completeness 明确；“无外部 effect”只对有完成 barrier 的声明 external resource 成立 |
+| `SL-P3-086` | planned | `SL-P3-087`,`SL-P3-088`,`SL-P3-089` | async/stop/native-effect 聚合门槛 | 本轮不直接排期；异步 executor、故障矩阵、native effect 分别由 `SL-P3-087/088/089` 交付，三项完成后再关闭本聚合任务 |
+| `SL-P3-087` | planned | `SL-P3-092` | reference-agent engine/ledger/server 与 unit tests | 同步 executor 扩为确定性可暂停、恢复、取消、settle；有显式提交点和完成 barrier；保留 runId/callId，纯异步语义不等待 native binding |
+| `SL-P3-088` | planned | `SL-P3-087`,`SL-P3-094` | 故障变体、CaseSpec、E2E/报告断言 | 固定覆盖拒绝却执行、跨 callId 重复业务 effect、账本缺失/截断、提交前停止、提交后 unknown、cleanup 未确认；同时核对业务 verdict 与证据，不只相信 fixture 自述 |
+| `SL-P3-089` | planned | `SL-P3-087`,`SL-P3-060` | native effect executor/probe 与 scoped integration tests | 一个受控 native 操作产生可观察 effect；关联 run/call/逻辑操作与真实 operation receipt；probe 读取实际 effect，停止与断线后保守报告不确定性 |
+| `SL-P3-090` | in_progress | `SL-P3-075`,`SL-P3-080`,`SL-P3-085` | 作者/adapter 公开 export、reference 入口契约与 type tests | 补齐示例所需公开扩展点；消费者不 import `packages/*/src`、`dist` 或内部子路径；只复用现有 kernel/v3/Agent API，不建设第二套框架 |
+| `SL-P3-091` | planned | `SL-P3-090` | Playwright→v3 surface port 与 contracts/live tests | 真实 browser acquisition/action/deadline/cancel/close 进入现有 facade；strict locator 保持；提交边界不得过早，迟到 acquisition 或失败 close 不伪造 released |
+| `SL-P3-092` | planned | `SL-P3-090` | reference-agent adapter/provider/cases | adapter 实现现有 `AgentObservationProvider`；Case 使用高层断言；零执行与 local resource probe 共用完整 run barrier，不复制 policy/ledger/lifecycle 实现 |
+| `SL-P3-093` | planned | `SL-P3-055`,`SL-P3-075`,`SL-P3-090` | CLI/config 显式 v3 分支与 tests | 配置选择现有 `runCaseV3`，保留 v2 兼容入口；不创建第二 kernel；通过、业务失败、配置和发布失败的退出语义明确 |
+| `SL-P3-094` | planned | `SL-P3-091`,`SL-P3-092`,`SL-P3-093` | reference-agent E2E、入口脚本、真实报告验收与说明 | 一条命令运行 M1 四项矩阵并生成 v3 bundle；真实 browser 0 skip；报告关联 criterion、run/call、ledger/probe、完整性与 cleanup，不借私有代码入口 |
+| `SL-P3-110` | planned | `SL-P3-060`,`SL-P3-094` | 第三方 backend adapter、同 fixture 对照与 conformance | 首选评估 winapp；相同 Windows fixture、Case 语义和预期 verdict 不变；记录 capability、锁、deadline、operation outcome 与 cleanup 差距后再决定是否替代 direct UIA |
 
 ### P4：可安装 alpha
 
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
 | `SL-P4-005` | done | `SL-P2-060` | release plan/manifest、包依赖图、兼容/签名/扫描设计与验证器 | 分离允许 pending 的 plan 与只记录最终真实 bytes 的 manifest；严格 schema、独立版本、无环 digest/SBOM/provenance/签名证据图和 fail-closed recursive scan；不发布 |
-| `SL-P4-010` | planned | `SL-P3-070`,`SL-P4-005` | package manifests、locks、native 制品脚本、release CI | 无 `file:` 发布依赖；候选七包和 host 制品固定版本、license/exports/bin/assets 完整；最终字节递归扫描并绑定 digest |
+| `SL-P4-010` | planned | `SL-P3-070`,`SL-P3-110`,`SL-P4-005` | package manifests、locks、native 制品脚本、release CI | 无 `file:` 发布依赖；按当前 release contract 生成恰好七个候选包和对应 host 制品，固定版本且 license/exports/bin/assets 完整；未达 live 的平台必须显式标注；最终字节递归扫描并绑定 digest |
 | `SL-P4-020` | planned | `SL-P4-010` | clean packed-consumer project/script | 隐藏源码树，在仓库外用消费端自己的依赖安装候选；真实 Browser+Native Case 与 report/v3，不用 fake backend/仓库 tsc |
-| `SL-P4-025` | planned | `SL-P4-020` | registry staging/publish/post-install workflow | 验证 npm scope/身份/provenance；发布后安装精确版本，以 `npx --no-install sl-test <case/config>` 运行，不下载 latest |
-| `SL-P4-030` | planned | `SL-P4-025` | 外部 adapter example、conformance、release notes | 小型自有 adapter 只走公开扩展点；版本、平台矩阵、证据和 remaining limitations 一致 |
+| `SL-P4-030` | planned | `SL-P4-020` | 第二消费者 adapter example、conformance、release notes | 独立应用只通过公开扩展点增加 adapter/probe，复用 approval/duplicate/unknown/cleanup 契约；不得修改共享 core |
+| `SL-P4-025` | planned | `SL-P4-020`,`SL-P4-030` | registry staging/publish/post-install workflow | 验证 npm scope/身份/provenance；发布后安装精确版本，以 `npx --no-install sl-test <case/config>` 运行，不下载 latest |
 
 ## 9. 并行施工规则
 
-Windows host/client/fixture 与 P3 macOS fixture/evidence correlation 波次已经收口；Windows 11
-交互式环境已实际运行 58 个 host contract cases 和 5 个不可跳过的 WPF/UIA lifecycle cases，
-因此 `SL-P2-020`、`SL-P2-050` 的 C# host/UIA 门槛已过。Node process transport 与 typed
-DesktopSession 也已通过 contract tests，但仍不证明 TS→UIA/AX live。后续 Windows
-host/fixture/protocol 变更仍必须重跑原两组验收；新增 TS live
-由 `SL-P3-060` 单独证明。Linux 交叉编译、fake 或 portable model 不能替代 live 证据。
+当前只允许 M1 的 `SL-P3-090/091/092/093/094` 优先进入施工；M2/M3 可做只读审计或隔离原型，
+不得为了“先接 backend”修改 M1 的公共作者 API。M1 任务依赖同一 reference-agent 闭环，默认按公开
+扩展点→Playwright port/provider→v3 CLI→真实报告顺序集成；只有测试/fixture 与互斥目录明确时才并行。
 
-即使源码目录互斥，`core/dist` 等生成物仍共享。实现 Agent 只运行 scoped typecheck/test；主 Agent
-串行运行全量构建。`packages/*/src/index.ts`、package manifest/lock、Package.swift、Reporter
-schema 和根 CI 始终指定单一集成人。
+即使源码目录互斥，`core/dist`、package exports、locks、Reporter schema 和根 CI 仍共享。实现 Agent
+只运行 scoped typecheck/test；主集成人串行运行全量构建、架构守卫和 SSOT 校验。修改
+`packages/*/src/index.ts`、package manifest/lock、Package.swift、Reporter schema 或根 CI 必须指定
+单一集成人。
+
+Windows host/fixture/protocol 变更必须回归 C# host contracts 和不可跳过的 5 项 WPF/UIA live；新增
+TypeScript live 由 `SL-P3-060` 单独证明。macOS contract、fixture build、真实 handshake 均不能替代
+TCC 下的 live AX。Linux 交叉编译、fake 或 portable model 不能替代任一平台 live 证据。
 
 ## 10. 扩展与版本边界
 
-P1 alpha 可开放 product adapter、fixture provider、observation/probe、完成后的 report 消费接口，
-以及已有 TraceAdapter。Backend SPI 在官方 browser/native conformance 后再承诺第三方兼容；
-任意生命周期 hook、全局 service container、scheduler interception 和 AI evaluator 暂不开放。
+首个 alpha 只承诺 product adapter、fixture provider、Agent observation/resource probe、完成后的 report
+消费接口和已有 TraceAdapter。Backend SPI 必须先通过真实 Playwright port、first-party native live 和
+至少一个第三方替换实验，再承诺稳定兼容。任意生命周期 hook、全局 service container、scheduler
+interception 和 AI evaluator 暂不开放。
 
 npm 包、native wire protocol、report schema、trace schema 和 component behavior/manifest 分别版本化。
-平台支持必须标明 declared、contract-tested、live-fixture-tested 或 target-app-tested；没有 live 证据
-只能写 contract-tested。
+当前 ReleasePlan/ReleaseManifest 合同固定恰好七个 npm 包；consumer 可以只安装所需依赖闭包，但缩包
+或合包属于单独的 release-contract 演进任务，不能在文档中提前宣称。平台支持必须标明 declared、
+contract-tested、live-fixture-tested 或 target-app-tested；没有 live 证据只能写 contract-tested。
 
 ## 11. 验收记录
 
@@ -321,3 +324,4 @@ npm 包、native wire protocol、report schema、trace schema 和 component beha
 | 2026-09-17 | GPT-6 Xhigh 批准启动 `SL-P2-070`、`SL-P3-025`、`SL-P4-005`，并冻结 bounded write admission、Core immutable per-call context、ReleasePlan/最终 ReleaseManifest 分离三项约束；实现交由互斥目录的 5.6 Sol High，exports/manifest/SSOT 由主 Agent 串行集成。 |
 | 2026-09-17 | 三项实现经过 GPT-6 Xhigh 多轮反例审计与 5.6 Sol High 返工后关闭：Node transport 分离 process exit/stdio close；DesktopSession cleanup 对 hang、迟到 proof、异常时钟和 borrowed ownership fail closed；release validators 递归核验最终 bytes、容器预算、SBOM 与完整 license evidence。平台 binding/live 和实际发布仍保留为后续任务。 |
 | 2026-09-17 | `SL-P3-010/015/055/080` 经 GPT-6 Xhigh 多轮独立反例审计和 5.6 Sol High 修正后关闭：macOS stdio host 对迟到 ownership、cleanup single-flight、断管、terminal write 与 AX IPC deadline fail closed；Case v3 author/evidence/Reporter 对 required artifact、跨 run identity、hostile getter、路径并发与 cleanup deadline 建立不可伪造合同。真实 TS→AX/UIA live、v3 CLI config、P3-086/070 仍按独立任务验收。 |
+| 2026-09-18 | 主 Agent 与 GPT-6 Xhigh 重新收紧产品路线：SurfaceLoom 定义为 Agent 行为验证与编排框架，backend 为可替换基础设施；当前优先 M1 高层作者 API→真实 Playwright v3 port→Agent provider→v3 CLI/report，冻结 manifest、通用驱动和 runner 生态扩张。旧 done 与逐任务证据全部保留；P3-030/086 改为聚合门槛，具体交付拆为可独立验收的原子任务。 |

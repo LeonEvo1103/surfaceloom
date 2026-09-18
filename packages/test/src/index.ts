@@ -21,10 +21,13 @@ export type {
   RunCaseV3Result,
 } from "./runner-v3-contracts.js";
 export type {
-  AxAction, AxLocator, BrowserAction, BrowserSurfaceAuthor, BrowserSurfaceRequirement,
-  DomLocator, NativeSurfaceAuthor, NativeSurfaceRequirement, SurfaceOwnership,
+  AxAction, AxLocator, BrowserAction, BrowserCloseProof, BrowserSurfaceAuthor,
+  BrowserSurfaceBackendPort, BrowserSurfaceRequirement, BrowserSurfaceSessionPort,
+  DomLocator, NativeSurfaceAuthor, NativeSurfaceRequirement, SurfaceBackendCall, SurfaceOwnership,
   UiaAction, UiaLocator,
 } from "./surfaces/contracts.js";
+export type { SurfaceProviderErrorCode } from "./surfaces/errors.js";
+export { SurfaceProviderError } from "./surfaces/errors.js";
 export type {
   AssertionClock,
   AssertionFailure,
@@ -61,6 +64,20 @@ export {
   assertAgentToolCallExactlyOnce as toHaveExecutedExactlyOnce,
   assertAgentResourceHasNoExternalEffect as toHaveNoExternalEffect,
 } from "./agent-observation.js";
+export type {
+  AgentAssertionDefaults,
+  AgentAuthorAssertionOptions,
+  AgentAuthorCompletionOptions,
+  AgentResource,
+  AgentResourceExpectation,
+  AgentRun,
+  AgentRunBinding,
+  AgentRunExpectation,
+  AgentTool,
+  AgentToolBinding,
+  AgentToolExpectation,
+} from "./agent-author.js";
+export { bindAgentRun, expectAgent } from "./agent-author.js";
 export type {
   Observation,
   ObservationAttempt,

@@ -93,10 +93,12 @@ export function assertAgentToolCall(provider: AgentObservationProvider, scope: A
   phase: "requested" | "started" | "completed", options: AgentAssertionOptions):
   Promise<ObservationAssertionResult<AgentToolCallObservation>> {
   const checked = callScope(scope);
+  const checkedPhase = lifecyclePhase(phase);
   return assertObservation((context) => provider.readToolCall(checked, context), {
     ...options,
-    expectation: { kind: "value", expected: { ...checked, phase, countAtLeast: 1 },
-      matches: (value) => sameCall(value, checked) && validCounts(value) && value[phase] >= 1 },
+    expectation: { kind: "value", expected: { ...checked, phase: checkedPhase, countAtLeast: 1 },
+      matches: (value) => sameCall(value, checked) && validCounts(value)
+        && value[checkedPhase] >= 1 },
   });
 }
 
@@ -105,7 +107,8 @@ export function assertAgentToolCallExactlyOnce(provider: AgentObservationProvide
   scope: AgentCallScope, options: AgentCompletionAssertionOptions):
   Promise<ObservationAssertionResult<AgentToolCallObservation>> {
   const checked = callScope(scope);
-  const { completeness, ...assertionOptions } = options;
+  const { completeness: inputCompleteness, ...assertionOptions } = options;
+  const completeness = completionBarrier(inputCompleteness);
   return assertObservation((context) => provider.readToolCall(checked, context), {
     ...assertionOptions,
     expectation: { kind: "negative-value", completeness,
@@ -124,7 +127,8 @@ export function assertAgentResourceHasNoExternalEffect(provider: AgentObservatio
   scope: AgentResourceScope, options: NoExternalEffectAssertionOptions):
   Promise<ObservationAssertionResult<AgentExternalEffectObservation>> {
   const checked = resourceScope(scope);
-  const { completeness, ...assertionOptions } = options;
+  const { completeness: inputCompleteness, ...assertionOptions } = options;
+  const completeness = completionBarrier(inputCompleteness);
   return assertObservation((context) => provider.readExternalEffects(checked, context), {
     ...assertionOptions,
     expectation: { kind: "negative-value",
@@ -147,6 +151,39 @@ function callScope(scope: AgentCallScope): AgentCallScope {
 function resourceScope(scope: AgentResourceScope): AgentResourceScope {
   assertIdentifier(scope.resource);
   return Object.freeze({ ...runScope(scope), resource: scope.resource });
+}
+
+function lifecyclePhase(input: unknown): "requested" | "started" | "completed" {
+  if (input !== "requested" && input !== "started" && input !== "completed") {
+    throw new Error("Agent tool-call phase must be requested, started, or completed.");
+  }
+  return input;
+}
+
+function completionBarrier(input: unknown): Extract<CompletenessRequirement, { kind: "barrier" }> {
+  if (typeof input !== "object" || input === null || Array.isArray(input)
+      || (Object.getPrototypeOf(input) !== Object.prototype && Object.getPrototypeOf(input) !== null)) {
+    throw new Error("Agent completion assertions require a named completion barrier.");
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(input);
+  if (Reflect.ownKeys(descriptors).some((key) => typeof key !== "string"
+      || (key !== "kind" && key !== "id"))) {
+    throw new Error("Agent completion assertions require only a named completion barrier.");
+  }
+  const kind = dataField(descriptors.kind);
+  const id = dataField(descriptors.id);
+  if (kind !== "barrier" || typeof id !== "string") {
+    throw new Error("Agent completion assertions require a named completion barrier.");
+  }
+  assertIdentifier(id);
+  return Object.freeze({ kind, id });
+}
+
+function dataField(descriptor: PropertyDescriptor | undefined): unknown {
+  if (descriptor === undefined || !("value" in descriptor) || !descriptor.enumerable) {
+    throw new Error("Agent completion barrier fields must be enumerable data fields.");
+  }
+  return descriptor.value;
 }
 
 function sameCall(value: { readonly runId: string; readonly callId: string }, scope: AgentCallScope): boolean {
