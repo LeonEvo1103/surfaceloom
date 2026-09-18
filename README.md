@@ -2,14 +2,16 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-SurfaceLoom is an experimental, cross-surface semantic automation framework for
-testing agent applications. It brings the model/tool loop, macOS and Windows
-desktop UI, and browser UI into one test and evidence model.
+SurfaceLoom is an experimental Agent behavior verification and test
+orchestration framework. It gives Agent runs, approval decisions, tool calls,
+effects, UI observations, cleanup receipts, and test evidence one Case model.
 
 The application under test may use AppKit, SwiftUI, WPF, WinUI, Win32,
 Electron, Tauri, or another toolkit, as long as it exposes reliable
-Accessibility or UI Automation semantics. SurfaceLoom separates **what a test
-means** from **how a platform performs the operation**.
+Accessibility or UI Automation semantics. SurfaceLoom separates **what behavior
+must be proved** from **which backend performs and observes the operation**.
+Playwright, native AX/UIA hosts, and trace adapters are infrastructure used by
+the framework; SurfaceLoom does not replace those platform engines.
 
 SurfaceLoom is currently a runnable engineering experiment with no stable API
 guarantee. It is not yet a mature replacement for XCUITest, Appium, or manual
@@ -24,9 +26,19 @@ status is tracked in
 This repository is product-neutral. Concrete product adapters, selectors,
 credentials, and business scenarios belong in downstream repositories.
 
+Evidence labels are literal: **declared** means only an interface, manifest, or
+source implementation is present; **contract-tested** means automated
+protocol/fake behavior tests; **live-fixture-tested** means a real backend
+operated a repository-owned neutral UI; and **target-app-tested** requires
+recorded execution against a real product adapter. This repository currently
+has no target-app-tested claim.
+
 ## What SurfaceLoom solves
 
-- One semantic component model for desktop surfaces and agent clients.
+- Deterministic assertions over Agent run, approval, tool-call, effect, and
+  completeness boundaries.
+- One Case can retain browser/native actions, Agent observations, cleanup, and
+  report evidence without treating a trace viewer as the verdict authority.
 - Product copy, test IDs, AX roles, and UIA control types stay in product
   adapters instead of leaking into the framework.
 - Strict locators fail on ambiguity instead of silently choosing a target.
@@ -42,20 +54,22 @@ credentials, and business scenarios belong in downstream repositories.
 | Area | Delivered today |
 | --- | --- |
 | Core | Cross-platform `Driver`, `Session`, and `Locator` contracts; `CaseSpec`; actionability; fixture runtime; doctor checks; trace redaction |
-| Reporter | Reporter v2 single-platform compatibility; Reporter v3 host/surface/attempt/execution-platform records; conservative v2 importer; Chinese AI-review Markdown; lightweight HTML; evidence hashing |
+| Reporter | Reporter v2 compatibility; Reporter v3 host/surface/attempt/execution-platform records; required evidence and artifact integrity; AI-review Markdown; lightweight HTML |
 | Native protocol | `surfaceloom.native/1.0` NDJSON protocol; strict framing and duplicate-key rejection; deadlines; cancellation; ownership; normalized and late outcomes; observable close failure; golden vectors; bounded Node child-process transport |
 | Native session foundation | Typed application/system desktop-session contracts; AX/UIA locator separation; per-call cancellation; Windows v1 action mapping; ownership-aware, receipt-backed cleanup barriers. Platform bindings are not live yet |
 | Component catalog | 37 desktop, System Surface, and Agent manifests plus 7 fixture manifests. A manifest is a declaration, not proof of a live implementation |
-| Browser | Optional Playwright Core backend; semantic DOM locators; strict single-target actions; screenshots and traces. Browser installation is opt-in |
+| Browser | Optional Playwright Core backend; semantic DOM locators; strict single-target actions; screenshots and traces. The M1 Agent approval slice is live-fixture-tested in owned Chrome/Chromium |
 | Agent loop | Extensible `TraceAdapter`; unified event schema; Codex, native, and third-party imports; cross-clock merge; explicit evidence correlation; static HTML timeline |
-| Execution kernel | Embeddable registration and execution; fixtures and resources; steps and criteria; observation polling; capability/effect preflight; deadlines and cooperative cancellation; minimal sequential CLI with filtering and Reporter v2 bundle output |
+| Execution kernel | Fixtures/resources, criteria, observation polling, effect policy, deadlines, cleanup receipts, Reporter v3 evidence, and an explicit single-Case v3 CLI path |
+| M1 Agent showcase | Four real Playwright v3 Cases run serially against a deterministic reference Agent and produce one Reporter v3 bundle: two expected passes and two honest product failures |
 | Release contracts | Separate release-plan and final-manifest schemas; exact artifact digests and inventory; SBOM, license, provenance and signature evidence validation; recursive fail-closed archive scanning. No registry publication is performed |
-| macOS | Swift Accessibility/AppKit backend; neutral fixture packaged as a stable `.app` build artifact; window, menu, text, collection, and file-panel interactions; owned launch and non-owning attach. The fixture build is not live AX evidence |
-| Windows | .NET 8 UIA/Win32 backend; `0.2` and `1.0` NDJSON host; neutral WPF fixture; process ownership; window lifecycle and UIA patterns. Verified on Windows 11 with 58/58 host tests and 5/5 live UIA/lifecycle tests, with zero skipped |
+| macOS | Swift AX/AppKit library plus a real `surfaceloom.native/1.0` stdio executable. Protocol, lifecycle, fake-platform backend behavior, and subprocess handshake are contract-tested; there is no TS-to-host or live AX fixture proof |
+| Windows | .NET 8 UIA/Win32 backend; isolated `0.2` and `1.0` NDJSON routes; neutral WPF fixture. Verified on Windows 11 with 59 host contract cases and 5 live C#-client-to-UIA cases, with zero skipped |
 
-Still missing are a macOS stdio host, platform-specific TypeScript native
-bindings, broad cross-platform native live conformance, and full runner
-features such as parallelism, sharding, and watch mode.
+Still missing are platform-specific TypeScript native bindings, a
+TypeScript-to-host-to-AX/UIA live path, live AX conformance for the macOS
+fixture, target-application evidence, and full runner features such as
+parallelism, sharding, and watch mode.
 
 The Agent computer-control and emergency-stop manifests describe UI exposed by
 an agent application. SurfaceLoom itself still drives that UI deterministically
@@ -75,6 +89,8 @@ packages/
   test/                Execution kernel, assertions, and minimal CLI
 Sources/
   SurfaceLoomMacOS/    macOS Accessibility/AppKit backend
+  SurfaceLoomMacOSHost/ macOS native/1.0 stdio host and AX adapter
+  SurfaceLoomNativeProtocol/ shared Swift wire codec
 Tests/
   SurfaceLoomMacOSTests/
 native/
@@ -101,24 +117,37 @@ git clone https://github.com/LeonEvo1103/surfaceloom.git
 cd surfaceloom
 
 ./scripts/run-typescript-tests.sh
+npm --prefix examples/reference-agent ci --ignore-scripts
 ./scripts/check-architecture.sh
 node scripts/check-framework-ssot.mjs
 ```
 
-`run-typescript-tests.sh` installs and tests all seven TypeScript packages. It
-also runs product-contract discovery against any sibling repositories that
-explicitly declare a dependency on SurfaceLoom. Product names and paths are not
-hard-coded into this repository.
+`run-typescript-tests.sh` installs and tests all seven TypeScript packages. The
+next command installs the reference example without downloading a browser. The
+test script also runs product-contract discovery against any sibling
+repositories that explicitly declare a dependency on SurfaceLoom. Product
+names and paths are not hard-coded into this repository.
 
-Run the real browser-backed Agent approval showcase with:
+After the TypeScript bootstrap above, the shortest real browser-backed Agent
+approval showcase is:
+
+```bash
+npm --prefix examples/reference-agent run showcase
+```
+
+It runs four unique Cases serially through the public Playwright v3 surface and
+prints the generated report path. Exit `1` is the expected showcase result: two
+injected Agent faults remain red, so the aggregate is `2 passed / 2 failed`.
+Exit `2` means infrastructure, browser, cleanup, or publication failure; no
+final completion marker is published for that failure. The showcase requires a
+usable Chromium-family browser and never silently skips. Set
+`SURFACELOOM_BROWSER_EXECUTABLE` when Chromium is installed at a custom path.
+
+Run the wider framework and reference-Agent acceptance suite with:
 
 ```bash
 ./scripts/run-framework-p1-tests.sh
 ```
-
-The showcase requires a usable Chromium-family browser and fails instead of
-silently skipping when one is unavailable. Set
-`SURFACELOOM_BROWSER_EXECUTABLE` when Chromium is installed at a custom path.
 
 Generate deterministic report fixtures:
 
@@ -219,9 +248,12 @@ const host = await client.connect();
 await client.close();
 ```
 
-This transport and the typed DesktopSession/kernel binding are contract-tested.
-The repository does not yet claim a complete TypeScript-to-UIA/AX live path;
-Windows and macOS platform bindings remain separate P3 work.
+The Node transport and typed DesktopSession/kernel binding are contract-tested.
+The macOS executable is also contract-tested through its Swift codec, fake
+platform backend, and a real stdio subprocess handshake. These are separate
+facts: the repository still has no platform-specific TypeScript binding and no
+complete TypeScript-to-UIA/AX live path. The five Windows live Cases use a C#
+fixture client, not `NativeClient` or `NodeProcessTransport`.
 
 ## Agent-loop visualization
 
@@ -269,6 +301,11 @@ This command runs side-effect-free contract tests only.
 `MacOSAutomationDoctor` reads Accessibility authorization with `prompt: false`;
 it does not display or accept TCC prompts.
 
+The root Swift package builds the `surfaceloom-macos-host` executable and tests
+its real stdio handshake, protocol framing, lifecycle, and backend contracts.
+Those tests use a fake platform for AX behavior. They do not launch the neutral
+fixture under TCC, prove live AX actions, or connect the TypeScript client.
+
 ## Windows
 
 Requirements:
@@ -293,7 +330,8 @@ executes five non-skipped UIA/lifecycle tests and writes local JSON evidence.
 See [the Windows host README](native/windows-host/README.md) for protocol and
 platform limitations.
 
-Run the TypeScript packages on Windows:
+From the repository root, install and test the TypeScript packages on Windows
+in dependency order:
 
 ```powershell
 npm --prefix .\packages\core ci
@@ -302,18 +340,19 @@ npm --prefix .\packages\component-catalog ci
 npm --prefix .\packages\component-catalog test
 npm --prefix .\packages\reporter ci
 npm --prefix .\packages\reporter test
-npm --prefix .\packages\browser-playwright ci
-npm --prefix .\packages\browser-playwright test
 npm --prefix .\packages\agent-loop ci
 npm --prefix .\packages\agent-loop test
-npm --prefix .\packages\native ci
-npm --prefix .\packages\native test
 npm --prefix .\packages\test ci
 npm --prefix .\packages\test test
+npm --prefix .\packages\browser-playwright ci
+npm --prefix .\packages\browser-playwright test
+npm --prefix .\packages\native ci
+npm --prefix .\packages\native test
 ```
 
-The latest verified Windows 11 baseline is 58/58 host tests plus 5/5 real
-UIA/lifecycle tests, with zero skipped.
+The latest verified Windows 11 baseline is 59 host contract cases plus 5/5 real
+C#-client-to-UIA/lifecycle Cases, with zero skipped. It is not evidence for a
+TypeScript-to-UIA path.
 
 ## macOS product-integration example
 
