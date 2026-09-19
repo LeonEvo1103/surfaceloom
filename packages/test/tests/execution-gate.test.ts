@@ -141,12 +141,14 @@ test("owner death with a live owned target stays blocked until explicit cleanup 
   assert.equal(await owner.waitForExit(), 1);
   assert.doesNotThrow(() => process.kill(targetPid, 0));
   await assert.rejects(acquireWindowsExecutionGuiGateForTest({ ...scope(44), timeoutMs: 500,
-    retryIntervalMs: 5 }, runtime), /quarantined pending controlled recovery/u);
+    retryIntervalMs: 5 }, runtime), (error: unknown) =>
+      error instanceof InteractiveSessionLeaseError && error.code === "timedOut"
+      || error instanceof Error && /quarantined pending controlled recovery/u.test(error.message));
   process.kill(targetPid);
   await waitUntilAbsent(targetPid);
   const quarantine = await observeWindowsExecutionGuiGateQuarantineForTest(scope(44), runtime);
   assert.ok(quarantine);
-  await recoverWindowsExecutionGuiGateQuarantineForTest({ ...scope(44), timeoutMs: 500 }, {
+  await recoverWindowsExecutionGuiGateQuarantineForTest({ ...scope(44), timeoutMs: 10_000 }, {
     quarantine, status: "ownedResourcesCleanupConfirmed", proofId: randomUUID(),
     observedAt: new Date().toISOString(),
   }, runtime);

@@ -22,12 +22,14 @@ test("runner/controller closes an acquisition that arrives after setup deadline"
   const launched = deferred<Awaited<ReturnType<FakeBrowserType["launch"]>>>();
   browserType.launch = async () => launched.promise;
   const backend = createPlaywrightBrowserSurfaceBackend({ loader: async () => module });
-  setTimeout(() => launched.resolve(browserType.browser), 15);
 
   const subject = definition("playwright.v3.late", async () => undefined);
   await assert.rejects(runCaseV3(subject, runnerOptions(root, backend, subject, {
     surfaceTimeoutMs: 5, cleanupTimeoutMs: 200,
   })));
+  // Resolve only after the runner has observed the deadline. Fixed timer gaps
+  // become ambiguous when a loaded CI event loop wakes both timers together.
+  launched.resolve(browserType.browser);
   await delay(20);
   assert.equal(browserType.browser.context.closeCount, 0);
   assert.equal(browserType.browser.closeCount, 1);
