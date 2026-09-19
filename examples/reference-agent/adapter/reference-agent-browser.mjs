@@ -212,7 +212,9 @@ function completeRunBarrier(runId) {
   return Object.freeze({ ...runBarrier(runId), complete: true });
 }
 
-const runStates = new Set(["awaiting-approval", "executing", "completed", "denied", "cancelled"]);
+const runStates = new Set([
+  "awaiting-approval", "executing", "stopping", "completed", "denied", "cancelled", "failed",
+]);
 
 function parseUiSnapshot(text) {
   try {

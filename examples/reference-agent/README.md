@@ -74,9 +74,19 @@ try {
 ```
 
 The HTTP server binds `127.0.0.1` on an OS-assigned port. `close()` is idempotent,
-closes connections, cancels pending runs, and prevents new work. Run and call IDs are
+shares its first bounded close attempt, closes connections even when work does not confirm
+settlement, cancels pending runs, and prevents new work. Run and call IDs are
 deterministic and stable for the lifetime of one fixture; they are not globally unique
 across fixture instances.
+
+The append-note executor has deterministic `before-submit`, `after-submit`, and
+`after-effect` checkpoints. They pass automatically in normal M1 runs; fixture tests can
+pause, resume, or fail them through the scoped control API. `decide()` remains synchronous
+and idempotently accepts one decision, while `settle()` bounds only the caller's wait and
+never replays an unconfirmed operation. `stop()` and `emergency` request cooperative
+cancellation: their immutable receipt reports `notExecuted`, `unknown`, or `executed` from
+the evidence available at the request boundary. Emergency does not claim process/thread
+termination or rollback.
 
 ## HTTP and UI contract
 
@@ -86,6 +96,10 @@ across fixture instances.
 | `POST /api/runs` | Create with JSON `{ "fault": "none" }`; returns 201 |
 | `GET /api/runs/<runId>` | Run status, decision, stable IDs and `ended` |
 | `POST /api/runs/<runId>/decision` | JSON `{ "decision": "approve" }` or `deny` |
+| `POST /api/runs/<runId>/stop` | Cooperative stop; optional JSON `{ "mode": "stop" }` |
+| `POST /api/runs/<runId>/emergency` | Cooperative emergency request; no kill/rollback claim |
+| `POST /api/runs/<runId>/settle` | Bounded wait with JSON `{ "timeoutMs": 1000 }` |
+| `POST /api/runs/<runId>/control` | Fixture-only checkpoint pause/resume/failure control |
 | `GET /api/runs/<runId>/ledger` | Detached independent tool observation snapshot |
 | `GET /api/runs/<runId>/effects` | The in-memory notes actually appended by the tool |
 

@@ -42,7 +42,7 @@ export async function startReferenceAgent() {
       } else if (request.method === "POST" && pathname === "/api/runs") {
         json(201, engine.createRun(await readBody(request)));
       } else {
-        const match = /^\/api\/runs\/(run-\d+)(?:\/(decision|ledger|effects))?$/.exec(pathname);
+        const match = /^\/api\/runs\/(run-\d+)(?:\/(decision|ledger|effects|stop|emergency|settle|control))?$/.exec(pathname);
         if (!match) throw new FixtureError("NOT_FOUND", "Route not found", 404);
         const [, runId, resource] = match;
         if (request.method === "GET" && !resource) json(200, engine.getRun(runId));
@@ -50,10 +50,18 @@ export async function startReferenceAgent() {
         else if (request.method === "GET" && resource === "effects") json(200, engine.readEffects(runId));
         else if (request.method === "POST" && resource === "decision") {
           json(200, engine.decide(runId, (await readBody(request)).decision));
+        } else if (request.method === "POST" && (resource === "stop" || resource === "emergency")) {
+          const body = await readBody(request);
+          json(200, engine.stop(runId, { mode: resource === "emergency" ? "emergency" : body.mode }));
+        } else if (request.method === "POST" && resource === "settle") {
+          json(200, await engine.settle(runId, await readBody(request)));
+        } else if (request.method === "POST" && resource === "control") {
+          json(200, engine.control(runId, await readBody(request)));
         } else throw new FixtureError("METHOD_NOT_ALLOWED", "Method not allowed", 405);
       }
     } catch (error) {
-      json(error instanceof FixtureError ? error.status : 500, {
+      const status = error instanceof FixtureError || Number.isInteger(error?.status) ? error.status : 500;
+      json(status, {
         error: { code: error.code ?? "INTERNAL_ERROR", message: error.message },
       });
     }
@@ -73,11 +81,23 @@ export async function startReferenceAgent() {
     decide: engine.decide,
     readLedger: engine.readLedger,
     readEffects: engine.readEffects,
-    close() {
-      closing ??= new Promise((resolve, reject) => {
-        engine.close();
+    stop: engine.stop,
+    settle: engine.settle,
+    pauseCheckpoint: engine.pauseCheckpoint,
+    resumeCheckpoint: engine.resumeCheckpoint,
+    failCheckpoint: engine.failCheckpoint,
+    readCheckpoint: engine.readCheckpoint,
+    control: engine.control,
+    close(options) {
+      if (closing !== undefined) return closing;
+      const work = engine.close(options);
+      const listener = new Promise((resolve, reject) => {
         server.close((error) => error ? reject(error) : resolve());
         server.closeAllConnections();
+      });
+      closing = Promise.allSettled([work, listener]).then((results) => {
+        const failure = results.find((result) => result.status === "rejected");
+        if (failure) throw failure.reason;
       });
       return closing;
     },
