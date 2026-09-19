@@ -17,6 +17,7 @@ import {
 import { defineCaseV3 } from "../src/definition-v3.js";
 import { defineExecutionPlan } from "../src/plan.js";
 import { InteractiveSessionLeaseError } from "../src/interactive-session.js";
+import { observeProcessIdentity } from "../src/interactive-session-process.js";
 import { runCaseV3 } from "../src/runner-v3.js";
 import type { CaseContextV3, RunCaseV3Options } from "../src/runner-v3-contracts.js";
 import type { ExecutionGuiGate } from "../src/execution-gate.js";
@@ -139,6 +140,7 @@ test("owner death with a live owned target stays blocked until explicit cleanup 
   t.after(() => { try { process.kill(targetPid); } catch { /* already stopped */ } });
   owner.send("crash");
   assert.equal(await owner.waitForExit(), 1);
+  await waitUntilIdentityAbsent(owner.process.pid);
   assert.doesNotThrow(() => process.kill(targetPid, 0));
   await assert.rejects(acquireWindowsExecutionGuiGateForTest({ ...scope(44), timeoutMs: 500,
     retryIntervalMs: 5 }, runtime), /quarantined pending controlled recovery/u);
@@ -327,6 +329,15 @@ async function waitUntilAbsent(pid: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error("Owned target did not exit.");
+}
+
+async function waitUntilIdentityAbsent(pid: number | undefined): Promise<void> {
+  if (pid === undefined) throw new Error("Gate owner did not expose a process id.");
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if ((await observeProcessIdentity(pid)).status === "absent") return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("Gate owner process identity did not become absent.");
 }
 
 function cleanupProof(quarantine: NonNullable<Awaited<ReturnType<
