@@ -3,14 +3,6 @@
   "version": "0.1.0",
   "license": "MIT",
   "private": true,
-  "keywords": [
-    "desktop-automation",
-    "ui-automation",
-    "accessibility",
-    "macos",
-    "windows",
-    "typescript"
-  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/LeonEvo1103/surfaceloom.git",
