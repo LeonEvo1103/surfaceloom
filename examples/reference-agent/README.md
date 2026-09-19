@@ -57,6 +57,49 @@ npm --prefix examples/reference-agent run test:showcase
 npm --prefix examples/reference-agent run test:showcase:live
 ```
 
+## P3-088 fault matrix
+
+The M2 fault matrix is independent from the fixed M1 four-Case showcase and does not change its
+aggregate, CLI, IDs, defaults, or expected 2-pass/2-fail result. Run its required live lane with:
+
+```sh
+node --test examples/reference-agent/tests/e2e/fault-matrix.e2e.test.mjs
+```
+
+It runs eight separate public `defineCaseV3` / `runCaseV3` Cases against owned Playwright browser
+sessions. A healthy fixture produces two passing business reports and six intentionally failing
+business reports; the Node test itself passes only when every report and its evidence match that
+fixed matrix. The seven ordinary rows reuse the M1 execution/cleanup health gate, so an expected
+business-red result cannot hide an unrelated teardown failure. The cleanup-unconfirmed row accepts
+only its fixed structured resource-cleanup failure chain.
+
+| Case | Expected report | Fault boundary |
+| --- | --- | --- |
+| Deny but execute | failed | UI is denied while ledger and resource each show one execution |
+| Duplicate business effect | failed | One accepted operation writes the same logical note under `call-1` and `call-2` |
+| Missing ledger | failed | Detached ledger read explicitly fails; the real resource fact remains visible |
+| Truncated ledger | failed | Detached interval retains original sequence/end boundary without its tail |
+| Stop before submit | passed | `notExecuted`, closed 1/0/0 ledger, zero stable effects |
+| Stop after submit | failed | submitted receipt is `unknown`; UI completion and current zero cannot close evidence |
+| Stop after effect | passed | `executed`; the one effect is neither rolled back nor replayed |
+| Cleanup unconfirmed | failed | owned run-work times out, taints cleanup, and sibling cleanup is still attempted |
+
+Every Case clicks the real Approve or Deny button. Checkpoints only pause the deterministic fixture
+at `before-submit`, `after-submit`, or `after-effect`. Missing/truncated faults modify only the
+detached ledger observation response; the underlying append-only ledger and effect store stay real.
+The duplicate fault is created inside one accepted executor operation and uses one logical operation
+identity independent of `callId`. Point-in-time local effect facts use a separate diagnostic reader
+with no completeness claim; the authoritative local-effect reader always requires a complete ledger,
+independent of the fixture's fault label.
+
+Each report has one required `agent.fault-matrix.probe` attachment. The live acceptance test rereads
+the published `report.json`, final attempt, hosts, browser surface, criteria, raw ledger observation,
+diagnostic-only underlying ledger, resource probe, stop/settle receipts, cleanup diagnostics, file
+size/SHA-256, and `complete.json` hashes. It then regenerates HTML and AI review through the public
+Reporter v3 renderers and requires byte-for-byte equality. Incomplete ledger Cases declare the
+required artifact with `requireComplete: false`; that preserves the diagnostic evidence but never
+upgrades it into a proof.
+
 ```js
 import assert from "node:assert/strict";
 import { startReferenceAgent, inspectToolCalls } from "./src/index.mjs";

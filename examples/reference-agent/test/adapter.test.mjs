@@ -141,3 +141,30 @@ test("incomplete ledger keeps both exact-call and local-resource counts unknown"
   assert.match(call.reason, /complete run boundary/u);
   assert.match(resource.reason, /complete run boundary/u);
 });
+
+test("same-shaped open ledgers have identical local-effect semantics across fault labels", async (t) => {
+  const app = await fixture(t);
+  const normal = app.createRun({ fault: "none" });
+  const labelled = app.createRun({ fault: "incomplete-ledger" });
+  assert.deepEqual(app.readRawLedger(normal.runId).events.map((event) => event.phase), ["requested"]);
+  assert.deepEqual(app.readRawLedger(labelled.runId).events.map((event) => event.phase), ["requested"]);
+  const normalAdapter = new ReferenceAgentBrowserAdapter(
+    observingSession(app, normal.runId), app.baseUrl);
+  const labelledAdapter = new ReferenceAgentBrowserAdapter(
+    observingSession(app, labelled.runId), app.baseUrl);
+  const scope = (runId) => ({ runId, resource: referenceAgentLocalResource });
+  const [normalObservation, labelledObservation] = await Promise.all([
+    normalAdapter.readLocalEffects(scope(normal.runId)),
+    labelledAdapter.readLocalEffects(scope(labelled.runId)),
+  ]);
+  assert.deepEqual(normalObservation, labelledObservation);
+  assert.equal(normalObservation.state, "unknown");
+  const [normalDiagnostic, labelledDiagnostic] = await Promise.all([
+    normalAdapter.readRawLocalEffects(scope(normal.runId)),
+    labelledAdapter.readRawLocalEffects(scope(labelled.runId)),
+  ]);
+  assert.deepEqual({ ...normalDiagnostic, value: { ...normalDiagnostic.value, runId: "same" } },
+    { ...labelledDiagnostic, value: { ...labelledDiagnostic.value, runId: "same" } });
+  assert.equal(normalDiagnostic.value.count, 0);
+  assert.equal("completeness" in normalDiagnostic, false);
+});

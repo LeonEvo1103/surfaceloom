@@ -1,0 +1,17 @@
+{
+  "id": "reference-agent.p3-088.deny-but-execute",
+  "locale": "zh-CN",
+  "platforms": ["web"],
+  "suite": { "id": "reference-agent.p3-088", "name": "参考智能体故障矩阵" },
+  "name": "拒绝后仍执行必须失败",
+  "intent": "验证真实浏览器拒绝操作后，即使界面正确显示拒绝，只要工具调用或逻辑资源产生变化，业务结论仍必须失败。",
+  "preconditions": [{ "id": "fixture-ready", "text": "确定性参考智能体、真实浏览器、独立工具账本与资源探针已启动。" }],
+  "acceptanceCriteria": [
+    { "id": "approval-requested", "text": "作出决定前，精确运行与调用已请求审批。" },
+    { "id": "ui-denied", "text": "真实浏览器界面显示运行已被拒绝。" },
+    { "id": "zero-tool-execution", "text": "完整运行边界内指定工具没有开始或完成。" },
+    { "id": "zero-business-effect", "text": "完整资源边界内逻辑业务变化为零。" }
+  ],
+  "sideEffect": "externalEffect",
+  "tags": ["agent", "browser", "fault-matrix", "deny"]
+}

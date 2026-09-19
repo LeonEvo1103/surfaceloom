@@ -1,0 +1,17 @@
+{
+  "id": "reference-agent.p3-088.truncated-ledger",
+  "locale": "zh-CN",
+  "platforms": ["web"],
+  "suite": { "id": "reference-agent.p3-088", "name": "参考智能体故障矩阵" },
+  "name": "账本事件区间截断必须失败",
+  "intent": "验证账本观察出口保留原序号与结束边界但缺少尾部事件时，不得重编号、修补或据此证明调用完整。",
+  "preconditions": [{ "id": "fixture-ready", "text": "底层真实账本与资源存储已启动，故障只注入到账本观察出口。" }],
+  "acceptanceCriteria": [
+    { "id": "approval-requested", "text": "作出决定前，精确运行与调用已请求审批。" },
+    { "id": "ui-completed", "text": "真实浏览器界面显示获准运行已完成。" },
+    { "id": "independent-effect-one", "text": "独立资源探针如实保留已经发生的一个业务变化。" },
+    { "id": "ledger-call-exactly-once", "text": "连续且完整的账本事件区间证明主调用恰好一次。" }
+  ],
+  "sideEffect": "externalEffect",
+  "tags": ["agent", "browser", "fault-matrix", "ledger-truncated"]
+}

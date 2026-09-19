@@ -3,7 +3,14 @@ import { createCheckpointController, executorCheckpoints } from "./checkpoints.m
 import { startAppendNoteOperation } from "./executor.mjs";
 import { createToolLedger } from "./ledger.mjs";
 
-export const faultModes = Object.freeze(["none", "deny-but-execute", "incomplete-ledger"]);
+export const faultModes = Object.freeze([
+  "none",
+  "deny-but-execute",
+  "duplicate-business-effect",
+  "incomplete-ledger",
+  "missing-ledger",
+  "truncated-ledger",
+]);
 
 export class FixtureError extends Error {
   constructor(code, message, status = 400) {
@@ -89,7 +96,19 @@ export function createRunEngine({ executionClock } = {}) {
       });
       return view(run);
     },
-    readLedger: (runId) => find(runId).ledger.snapshot(),
+    readLedger(runId) {
+      const run = find(runId);
+      const snapshot = run.ledger.snapshot();
+      if (run.state.fault === "missing-ledger") {
+        throw new FixtureError("LEDGER_READ_FAILED",
+          "Detached ledger observation is missing for this run.", 503);
+      }
+      if (run.state.fault === "truncated-ledger" && snapshot.events.length > 0) {
+        return structuredClone({ ...snapshot, events: snapshot.events.slice(0, -1) });
+      }
+      return snapshot;
+    },
+    readRawLedger: (runId) => find(runId).ledger.snapshot(),
     readEffects(runId) {
       find(runId);
       return structuredClone(effects.filter((effect) => effect.runId === runId));

@@ -1,0 +1,18 @@
+{
+  "id": "reference-agent.p3-088.stop-after-effect",
+  "locale": "zh-CN",
+  "platforms": ["web"],
+  "suite": { "id": "reference-agent.p3-088", "name": "参考智能体故障矩阵" },
+  "name": "变化发生后停止不回滚不重复",
+  "intent": "验证资源变化已经发生后紧急停止并结算，结果仍为已执行，既不能回滚已有变化，也不能重复执行。",
+  "preconditions": [{ "id": "fixture-ready", "text": "变化后检查点由确定性 fixture 暂停，审批仍由真实浏览器按钮完成。" }],
+  "acceptanceCriteria": [
+    { "id": "approval-requested", "text": "作出决定前，精确运行与调用已请求审批。" },
+    { "id": "ui-completed", "text": "真实浏览器界面最终显示运行已完成。" },
+    { "id": "stop-executed", "text": "停止与结算回执证明变化已经发生且工作已结算。" },
+    { "id": "ledger-call-exactly-once", "text": "完整账本证明主调用恰好一次。" },
+    { "id": "business-effect-exactly-one", "text": "最终资源变化恰好一次，停止后不回滚也不重复。" }
+  ],
+  "sideEffect": "externalEffect",
+  "tags": ["agent", "browser", "fault-matrix", "stop", "after-effect"]
+}

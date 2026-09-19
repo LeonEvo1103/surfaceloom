@@ -1,0 +1,17 @@
+{
+  "id": "reference-agent.p3-088.duplicate-business-effect",
+  "locale": "zh-CN",
+  "platforms": ["web"],
+  "suite": { "id": "reference-agent.p3-088", "name": "参考智能体故障矩阵" },
+  "name": "跨调用重复业务变化必须失败",
+  "intent": "验证一次获准操作中，主调用恰好一次不能掩盖另一个调用对同一逻辑业务身份产生的重复变化。",
+  "preconditions": [{ "id": "fixture-ready", "text": "确定性参考智能体、真实浏览器、独立工具账本与资源探针已启动。" }],
+  "acceptanceCriteria": [
+    { "id": "approval-requested", "text": "作出决定前，精确运行与调用已请求审批。" },
+    { "id": "ui-completed", "text": "真实浏览器界面显示获准运行已完成。" },
+    { "id": "primary-call-exactly-once", "text": "主调用在完整边界内恰好请求、开始并完成一次。" },
+    { "id": "business-effect-exactly-one", "text": "与调用编号无关的同一逻辑业务操作只产生一个实际变化。" }
+  ],
+  "sideEffect": "externalEffect",
+  "tags": ["agent", "browser", "fault-matrix", "duplicate"]
+}

@@ -1,12 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { access, mkdir, rm } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 
-import { createPlaywrightBrowserSurfaceBackend } from "@surfaceloom/browser-playwright/v3";
-import { defineExecutionPlan, runCaseV3 } from "@surfaceloom/test";
+import { runCaseV3 } from "@surfaceloom/test";
 
 import { resolveBrowserLaunchOptions } from "../adapter/browser-launch.mjs";
+import { referenceAgentBrowserRunOptions } from "../adapter/v3-browser-run-options.mjs";
 import { aggregateChildReports } from "./aggregate.mjs";
 import { createShowcaseCase } from "./cases.mjs";
 import { assertChildInfrastructureHealthy } from "./child-health.mjs";
@@ -19,17 +18,6 @@ import {
   showcaseRun,
 } from "./matrix.mjs";
 import { publishAggregateAfterChildCleanup } from "./publication.mjs";
-
-const capabilities = Object.freeze([
-  "browser.navigate", "browser.dom.inspect", "browser.dom.invoke",
-]);
-const effects = Object.freeze([
-  effect("browser.session", "execute", "local", "unknown"),
-  effect("browser.navigate", "write", "external", "unknown"),
-  effect("browser.click", "write", "local", "unknown"),
-  effect("browser.waitVisible", "read", "local", "notNeeded"),
-  effect("browser.readText", "read", "local", "notNeeded"),
-]);
 
 export async function runShowcase({ outputRoot, launchOptions, executeChild = runCaseV3 } = {}) {
   const root = path.resolve(outputRoot ?? defaultOutputRoot());
@@ -88,30 +76,9 @@ export async function runShowcase({ outputRoot, launchOptions, executeChild = ru
 }
 
 function options({ entry, definition, stagingDirectory, outputDirectory, browser, reportRunId }) {
-  const host = hostOS();
-  const backend = createPlaywrightBrowserSurfaceBackend({ hostId: browserHostId,
-    executablePath: browser.executablePath });
-  const environment = Object.freeze({ platform: "web", host: { os: host }, surfaces: {
-    [browserSurfaceId]: { kind: "browser", capabilities },
-  } });
-  const policy = Object.freeze({ maximumSideEffect: "externalEffect",
-    grants: effects.map((item) => ({ resource: item.resource, operations: [item.operation],
-      boundaries: [item.boundary], ...(item.recovery === "unknown"
-        ? { allowUnknownRecovery: true } : {}) })) });
-  return Object.freeze({
-    platform: "web", runnerHostId,
-    run: { ...showcaseRun, id: reportRunId, hosts: [
-      { id: runnerHostId, os: host, name: "SurfaceLoom runner" },
-      { id: browserHostId, os: host, name: "Owned Playwright browser" },
-    ] },
-    surfaces: [{ kind: "browser", backend, requirement: { kind: "browser",
-      surfaceId: browserSurfaceId, expectedHostId: browserHostId, capabilities,
-      engine: browser.engine, headless: true, timeoutMs: 10_000 } }],
-    requiredEvidence: [{ artifactId: probeArtifactId, requireComplete: !entry.incomplete }],
-    execution: { plan: defineExecutionPlan({ spec: definition.spec,
-      requirements: { host: { os: [host] }, surfaces: environment.surfaces }, effects }),
-      environment, policy, timeoutMs: 20_000, cleanupTimeoutMs: 5_000 },
-    stagingDirectory, outputDirectory,
+  return referenceAgentBrowserRunOptions({ spec: definition.spec, run: showcaseRun, reportRunId,
+    runnerHostId, browserHostId, browserSurfaceId, requiredArtifactId: probeArtifactId,
+    requireComplete: !entry.incomplete, stagingDirectory, outputDirectory, browser,
   });
 }
 
@@ -121,17 +88,6 @@ function remapBundle(bundle, directory) {
     reportPath: path.join(directory, "report.json"),
     htmlPath: path.join(directory, "index.html"),
     aiReviewPath: path.join(directory, "ai-review.md") });
-}
-
-function effect(resource, operation, boundary, recovery) {
-  return Object.freeze({ resource, operation, boundary, recovery,
-    securitySensitive: false });
-}
-
-function hostOS() {
-  if (process.platform === "darwin") return "macos";
-  if (process.platform === "win32") return "windows";
-  return "linux";
 }
 
 function defaultOutputRoot() {

@@ -1,16 +1,50 @@
 export function assertChildInfrastructureHealthy(result, canonical, spec) {
-  const report = result?.bundle?.report;
-  const attempts = report?.tests?.length === 1 ? report.tests[0].attempts : undefined;
-  const attempt = attempts?.state === "known"
-    ? attempts.items.find((item) => item.id === attempts.finalAttemptId) : undefined;
-  if (!attempt || attempt.id !== "attempt-1") {
-    throw new Error(`Child ${canonical.id} has no final execution attempt.`);
-  }
+  const attempt = finalAttempt(result, canonical.id);
   const execution = exactlyOne(attempt.result.steps, "kernel.execution", canonical.id);
   const cleanup = exactlyOne(attempt.result.steps, "kernel.cleanup", canonical.id);
   assertExecutionDiagnostic(execution, canonical.id);
   assertCleanupDiagnostic(cleanup, canonical.id);
   assertBusinessFailuresOnly(attempt.result, canonical, spec);
+}
+
+export function assertExpectedResourceCleanupFailure(result, canonical, spec,
+  expectedResourcePrefix) {
+  const attempt = finalAttempt(result, canonical.id);
+  const execution = exactlyOne(attempt.result.steps, "kernel.execution", canonical.id);
+  assertExecutionDiagnostic(execution, canonical.id);
+  if (attempt.result.steps.some((step) => step.id === "kernel.cleanup")) {
+    throw unhealthy(canonical.id, "unexpected successful cleanup diagnostic is present");
+  }
+  const criteria = new Map();
+  for (const step of attempt.result.steps) {
+    for (const id of step.criterionIds ?? []) criteria.set(id, step.status);
+  }
+  if (spec.acceptanceCriteria.some((criterion) => criteria.get(criterion.id) !== "passed")) {
+    throw unhealthy(canonical.id, "a business criterion failed before expected cleanup failure");
+  }
+  const failed = attempt.result.steps.filter((step) => step.status === "failed");
+  if (attempt.result.error?.category !== "fixtureTeardown" || failed.length === 0
+      || failed.some((step) => !/^kernel\.fixtureTeardown\.\d+$/u.test(step.id))) {
+    throw unhealthy(canonical.id, "failure was not limited to fixtureTeardown cleanup diagnostics");
+  }
+  for (const step of failed) {
+    const details = errorDiagnostic(step, canonical.id)?.details;
+    if (details?.kind !== "resourceCleanup") {
+      throw unhealthy(canonical.id, "fixtureTeardown failure was not resourceCleanup");
+    }
+    assertExpectedCleanupData(details.data, canonical.id, expectedResourcePrefix);
+  }
+}
+
+function finalAttempt(result, caseId) {
+  const report = result?.bundle?.report;
+  const attempts = report?.tests?.length === 1 ? report.tests[0].attempts : undefined;
+  const attempt = attempts?.state === "known"
+    ? attempts.items.find((item) => item.id === attempts.finalAttemptId) : undefined;
+  if (!attempt || attempt.id !== "attempt-1") {
+    throw new Error(`Child ${caseId} has no final execution attempt.`);
+  }
+  return attempt;
 }
 
 function exactlyOne(steps, id, caseId) {
@@ -69,6 +103,52 @@ function diagnostic(step, caseId) {
     throw unhealthy(caseId, `${step.id} diagnostic schema is unknown`);
   }
   return value;
+}
+
+function errorDiagnostic(step, caseId) {
+  if (typeof step.diagnostic !== "string") throw unhealthy(caseId, `${step.id} has no diagnostic`);
+  let value;
+  try { value = JSON.parse(step.diagnostic); }
+  catch { throw unhealthy(caseId, `${step.id} diagnostic is invalid`); }
+  if (value?.details?.schemaVersion !== "surfaceloom.error-diagnostic/v1") {
+    throw unhealthy(caseId, `${step.id} error diagnostic schema is unknown`);
+  }
+  return value;
+}
+
+function assertExpectedCleanupData(cleanup, caseId, expectedResourcePrefix) {
+  if (cleanup?.state !== "closed" || cleanup.status !== "failed" || cleanup.tainted !== true
+      || !empty(cleanup.remaining) || !Array.isArray(cleanup.outcomes)
+      || !Array.isArray(cleanup.failures)) {
+    throw unhealthy(caseId, "expected cleanup result is not closed and tainted");
+  }
+  const expected = cleanup.outcomes.filter((item) =>
+    typeof item?.id === "string" && item.id.startsWith(expectedResourcePrefix));
+  if (expected.length !== 1 || expected[0].status !== "unconfirmed"
+      || expected[0].failure?.code !== "cleanupUnconfirmed"
+      || expected[0].failure?.message !== "Run work did not settle before cleanup deadline.") {
+    throw unhealthy(caseId, "owned run-work unconfirmed receipt is missing or ambiguous");
+  }
+  const allowed = cleanup.outcomes.every((item) => {
+    if (item === expected[0]) return true;
+    if (item?.id === "surface.browser.session.approval-ui") {
+      return item.status === "unconfirmed" && item.failure?.code === "cleanupUnconfirmed"
+        && item.failure?.message === "Browser cleanup stopped: cleanup deadline expired";
+    }
+    if (item?.id === "kernel.fixture.test") {
+      return item.status === "failed" && item.failure?.code === "cleanupFailed"
+        && item.failure?.message === "Reference agent work did not confirm settlement before close.";
+    }
+    return item?.id === "kernel.fixture.worker" && item.status === "released";
+  });
+  const failureIds = cleanup.outcomes.filter((item) =>
+    item.status === "failed" || item.status === "unconfirmed").map((item) => item.id).sort();
+  const recordedIds = cleanup.failures.map((failure) => failure.resourceId).sort();
+  if (!allowed || cleanup.outcomes.length !== 4 || failureIds.length !== cleanup.failures.length
+      || JSON.stringify(failureIds) !== JSON.stringify(recordedIds)
+      || cleanup.primaryFailure?.resourceId !== expected[0].id) {
+    throw unhealthy(caseId, "cleanup contains an unrelated or unrecorded failure");
+  }
 }
 
 function empty(value) { return Array.isArray(value) && value.length === 0; }

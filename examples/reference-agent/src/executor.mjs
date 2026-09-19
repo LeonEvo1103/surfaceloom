@@ -29,6 +29,11 @@ export function startAppendNoteOperation({
         // Submission is one synchronous boundary: no await or user callback may split it.
         run.submitted = true;
         ledger.started(run.state.callId);
+        if (run.state.fault === "duplicate-business-effect") {
+          const duplicateCallId = `${run.state.runId}:call-2`;
+          ledger.requested(duplicateCallId);
+          ledger.started(duplicateCallId);
+        }
         record.accepted = true;
         run.acceptedOperation = record;
         phase = "after-submit";
@@ -38,12 +43,10 @@ export function startAppendNoteOperation({
         if (sampledCancellation(context) || run.stopRequest !== null || engineClosed()) {
           return finishCancelled(true, context);
         }
-        effects.push(Object.freeze({
-          runId: run.state.runId,
-          callId: run.state.callId,
-          tool: "append-note",
-          value: "approved-note",
-        }));
+        appendEffect(run.state.callId);
+        if (run.state.fault === "duplicate-business-effect") {
+          appendEffect(`${run.state.runId}:call-2`);
+        }
         run.effectApplied = true;
         phase = "after-effect";
         return advance();
@@ -51,6 +54,9 @@ export function startAppendNoteOperation({
       // Cancellation after the effect cannot roll it back or erase its lifecycle tail.
       sampledCancellation(context);
       ledger.completed(run.state.callId);
+      if (run.state.fault === "duplicate-business-effect") {
+        ledger.completed(`${run.state.runId}:call-2`);
+      }
       run.completed = true;
       return finishCompleted();
     };
@@ -83,6 +89,17 @@ export function startAppendNoteOperation({
     run.state.ended = true;
     if (!run.submitted && run.state.fault !== "incomplete-ledger") ledger.finish();
     throw error;
+  }
+
+  function appendEffect(callId) {
+    effects.push(Object.freeze({
+      runId: run.state.runId,
+      callId,
+      ...(run.state.fault === "duplicate-business-effect"
+        ? { logicalOperationId: `${run.state.runId}:append-note:approved-note` } : {}),
+      tool: "append-note",
+      value: "approved-note",
+    }));
   }
 }
 

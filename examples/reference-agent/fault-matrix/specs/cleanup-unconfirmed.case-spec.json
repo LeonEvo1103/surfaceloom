@@ -1,0 +1,16 @@
+{
+  "id": "reference-agent.p3-088.cleanup-unconfirmed",
+  "locale": "zh-CN",
+  "platforms": ["web"],
+  "suite": { "id": "reference-agent.p3-088", "name": "参考智能体故障矩阵" },
+  "name": "运行工作清理未确认必须失败",
+  "intent": "验证变化发生后若运行工作既不响应取消也不随关闭释放，owned 清理必须报告未确认并污染内核，同时仍尝试其他清理。",
+  "preconditions": [{ "id": "fixture-ready", "text": "变化后检查点关闭取消与关闭释放，审批仍由真实浏览器按钮完成。" }],
+  "acceptanceCriteria": [
+    { "id": "approval-requested", "text": "作出决定前，精确运行与调用已请求审批。" },
+    { "id": "effect-recorded-before-cleanup", "text": "进入清理前，独立资源探针已观察到一个实际业务变化。" },
+    { "id": "owned-work-registered", "text": "运行工作已作为 owned 资源登记，由内核在退出时执行停止与有界结算。" }
+  ],
+  "sideEffect": "externalEffect",
+  "tags": ["agent", "browser", "fault-matrix", "cleanup", "unconfirmed"]
+}

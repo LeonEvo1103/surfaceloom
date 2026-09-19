@@ -1,0 +1,18 @@
+{
+  "id": "reference-agent.p3-088.stop-after-submit",
+  "locale": "zh-CN",
+  "platforms": ["web"],
+  "suite": { "id": "reference-agent.p3-088", "name": "参考智能体故障矩阵" },
+  "name": "提交后停止保持未知",
+  "intent": "验证操作提交后停止只能报告未知；界面结束与当前资源计数为零都不能封闭账本或证明零次、一次。",
+  "preconditions": [{ "id": "fixture-ready", "text": "提交后检查点由确定性 fixture 暂停，审批仍由真实浏览器按钮完成。" }],
+  "acceptanceCriteria": [
+    { "id": "approval-requested", "text": "作出决定前，精确运行与调用已请求审批。" },
+    { "id": "ui-cancelled", "text": "真实浏览器界面最终显示运行已取消。" },
+    { "id": "stop-definitive-outcome", "text": "停止回执必须给出可证明的未执行或已执行结果，而不是未知。" },
+    { "id": "ledger-call-exactly-once", "text": "封闭账本必须证明调用恰好一次。" },
+    { "id": "effect-zero-proven", "text": "完整资源边界必须证明业务变化为零。" }
+  ],
+  "sideEffect": "externalEffect",
+  "tags": ["agent", "browser", "fault-matrix", "stop", "after-submit"]
+}

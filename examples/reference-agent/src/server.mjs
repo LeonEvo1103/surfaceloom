@@ -80,6 +80,7 @@ export async function startReferenceAgent() {
     getRun: engine.getRun,
     decide: engine.decide,
     readLedger: engine.readLedger,
+    readRawLedger: engine.readRawLedger,
     readEffects: engine.readEffects,
     stop: engine.stop,
     settle: engine.settle,

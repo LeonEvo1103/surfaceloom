@@ -135,20 +135,41 @@ export class ReferenceAgentBrowserAdapter {
     }
     const ledger = await this.#completedLedger(scope.runId);
     if (ledger.state !== "available") return ledger;
-    const effects = await this.#getJson(`/api/runs/${encodeURIComponent(scope.runId)}/effects`);
-    if (!Array.isArray(effects) || effects.some((effect) => !validEffect(effect, scope.runId))) {
+    const effects = await this.#readEffects(scope.runId);
+    return Object.freeze({ ...effects, completeness: completeRunBarrier(scope.runId) });
+  }
+
+  async readRawLocalEffects(scope) {
+    assertResourceScope(scope);
+    if (scope.resource !== referenceAgentLocalResource) {
+      return Object.freeze({
+        state: "unknown", reason: `Reference agent has no local resource '${scope.resource}'.`,
+      });
+    }
+    return this.#readEffects(scope.runId, true);
+  }
+
+  async #readEffects(runId, includeEffects = false) {
+    const effects = await this.#getJson(`/api/runs/${encodeURIComponent(runId)}/effects`);
+    if (!Array.isArray(effects) || effects.some((effect) => !validEffect(effect, runId))) {
       return Object.freeze({ state: "unknown", reason: "Reference agent returned an invalid effect snapshot." });
     }
     return Object.freeze({
       state: "available",
       value: Object.freeze({
-        runId: scope.runId,
-        resource: scope.resource,
+        runId,
+        resource: referenceAgentLocalResource,
         boundary: "local",
         count: effects.length,
+        ...(includeEffects
+          ? { effects: Object.freeze(effects.map((effect) => Object.freeze({ ...effect }))) } : {}),
       }),
-      completeness: completeRunBarrier(scope.runId),
     });
+  }
+
+  async readRawLedger(runId) {
+    assertRunId(runId);
+    return this.#ledgerObservation(runId);
   }
 
   async #readRun(runId) {
@@ -161,13 +182,39 @@ export class ReferenceAgentBrowserAdapter {
   }
 
   async #completedLedger(runId) {
-    const ledger = await this.#getJson(`/api/runs/${encodeURIComponent(runId)}/ledger`);
+    const observation = await this.#ledgerObservation(runId);
+    if (observation.state !== "available") return observation;
+    const ledger = observation.value;
     try {
       inspectToolCalls(ledger, runId);
       return Object.freeze({ state: "available", value: ledger });
     } catch (error) {
       if (!(error instanceof LedgerIncompleteError)) throw error;
       return Object.freeze({ state: "unknown", reason: error.message });
+    }
+  }
+
+  async #ledgerObservation(runId) {
+    let response;
+    try {
+      response = await fetch(this.baseUrl + `/api/runs/${encodeURIComponent(runId)}/ledger`);
+    } catch (error) {
+      return Object.freeze({ state: "read-failed", error: safeReadError(error) });
+    }
+    if (!response.ok) {
+      let code = `HTTP_${response.status}`;
+      let message = `Detached ledger observation returned HTTP ${response.status}.`;
+      try {
+        const body = await response.json();
+        if (typeof body?.error?.code === "string") code = body.error.code;
+        if (typeof body?.error?.message === "string") message = body.error.message;
+      } catch { /* Preserve the HTTP failure without trusting an invalid body. */ }
+      return Object.freeze({ state: "read-failed", error: Object.freeze({ code, message }) });
+    }
+    try {
+      return Object.freeze({ state: "available", value: await response.json() });
+    } catch (error) {
+      return Object.freeze({ state: "read-failed", error: safeReadError(error) });
     }
   }
 
@@ -252,7 +299,13 @@ function assertCallId(runId, callId) {
 
 function validEffect(effect, runId) {
   return effect && effect.runId === runId && typeof effect.callId === "string"
-    && effect.callId.startsWith(`${runId}:call-`) && effect.tool === referenceAgentToolId;
+    && effect.callId.startsWith(`${runId}:call-`) && effect.tool === referenceAgentToolId
+    && (effect.logicalOperationId === undefined || typeof effect.logicalOperationId === "string");
+}
+
+function safeReadError(error) {
+  return Object.freeze({ code: "LEDGER_READ_FAILED",
+    message: error instanceof Error && error.message ? error.message : "Ledger read failed." });
 }
 
 function assertRunId(runId) {
