@@ -28,7 +28,7 @@ internal static class Program
 
         var passed = new List<string>();
         string? failure = null;
-        await using var session = new FixtureLiveSession(Path.GetFullPath(args[0]));
+        var session = new FixtureLiveSession(Path.GetFullPath(args[0]));
         try
         {
             await session.Start(Path.GetFullPath(args[1]));
@@ -46,9 +46,24 @@ internal static class Program
                 : "live conformance teardown";
             Console.Error.WriteLine($"FAIL {failedCase}: {exception.Message}");
         }
+        finally
+        {
+            try
+            {
+                await session.DisposeAsync();
+            }
+            catch (Exception exception)
+            {
+                failure = failure is null
+                    ? $"Live conformance cleanup failed: {exception}"
+                    : $"{failure}{Environment.NewLine}Live conformance cleanup also failed: {exception}";
+                Console.Error.WriteLine($"FAIL live conformance cleanup: {exception.Message}");
+            }
+        }
 
         var reportPath = Path.GetFullPath(args[2]);
         Directory.CreateDirectory(Path.GetDirectoryName(reportPath)!);
+        var failedCaseCount = failure is not null && passed.Count < CaseNames.Length ? 1 : 0;
         var report = new
         {
             schemaVersion = "surfaceloom.windows-live/1",
@@ -56,18 +71,22 @@ internal static class Program
             os = Environment.OSVersion.VersionString,
             hostRevision = Environment.GetEnvironmentVariable("SURFACELOOM_HOST_REVISION") ?? "working-tree",
             fixtureRevision = Environment.GetEnvironmentVariable("SURFACELOOM_FIXTURE_REVISION") ?? "working-tree",
-            executedCaseCount = passed.Count + (failure is null ? 0 : 1),
+            executedCaseCount = passed.Count + failedCaseCount,
             passedCaseCount = passed.Count,
-            skippedCaseCount = failure is null ? 0 : CaseNames.Length - passed.Count - 1,
+            skippedCaseCount = CaseNames.Length - passed.Count - failedCaseCount,
             passedCases = passed,
             failure,
+            cleanupConfirmed = session.CleanupConfirmed,
+            cleanup = session.CleanupConfirmed
+                ? "fixture session and native host exited without forced termination"
+                : "unconfirmed",
         };
         await File.WriteAllTextAsync(reportPath, JsonSerializer.Serialize(report, new JsonSerializerOptions
         {
             WriteIndented = true,
         }));
 
-        if (failure is not null)
+        if (failure is not null || !session.CleanupConfirmed)
         {
             return 1;
         }

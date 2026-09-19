@@ -49,3 +49,12 @@ generated evidence and is not committed as a timeless claim; the SSOT evidence l
 validated revision and result. Revision `7d79157c9bc2e582d79950ab68b97542243868f4` passed all five
 required cases with zero skips in an interactive Windows 11 session; future changes in the host,
 fixture, or native protocol must produce a fresh run rather than inheriting that result.
+
+The script also requires the process/storage/execution-gate contracts to pass with zero skips,
+including a real file symlink and the same-inode replacement counterexample. The C# report is formed
+after its fixture/session/host disposal completes; a kill, process-close request, or pre-cleanup JSON
+file is not accepted as cleanup proof. The generated SL-P2-080 evidence records the actual Git state,
+Node/.NET/platform/session facts and explicitly retains the SL-P3-060 and SL-P3-070 limitations.
+SID, process-session, and default-desktop facts are read by the trusted PowerShell entrypoint. The
+public gate function normalizes those facts into one lock domain; it does not independently query or
+attest the Windows token/session supplied by an arbitrary caller.

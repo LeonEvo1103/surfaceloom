@@ -6,6 +6,14 @@ export { executeCase } from "./execute.js";
 export { defineCaseV3 } from "./definition-v3.js";
 export { runCaseV3 } from "./runner-v3.js";
 export { RunCaseV3Error } from "./runner-v3-error.js";
+export type {
+  ExecutionGuiGate, WindowsExecutionGuiGateOptions, WindowsExecutionGuiGateQuarantineIdentity,
+  WindowsExecutionGuiGateRecoveryProof,
+} from "./execution-gate.js";
+export {
+  acquireWindowsExecutionGuiGate, observeWindowsExecutionGuiGateQuarantine,
+  recoverWindowsExecutionGuiGateQuarantine,
+} from "./execution-gate.js";
 export type { RunCaseV3AdditionalFailure, RunCaseV3FailurePhase } from "./runner-v3-error.js";
 export type {
   BrowserRunnerSurfaceV3,

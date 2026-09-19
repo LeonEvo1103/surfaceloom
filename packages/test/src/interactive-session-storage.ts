@@ -155,6 +155,19 @@ async function readMetadataFile(file: string, runtime: LeaseReadRuntime): Promis
     if (!info.isFile() || info.ino === 0n || info.dev !== before.dev || info.ino !== before.ino) {
       throw corrupt("Lease owner metadata identity changed between inspection and open.");
     }
+    // Windows has no O_NOFOLLOW. Re-inspect the directory entry after open so a
+    // same-inode symlink swap cannot pass merely because the opened target still
+    // has the identity observed before the swap. This narrows the fallback race;
+    // it does not claim to eliminate hostile-filesystem TOCTOU in general.
+    if (!runtime.useNoFollow) {
+      let current;
+      try { current = await lstat(file, { bigint: true }); }
+      catch { throw corrupt("Lease owner metadata changed while it was being opened."); }
+      if (!current.isFile() || current.isSymbolicLink() || current.ino === 0n
+          || current.dev !== info.dev || current.ino !== info.ino) {
+        throw corrupt("Lease owner metadata path changed while it was being opened.");
+      }
+    }
     if (info.size < 2n || info.size > BigInt(MAX_METADATA_BYTES)) throw corrupt("Lease metadata file size is invalid.");
     return parseMetadata(await handle.readFile("utf8"));
   } finally { await handle.close(); }

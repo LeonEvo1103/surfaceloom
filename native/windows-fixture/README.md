@@ -45,8 +45,20 @@ state-model test executable. It still does not count as live UIA conformance.
 
 `live-conformance.ps1` builds the adjacent Windows host and this fixture, then launches the real WPF
 process through the versioned NDJSON host. It executes all five required cases with zero skip support
-and writes `artifacts/windows-live-conformance.json`. Run it only in an interactive Windows session;
+under the shared Windows user/session/default-desktop GUI execution gate. Before using any generated
+JavaScript it installs and builds Core, Reporter, and Test in dependency order, then runs the
+interactive-session storage/process/gate contracts. It writes `artifacts/windows-live-conformance.json`
+only after fixture and host cleanup is confirmed, and writes runner-local
+`artifacts/sl-p2-080-windows-evidence.json` only after the gate is released and a successor proves entry.
+The trusted PowerShell wrapper reads the SID, process session, and desktop from Windows; the public
+gate acquisition API validates their shape and lock-domain normalization but does not independently
+attest that caller-supplied identity facts came from the current token.
+Run it only in an interactive Windows session;
 a cross-compiled binary, model test, or headless job is not equivalent evidence.
+
+The required file-symlink tests never skip. If the account cannot create file symbolic links, the run
+fails with diagnostics; the script does not change UAC, Developer Mode, or system policy. This entry
+does not implement the planned real Node-to-UIA Case path or business mixed-surface Case.
 
 For release evidence, pass immutable revisions instead of the default `working-tree` labels:
 

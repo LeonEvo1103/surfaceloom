@@ -92,6 +92,18 @@ test("Windows no-follow fallback detects a deterministic lstat-to-open replaceme
   } }), "corruptLease");
 });
 
+test("Windows no-follow fallback rejects a same-inode file symlink replacement", async (t) => {
+  const directory = await leaseDirectory(t);
+  const lease = await acquireInteractiveSessionLease({ directory });
+  const ownerPath = path.join(lease.path, "owner.json");
+  const originalPath = path.join(lease.path, "owner-original.json");
+  await expectCode(readLease(lease.path, { useNoFollow: false, afterInitialStat: async () => {
+    await rename(ownerPath, originalPath);
+    await symlink(originalPath, ownerPath, "file");
+  } }), "corruptLease");
+  assert.equal(await readFile(originalPath, "utf8"), await readFile(ownerPath, "utf8"));
+});
+
 test("legal generation rename and republish returns retry across both metadata windows", async (t) => {
   for (const seam of ["afterDirectoryStat", "afterInitialStat"] as const) {
     const directory = await leaseDirectory(t);

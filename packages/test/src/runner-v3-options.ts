@@ -5,6 +5,7 @@ import type { DesktopPlatform } from "@surfaceloom/core";
 import type { EvidencePolicy, ReportEnvironment, ReportHostV3, ReportedApp } from "@surfaceloom/reporter";
 
 import type { ExecuteCaseOptions } from "./contracts.js";
+import type { ExecutionGuiGate } from "./execution-gate.js";
 import { jsonSnapshot } from "./evidence/json-data.js";
 import type { RequiredEvidenceRequirement } from "./evidence/required-policy.js";
 import type {
@@ -29,15 +30,23 @@ import type {
 /** Descriptor-only snapshot of every runner-controlled field before the first await. */
 export function snapshotRunCaseV3Options(input: unknown): RunCaseV3Options {
   const value = record(input, "runner v3 options", ["platform", "runnerHostId", "run", "surfaces",
-    "requiredEvidence", "evidencePolicy", "execution", "stagingDirectory", "outputDirectory"]);
+    "requiredEvidence", "evidencePolicy", "executionGate", "execution", "stagingDirectory", "outputDirectory"]);
   const requiredEvidenceValue = optional(value, "requiredEvidence", "runner v3 options");
   const evidencePolicyValue = optional(value, "evidencePolicy", "runner v3 options");
+  const executionGateValue = optional(value, "executionGate", "runner v3 options");
+  const surfaces = Object.freeze(items(required(value, "surfaces", "runner v3 options"),
+    "runner v3 surfaces").map(snapshotSurface));
+  const executionGate = executionGateValue === undefined ? undefined
+    : snapshotExecutionGate(executionGateValue);
+  if (executionGate !== undefined && surfaces.some((surface) =>
+    surface.kind === "browser" && surface.lease !== undefined)) {
+    throw new Error("runner v3 executionGate cannot be combined with per-surface leases.");
+  }
   return Object.freeze({
     platform: required(value, "platform", "runner v3 options") as RunCaseV3Options["platform"],
     runnerHostId: required(value, "runnerHostId", "runner v3 options") as string,
     run: snapshotRun(required(value, "run", "runner v3 options")),
-    surfaces: Object.freeze(items(required(value, "surfaces", "runner v3 options"),
-      "runner v3 surfaces").map(snapshotSurface)),
+    surfaces,
     ...(requiredEvidenceValue === undefined ? {} : {
       requiredEvidence: Object.freeze(items(requiredEvidenceValue, "required evidence").map(
         (item, index) => exactJson<RequiredEvidenceRequirement>(item, `required evidence[${index}]`,
@@ -48,12 +57,41 @@ export function snapshotRunCaseV3Options(input: unknown): RunCaseV3Options {
       evidencePolicy: exactJson<Partial<EvidencePolicy>>(evidencePolicyValue, "evidence policy",
         ["screenshots", "video", "trace", "accessibilityTree", "logs"]),
     }),
+    ...(executionGate === undefined ? {} : { executionGate }),
     execution: snapshotExecution(required(value, "execution", "runner v3 options")),
     stagingDirectory: absolutePath(required(value, "stagingDirectory", "runner v3 options"),
       "runner v3 stagingDirectory"),
     outputDirectory: absolutePath(required(value, "outputDirectory", "runner v3 options"),
       "runner v3 outputDirectory"),
   });
+}
+
+/** Capture an already-acquired gate before validating unrelated runner fields. */
+export function snapshotRunCaseV3ExecutionGate(input: unknown): ExecutionGuiGate | undefined {
+  if (typeof input !== "object" || input === null || types.isProxy(input)
+      || Object.getPrototypeOf(input) !== Object.prototype) return undefined;
+  const descriptor = Object.getOwnPropertyDescriptor(input, "executionGate");
+  if (descriptor === undefined) return undefined;
+  if (!("value" in descriptor) || !descriptor.enumerable) {
+    throw new Error("runner v3 options.executionGate must be an enumerable data field.");
+  }
+  return descriptor.value === undefined ? undefined : snapshotExecutionGate(descriptor.value);
+}
+
+function snapshotExecutionGate(input: unknown): ExecutionGuiGate {
+  const fields = record(input, "runner v3 executionGate", ["id", "release", "quarantine"]);
+  const release = required(fields, "release", "runner v3 executionGate");
+  if (typeof release !== "function") throw new Error("runner v3 executionGate.release must be a function.");
+  const quarantine = required(fields, "quarantine", "runner v3 executionGate");
+  if (typeof quarantine !== "function") {
+    throw new Error("runner v3 executionGate.quarantine must be a function.");
+  }
+  const id = required(fields, "id", "runner v3 executionGate");
+  if (typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/u.test(id)) {
+    throw new Error("runner v3 executionGate.id must be a stable identifier.");
+  }
+  return Object.freeze({ id, release: () => Reflect.apply(release, input, []),
+    quarantine: (reason: string) => Reflect.apply(quarantine, input, [reason]) });
 }
 
 function snapshotRun(input: unknown): RunCaseV3Identity {

@@ -12,6 +12,8 @@ internal sealed class FixtureLiveSession : IAsyncDisposable
     private int processId;
     private bool released;
 
+    public bool CleanupConfirmed { get; private set; }
+
     public FixtureLiveSession(string hostExecutable) => client = NativeProcessClient.Start(hostExecutable);
 
     public async Task Start(string fixtureExecutable)
@@ -120,19 +122,36 @@ internal sealed class FixtureLiveSession : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        Exception? cleanupFailure = null;
         if (!released && sessionId.Length > 0)
         {
             try
             {
-                await client.Call("session.terminate", "lifecycle", SessionScope(),
-                    new { wait = new { timeoutMs = 5_000, pollIntervalMs = 50 } });
+                NativeProcessClient.RequireOk(await client.Call(
+                    "session.terminate", "lifecycle", SessionScope(),
+                    new { wait = new { timeoutMs = 5_000, pollIntervalMs = 50 } }),
+                    "terminate fixture during cleanup");
             }
-            catch
+            catch (Exception exception)
             {
-                // The primary live failure remains authoritative; host EOF cleanup is the final fallback.
+                cleanupFailure = exception;
             }
         }
-        await client.DisposeAsync();
+        try
+        {
+            await client.DisposeAsync();
+        }
+        catch (Exception exception)
+        {
+            cleanupFailure = cleanupFailure is null
+                ? exception
+                : new AggregateException(cleanupFailure, exception);
+        }
+        if (cleanupFailure is not null)
+        {
+            throw new InvalidOperationException("Fixture or native host cleanup was not confirmed.", cleanupFailure);
+        }
+        CleanupConfirmed = true;
     }
 
     private Task<JsonElement> Find(string automationId, string controlType) => client.Call(

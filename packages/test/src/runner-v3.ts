@@ -41,7 +41,8 @@ import type {
 } from "./runner-v3-contracts.js";
 import { snapshotCaseEvidenceSubmissionV3 } from "./runner-v3-evidence.js";
 import { RunCaseV3Error } from "./runner-v3-error.js";
-import { snapshotRunCaseV3Options } from "./runner-v3-options.js";
+import { RunnerV3GateBarrier } from "./runner-v3-gate.js";
+import { snapshotRunCaseV3ExecutionGate, snapshotRunCaseV3Options } from "./runner-v3-options.js";
 import { claimRunPaths, releaseRunPaths, type RunPathClaim } from "./runner-v3-paths.js";
 import { createBrowserSurfaceFactory } from "./surfaces/browser.js";
 import { createNativeSurfaceFactory } from "./surfaces/native.js";
@@ -65,16 +66,25 @@ interface AcquiredSurface {
   };
 }
 
-const preparedClaims = new WeakMap<PreparedCaseV3, RunPathClaim>();
+interface PreparedState { readonly claim: RunPathClaim; readonly gate: RunnerV3GateBarrier }
+const preparedClaims = new WeakMap<PreparedCaseV3, PreparedState>();
 const stickyClaims = new WeakSet<RunPathClaim>();
 
 /** Explicit v3 runner path. Legacy executeCase/runCaseSuite remain v2-only. */
 export async function runCaseV3(definition: CaseDefinitionV3,
   options: RunCaseV3Options): Promise<RunCaseV3Result> {
-  requireCaseV3(definition);
-  const snapshot = snapshotRunCaseV3Options(options);
-  const claim = await claimAndPreflight(snapshot);
-  const prepared = await prepareClaimedCaseV3(definition, snapshot, claim);
+  const gate = new RunnerV3GateBarrier(snapshotRunCaseV3ExecutionGate(options));
+  let snapshot: RunCaseV3Options;
+  let prepared: PreparedCaseV3;
+  try {
+    requireCaseV3(definition);
+    snapshot = snapshotRunCaseV3Options(options);
+    const claim = await claimAndPreflight(snapshot);
+    prepared = await prepareClaimedCaseV3(definition, snapshot, claim, gate);
+  } catch (error) {
+    await finalizeWithoutMasking(gate);
+    throw error;
+  }
   try {
     const bundle = await publishPreparedCaseV3(prepared, snapshot.outputDirectory,
       snapshot.evidencePolicy);
@@ -87,15 +97,21 @@ export async function runCaseV3(definition: CaseDefinitionV3,
 /** Runner-internal split used to test the publication TOCTOU boundary. Not in the public barrel. */
 export async function prepareCaseV3(definition: CaseDefinitionV3,
   options: RunCaseV3Options): Promise<PreparedCaseV3> {
-  requireCaseV3(definition);
-  const snapshot = snapshotRunCaseV3Options(options);
-  const claim = await claimAndPreflight(snapshot);
-  return prepareClaimedCaseV3(definition, snapshot, claim);
+  const gate = new RunnerV3GateBarrier(snapshotRunCaseV3ExecutionGate(options));
+  try {
+    requireCaseV3(definition);
+    const snapshot = snapshotRunCaseV3Options(options);
+    const claim = await claimAndPreflight(snapshot);
+    return await prepareClaimedCaseV3(definition, snapshot, claim, gate);
+  } catch (error) {
+    await finalizeWithoutMasking(gate);
+    throw error;
+  }
 }
 
 async function prepareClaimedCaseV3(definition: CaseDefinitionV3,
-  options: RunCaseV3Options, claim: RunPathClaim): Promise<PreparedCaseV3> {
-  try { return await prepareSnapshotCaseV3(definition, options, claim); }
+  options: RunCaseV3Options, claim: RunPathClaim, gate: RunnerV3GateBarrier): Promise<PreparedCaseV3> {
+  try { return await prepareSnapshotCaseV3(definition, options, claim, gate); }
   catch (error) {
     if (!stickyClaims.has(claim)) releaseRunPaths(claim);
     throw error;
@@ -103,7 +119,7 @@ async function prepareClaimedCaseV3(definition: CaseDefinitionV3,
 }
 
 async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
-  options: RunCaseV3Options, claim: RunPathClaim): Promise<PreparedCaseV3> {
+  options: RunCaseV3Options, claim: RunPathClaim, gate: RunnerV3GateBarrier): Promise<PreparedCaseV3> {
   if (options.surfaces.length === 0) {
     throw new Error("The explicit v3 runner requires at least one real surface.");
   }
@@ -125,6 +141,7 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
     const setup = surfaceSetupContext(base, internals.cleanupBoundary.deadlineAt,
       evidenceSink(evidence, scope));
     for (const config of options.surfaces) {
+      gate.markGuiAcquisitionStarted();
       const author = config.kind === "browser"
         ? await createBrowserSurfaceFactory(config.backend, {
           ...(options.execution.cleanupTimeoutMs === undefined ? {} : {
@@ -134,10 +151,12 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
           ...(config.lease === undefined ? {} : { lease: config.lease }),
         }).setup(config.requirement, setup)
         : await createNativeSurfaceFactory(config.backend).setup(config.requirement, setup);
+      gate.markGuiAcquisitionCompleted();
       acquired.push(captureAcquisition(config, author));
     }
     await definition.run(authorContext(base, acquired, evidence, scope));
   });
+  gate.observeExecution(execution);
   if (!execution.publicationReady) {
     if (execution.worker.state !== "notStarted") stickyClaims.add(claim);
     throw new RunCaseV3Error(execution.report, "kernelStop",
@@ -180,17 +199,19 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
   const requiredArtifacts = requiredReportArtifactsV3(definition.spec.id, requiredPolicy,
     materialized, evidenceSnapshot);
   const prepared = Object.freeze({ input, requiredArtifacts, kernelReport: execution.report });
-  preparedClaims.set(prepared, claim);
+  preparedClaims.set(prepared, Object.freeze({ claim, gate }));
   return prepared;
 }
 
 export async function publishPreparedCaseV3(prepared: PreparedCaseV3, outputDirectory: string,
   evidencePolicy?: Partial<EvidencePolicy>) {
-  const claim = preparedClaims.get(prepared);
-  if (claim === undefined) throw new Error("Prepared v3 Case has no active runner path claim.");
+  const state = preparedClaims.get(prepared);
+  if (state === undefined) throw new Error("Prepared v3 Case has no active runner path claim.");
+  const { claim, gate } = state;
   if (snapshotRunPath(outputDirectory) !== claim.outputDirectory) {
     preparedClaims.delete(prepared);
     releaseRunPaths(claim);
+    await gate.finalize();
     throw new Error("Prepared v3 Case output does not match its runner path claim.");
   }
   try {
@@ -201,7 +222,12 @@ export async function publishPreparedCaseV3(prepared: PreparedCaseV3, outputDire
   } finally {
     preparedClaims.delete(prepared);
     releaseRunPaths(claim);
+    await gate.finalize();
   }
+}
+
+async function finalizeWithoutMasking(gate: RunnerV3GateBarrier): Promise<void> {
+  try { await gate.finalize(); } catch { /* Persistent quarantine remains fail-closed. */ }
 }
 
 function surfaceSetupContext(base: CaseContext, deadlineAt: number,

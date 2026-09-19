@@ -52,6 +52,16 @@ test("real processes contend without blocking the event loop and acquire after a
   assert.equal((await lease.release()).status, "released");
 });
 
+test("timed-out child output waiter is removed and cannot consume a later frame", async (t) => {
+  const directory = await leaseDirectory(t);
+  const child = await LeaseChild.start(directory);
+  t.after(async () => { await child.terminate(); });
+  assert.equal((await child.next() as { type: string }).type, "acquired");
+  await assert.rejects(child.next(5), /Timed out waiting for lease child output/u);
+  child.send("release");
+  assert.equal((await child.next() as { type: string }).type, "released");
+});
+
 test("AbortSignal and timeout stop only the waiter and preserve the current owner", async (t) => {
   const directory = await leaseDirectory(t);
   const owner = await acquireInteractiveSessionLease({ directory });

@@ -8,6 +8,7 @@ import type {
 } from "@surfaceloom/reporter";
 
 import type { CaseContext, ExecuteCaseOptions } from "./contracts.js";
+import type { ExecutionGuiGate } from "./execution-gate.js";
 import type { EvidenceCompleteness } from "./evidence/content.js";
 import type { RequiredEvidenceRequirement } from "./evidence/required-policy.js";
 import type {
@@ -78,6 +79,8 @@ export interface RunCaseV3Options {
   readonly surfaces: readonly RunnerSurfaceV3[];
   readonly requiredEvidence?: readonly RequiredEvidenceRequirement[];
   readonly evidencePolicy?: Partial<EvidencePolicy>;
+  /** Held until surface/host/fixture cleanup is confirmed and runner publication finishes. */
+  readonly executionGate?: ExecutionGuiGate;
   /** Runner-owned plan/environment/policy; Case authors never receive these controls. */
   readonly execution: Omit<ExecuteCaseOptions, "platform">;
   readonly stagingDirectory: string;

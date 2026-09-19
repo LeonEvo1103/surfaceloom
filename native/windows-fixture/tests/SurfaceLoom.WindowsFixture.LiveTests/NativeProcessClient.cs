@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace SurfaceLoom.WindowsFixture.LiveTests;
 
@@ -8,6 +10,7 @@ internal sealed class NativeProcessClient : IAsyncDisposable
 {
     private readonly Process process;
     private readonly Task<string> diagnostics;
+    private readonly CancellationTokenSource diagnosticsCancellation = new();
     private int requestCounter;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -18,7 +21,7 @@ internal sealed class NativeProcessClient : IAsyncDisposable
     private NativeProcessClient(Process process)
     {
         this.process = process;
-        diagnostics = process.StandardError.ReadToEndAsync();
+        diagnostics = ReadBoundedDiagnostics(process.StandardError, diagnosticsCancellation.Token);
     }
 
     public static NativeProcessClient Start(string hostExecutable)
@@ -110,14 +113,37 @@ internal sealed class NativeProcessClient : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        process.StandardInput.Close();
-        if (!process.WaitForExit(3_000))
+        try
         {
-            process.Kill(entireProcessTree: true);
-            process.WaitForExit(3_000);
+            process.StandardInput.Close();
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            string stderr;
+            try
+            {
+                stderr = await diagnostics.WaitAsync(TimeSpan.FromSeconds(1));
+            }
+            catch (TimeoutException exception)
+            {
+                throw new InvalidOperationException(
+                    "Native host exited but inherited stderr remained open; cleanup is unconfirmed.", exception);
+            }
+            if (process.ExitCode != 0)
+            {
+                throw new InvalidOperationException(
+                    $"Native host exited with code {process.ExitCode}; cleanup is unconfirmed. {Safe(stderr)}");
+            }
         }
-        await diagnostics;
-        process.Dispose();
+        catch (TimeoutException exception)
+        {
+            throw new InvalidOperationException(
+                "Native host did not exit after stdin closed; cleanup is unconfirmed.", exception);
+        }
+        finally
+        {
+            diagnosticsCancellation.Cancel();
+            diagnosticsCancellation.Dispose();
+            process.Dispose();
+        }
     }
 
     private async Task<string> Diagnostics()
@@ -126,6 +152,45 @@ internal sealed class NativeProcessClient : IAsyncDisposable
         {
             return "Host is still running.";
         }
-        return (await diagnostics).Trim();
+        try
+        {
+            return Safe(await diagnostics.WaitAsync(TimeSpan.FromMilliseconds(250)));
+        }
+        catch (TimeoutException)
+        {
+            return "Host exited but its bounded diagnostics pipe has not closed.";
+        }
+    }
+
+    private static async Task<string> ReadBoundedDiagnostics(
+        StreamReader reader,
+        CancellationToken cancellationToken)
+    {
+        const int limit = 8192;
+        var result = new StringBuilder(limit);
+        var buffer = new char[1024];
+        try
+        {
+            while (true)
+            {
+                var count = await reader.ReadAsync(buffer.AsMemory(), cancellationToken);
+                if (count == 0) return result.ToString();
+                result.Append(buffer, 0, count);
+                if (result.Length > limit) result.Remove(0, result.Length - limit);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return result.ToString();
+        }
+    }
+
+    private static string Safe(string value)
+    {
+        var bounded = value.Trim();
+        if (bounded.Length > 1024) bounded = bounded[^1024..];
+        bounded = Regex.Replace(bounded, @"(?i)(token|secret|password)\s*[=:]\s*\S+", "$1=<redacted>");
+        bounded = Regex.Replace(bounded, @"(?:[A-Za-z]:\\|/)[^\r\n""']+", "<path>");
+        return bounded.Length == 0 ? "No native-host stderr." : bounded;
     }
 }

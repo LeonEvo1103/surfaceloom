@@ -49,7 +49,11 @@ test("v3 runner drives the real Windows adapter over a scripted child wire host"
     process: { executable: process.execPath, cwd: path.dirname(fixture), argv: [fixture, "ok"],
       closeGraceMs: 20, forceCloseMs: 500 }, environmentCapabilities: ["app.launch", "ui.inspect"],
     targets: { "fixture-app": { kind: "launch", options: { executablePath: target } } } });
+  let gateReleases = 0;
   const options: RunCaseV3Options = { platform: "windows", runnerHostId: "runner-host",
+    executionGate: { id: "windows-scripted-execution-gate", release: async () => {
+      gateReleases += 1; return { status: "released" };
+    }, quarantine: () => { throw new Error("Passing scripted execution must not quarantine."); } },
     run: { id: "windows-v3-run", title: "Windows v3 scripted binding", app: {
       id: "fixture-app", name: "Fixture App",
     }, hosts: [{ id: "runner-host", os: "windows" }, { id: "windows-scripted", os: "windows" }] },
@@ -70,6 +74,7 @@ test("v3 runner drives the real Windows adapter over a scripted child wire host"
   const attempt = result.bundle.report.tests[0]?.attempts;
   assert.equal(attempt?.state, "known");
   assert.equal(result.bundle.report.run.surfaces.state, "known");
+  assert.equal(gateReleases, 1, "native host cleanup must finish before the execution gate is released");
 });
 
 for (const mode of ["bad-end-proof", "inherited-stdio"] as const) {
