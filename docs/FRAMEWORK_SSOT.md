@@ -192,7 +192,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P2-050` | done | `SL-P2-020`,`SL-P2-030`,`SL-P2-040` | Windows live tests/scripts/workflow | 真实 conformance，记录 OS/host/revision/Case 数，禁止全 skip |
 | `SL-P2-060` | done | `SL-P2-010`,`SL-P2-030` | native schema/client/vectors 与跨语言 contract tests | 冻结重复 JSON key、UTF-8/EOF/frame limit、close failure、迟到 response/launch responsibility 与 cleanup receipt；TS/C# 严格对齐，Swift codec 在 `SL-P3-010` 接入同一 vectors 后补第三语言证据 |
 | `SL-P2-070` | done | `SL-P2-060` | native Node process transport/tests | 真实子进程、`shell:false`、fatal UTF-8、LF/CRLF/完整 EOF 尾帧；bounded write admission/stderr retention；未 admission 请求不迟到发送；actual process exit 与 stdio close 分证据；跨平台 child 对抗测试；write/kill resolve 不冒充 operation/exit receipt |
-| `SL-P2-080` | review | `SL-P1-052` | test package interactive-session lease 与跨进程 tests | contention、取消等待、owner crash、陈旧锁/PID reuse、不能释放他人 lease；native live 和 mixed GUI 在同一 interactive session 内串行 |
+| `SL-P2-080` | review | `SL-P1-052` | test package execution-wide Windows GUI gate、quarantine/recovery 与跨进程 tests | contention、取消等待、owner crash、陈旧锁/PID reuse、不能释放他人 lease；runner/native live 在 cleanup 与 publication 完成前持有同一 interactive-session gate，mixed GUI 复用该 gate |
 
 ### P3：macOS 与 multi-surface
 
@@ -342,3 +342,4 @@ contract-tested、live-fixture-tested 或 target-app-tested；没有 live 证据
 | 2026-09-18 | `SL-P3-031` 经 5.6 Sol High 实现、GPT-6 Xhigh 三轮 deadline/ownership/cleanup 反例审计和主 Agent 整仓回归后关闭：公开 `@surfaceloom/native/windows` 与 `/windows/v3`，基础 client 不依赖 test，v3 以 optional peer 接入现有 Case kernel；脚本 host 已覆盖 codec、typed session、late acquisition、unknown/no-retry 和清理闭环，真实 Node→Windows host→WPF/UIA 仍由 `SL-P3-060` 验收。 |
 | 2026-09-19 | `SL-P3-087` 经 5.6 Sol High 实现、GPT-6 Xhigh 两轮提交/deadline/settle 反例审计和主 Agent 整仓回归后关闭：reference-agent 的 append-note executor 支持确定性 checkpoint、同步提交边界、合作 stop/emergency 与有界 settle；提交前、提交后未决、effect 已发生分别保留 `notExecuted/unknown/executed`，绝对 deadline 已过但 timer 未投递也不能迟到提交；M1 showcase 继续保持 2 绿 2 红/exit 1。 |
 | 2026-09-19 | `SL-P3-088` 经 5.6 Sol High 实现、GPT-6 Xhigh 两轮故障/报告/cleanup 对抗审计和主 Agent 整仓回归后关闭：新增独立 8 Case 真实 Playwright v3 故障矩阵，固定 2 绿 6 红；跨 callId 重复由独立资源 probe 抓住，missing/truncated/open ledger 不满足完整性，stop 三态和 cleanup unconfirmed 保守判定。M1 与矩阵共用一份 browser plan/policy，预期红额外注入 browser close 故障时验收会拒绝，不能吞掉基础设施失败。 |
+| 2026-09-19 | `SL-P2-080` 的 execution-wide Windows GUI gate 已在 `af9979c` 合入本地 `main`，并通过 GPT-6 Xhigh 的 stale proof、ABA retirement、提前 contender 与 inherited-pipe 生命周期复审；本地 TypeScript/Swift/架构门禁通过。相同 clean revision 在 Windows 11 复验时，独立 WPF/UIA 继续 5/5、0 skip 且 cleanup 后无残留进程，但默认账户的两个真实 file-symlink storage Case 均以 `EPERM` 失败，因此一键 gate evidence 未生成，任务继续保持 review；未修改 Developer Mode、UAC 或账户权限，也未以 junction 替代。 |
