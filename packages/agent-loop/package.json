@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "license": "MIT",
   "private": true,
+  "keywords": [
+    "ai-agents",
+    "agent-observability",
+    "agent-traces",
+    "trace-visualization",
+    "typescript"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/LeonEvo1103/surfaceloom.git",

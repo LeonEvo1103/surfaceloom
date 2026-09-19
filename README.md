@@ -2,9 +2,12 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-SurfaceLoom is an experimental Agent behavior verification and test
-orchestration framework. It gives Agent runs, approval decisions, tool calls,
-effects, UI observations, cleanup receipts, and test evidence one Case model.
+**AI agent application testing across browser and native desktop surfaces.**
+
+SurfaceLoom is an open-source, experimental testing framework for AI agent
+applications. It brings Agent runs, approval decisions, tool calls, side
+effects, browser and desktop UI observations, cleanup receipts, and test
+evidence into one Case model.
 
 The application under test may use AppKit, SwiftUI, WPF, WinUI, Win32,
 Electron, Tauri, or another toolkit, as long as it exposes reliable
@@ -32,6 +35,25 @@ protocol/fake behavior tests; **live-fixture-tested** means a real backend
 operated a repository-owned neutral UI; and **target-app-tested** requires
 recorded execution against a real product adapter. This repository currently
 has no target-app-tested claim.
+
+## Typical use cases
+
+SurfaceLoom is designed for developers and test engineers building agentic
+applications, desktop copilots, and tool-using AI systems. It is useful when a
+test must prove more than a plausible final answer:
+
+- an approval denial produces zero tool executions and zero external effects;
+- an approved tool call executes exactly once;
+- an emergency stop cancels owned work and produces verifiable cleanup;
+- a browser interaction and a native desktop observation belong to the same
+  end-to-end Case;
+- an Agent trace, effect ledger, UI state, and retained evidence agree before a
+  run is allowed to pass.
+
+This makes SurfaceLoom an orchestration and verification layer for Agent
+testing, desktop automation, UI automation, Playwright, macOS Accessibility,
+Windows UI Automation, and trace adapters. It is not an LLM answer scorer or a
+replacement for those platform engines.
 
 ## What SurfaceLoom solves
 
