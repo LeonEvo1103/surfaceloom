@@ -78,7 +78,10 @@ test("v3 runner drives the real Windows adapter over a scripted child wire host"
 });
 
 for (const mode of ["bad-end-proof", "inherited-stdio"] as const) {
-  test(`${mode} cleanup failure forces an honest red v3 verdict`, async (t) => {
+  test(`${mode} cleanup failure forces an honest red v3 verdict`, {
+    skip: mode === "inherited-stdio" && process.platform === "win32"
+      ? "Windows does not retain inherited pipe ownership after the child exits." : false,
+  }, async (t) => {
     const root = await mkdtemp(path.join(os.tmpdir(), `surfaceloom-windows-v3-${mode}-`));
     t.after(() => rm(root, { recursive: true, force: true }));
     const { definition, options } = cleanupFailureFixture(root, mode);
