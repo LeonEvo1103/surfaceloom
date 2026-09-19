@@ -48,12 +48,10 @@ Agent run、tool lifecycle、实际资源 effect、证据完整性和 cleanup �
 
 ### 2.2 尚未交付
 
-- reference-agent 仍从仓库相对路径导入内部 `dist`，使用低层 `assertObservation`，没有展示公开的
-  Agent assertion facade，也没有由一条外部作者命令生成最终 Reporter v3 bundle。
-- Playwright 的现有 `BrowserSession` 尚未实现 v3 `BrowserSurfaceBackendPort` 的完整提交、deadline、
-  identity 和 cleanup receipt 语义；`runCaseV3` 存在不等于真实 Playwright v3 Case 已贯通。
 - Windows 5/5 live 经 C# client，不证明 TypeScript→host→UIA；macOS host contract 不证明 TCC 下的
   TypeScript→host→AX live。
+- M1 已有真实 Playwright v3 四 Case bundle，reference-agent 也已具备确定性异步/stop 三态；但完整的
+  故障 CaseSpec/Reporter 矩阵、native effect 与 browser+native mixed-surface Case 尚未交付。
 - 没有仓库外 packed consumer，没有第二个公开消费者，也没有 npm alpha 发布证据。
 
 ### 2.3 第三方复用的真实状态
@@ -218,7 +216,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P3-080` | done | `SL-P3-025`,`SL-P3-075` | browser/native surface fixture factories 与 author facade | 可选 backend 显式注入，不让 core/test 强依赖 Playwright/native；旧 `defineCase` 签名继续通过 |
 | `SL-P3-085` | done | `SL-P1-030`,`SL-P1-060` | Agent observation provider/assertion wrappers 与 tests | 薄封装现有 observation assertion；run/call/resource/completeness 明确；“无外部 effect”只对有完成 barrier 的声明 external resource 成立 |
 | `SL-P3-086` | planned | `SL-P3-087`,`SL-P3-088`,`SL-P3-089` | async/stop/native-effect 聚合门槛 | 本轮不直接排期；异步 executor、故障矩阵、native effect 分别由 `SL-P3-087/088/089` 交付，三项完成后再关闭本聚合任务 |
-| `SL-P3-087` | planned | `SL-P3-092` | reference-agent engine/ledger/server 与 unit tests | 同步 executor 扩为确定性可暂停、恢复、取消、settle；有显式提交点和完成 barrier；保留 runId/callId，纯异步语义不等待 native binding |
+| `SL-P3-087` | done | `SL-P3-092` | reference-agent engine/ledger/server 与 unit tests | 同步 executor 扩为确定性可暂停、恢复、取消、settle；有显式提交点和完成 barrier；保留 runId/callId，纯异步语义不等待 native binding |
 | `SL-P3-088` | planned | `SL-P3-087`,`SL-P3-094` | 故障变体、CaseSpec、E2E/报告断言 | 固定覆盖拒绝却执行、跨 callId 重复业务 effect、账本缺失/截断、提交前停止、提交后 unknown、cleanup 未确认；同时核对业务 verdict 与证据，不只相信 fixture 自述 |
 | `SL-P3-089` | planned | `SL-P3-087`,`SL-P3-060` | native effect executor/probe 与 scoped integration tests | 一个受控 native 操作产生可观察 effect；关联 run/call/逻辑操作与真实 operation receipt；probe 读取实际 effect，停止与断线后保守报告不确定性 |
 | `SL-P3-090` | done | `SL-P3-075`,`SL-P3-080`,`SL-P3-085` | 作者/adapter 公开 export、reference 入口契约与 type tests | 补齐示例所需公开扩展点；消费者不 import `packages/*/src`、`dist` 或内部子路径；只复用现有 kernel/v3/Agent API，不建设第二套框架 |
@@ -240,9 +238,9 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 
 ## 9. 并行施工规则
 
-当前只允许 M1 的 `SL-P3-090/091/092/093/094` 优先进入施工；M2/M3 可做只读审计或隔离原型，
-不得为了“先接 backend”修改 M1 的公共作者 API。M1 任务依赖同一 reference-agent 闭环，默认按公开
-扩展点→Playwright port/provider→v3 CLI→真实报告顺序集成；只有测试/fixture 与互斥目录明确时才并行。
+M1 的 `SL-P3-090/091/092/093/094` 已完成。当前按依赖优先收口 M2：`SL-P3-088` 可进入施工，
+`SL-P3-089` 等待真实 Windows TS live 的 `SL-P3-060`；不得为了“先接 backend”改写已冻结的 M1
+作者 API。只有测试/fixture 与互斥目录明确时才并行，聚合门槛 `SL-P3-086` 不重复实现子任务。
 
 即使源码目录互斥，`core/dist`、package exports、locks、Reporter schema 和根 CI 仍共享。实现 Agent
 只运行 scoped typecheck/test；主集成人串行运行全量构建、架构守卫和 SSOT 校验。修改
@@ -311,6 +309,7 @@ contract-tested、live-fixture-tested 或 target-app-tested；没有 live 证据
 | `SL-P3-092` | `20a2ac9c42660253f6de08cdf0f4c782bf3f251b` | `examples/reference-agent/**`、`scripts/run-framework-p1-tests.sh`、CI lock cache | `./scripts/run-framework-p1-tests.sh` / 0 | macOS / Node 22 / Chrome | 15 reference unit tests + 4 required live browser E2E / 0 | `examples/reference-agent/test`、`examples/reference-agent/tests/e2e` | 证明受控浏览器 fixture 的 approval、exact call、完整 barrier 与 local probe；无真实模型、native surface 或外部 effect。 |
 | `SL-P3-093` | `20a2ac9c42660253f6de08cdf0f4c782bf3f251b` | `packages/test/src/project*`、`src/loader*`、`src/cli/**` 与 public type/CLI tests | `npm --prefix packages/test test && npm --prefix packages/test run typecheck && ./scripts/run-framework-p1-tests.sh` / 0 | macOS / Node 22 | 336 test package tests + hostile Promise/public v2 type regressions / 0 | `packages/test/tests/cli/v3-project.test.ts`、`packages/test/tests/fixtures/p3-093-v2-loader.type-fixture.ts` | 当前 v3 CLI 每次要求精确选择一个 Case；多 Case 编排、聚合 v3 bundle 与一键 M1 入口属于 `SL-P3-094`。跨 realm Promise、Promise subclass 与 Proxy 配置按 fail-closed 拒绝。 |
 | `SL-P3-094` | `38eee9ade11205694ae3db1d9a5e0b70ca8feb05` | `examples/reference-agent/showcase/**`、showcase unit/live E2E、README 与 package scripts | `npm --prefix examples/reference-agent test && npm --prefix examples/reference-agent run test:showcase:live && npm --prefix examples/reference-agent run test:e2e && ./scripts/run-framework-p1-tests.sh` / 0 | macOS / Node 22 / Chrome | 25 unit/contract tests + 1 dedicated live showcase + 5 full E2E / 0 | `examples/reference-agent/test/showcase-*.test.mjs`、`examples/reference-agent/tests/e2e/showcase.e2e.test.mjs` | 固定 M1 四 Case 串行 showcase，聚合本次同进程可信 `runCaseV3` 结果；业务矩阵诚实保持 2 绿 2 红/exit 1，基础设施或清理失败 exit 2 且不发布 final complete。无真实模型、native surface 或外部 effect；不把同信任域 Case 作者视为恶意输入。 |
+| `SL-P3-087` | `ff9e0fd089cb0702c6ed07376f46c645ee5463d9` | `examples/reference-agent/src/{checkpoints,executor,engine,server,page}.mjs`、browser adapter 状态兼容、README 与异步/页面竞态 tests | `npm --prefix examples/reference-agent test && npm --prefix examples/reference-agent run test:e2e && ./scripts/run-framework-p1-tests.sh && ./scripts/check-architecture.sh && node scripts/check-framework-ssot.mjs && git diff --check` / 0 | macOS arm64 / Node 22 / Chrome | 40 unit/contract tests + 5 required live E2E + GPT-6 17 组独立内存/HTTP 探针 / 0 | `examples/reference-agent/test/async-executor.test.mjs`、`test/page-race.test.mjs`、`tests/e2e/**` | 证明受控进程内 local effect 的确定性 checkpoint、提交边界、stop 三态、settle、ledger barrier、close 和 UI generation；`emergency` 仅合作取消，不证明线程/进程强停或回滚。完整故障报告矩阵、native effect、真实模型与 mixed-surface 仍属于 `SL-P3-088/089/070`。 |
 | `SL-P4-005` | `20a2ac9c42660253f6de08cdf0f4c782bf3f251b` | `scripts/release/package-graph.mjs`、`scripts/tests/release-contract/plan.test.mjs` | `node --test scripts/tests/release-contract/*.test.mjs && node scripts/run-repository-contract-tests.mjs` / 0 | macOS / Node 22 | 31 release contract tests + 99 repository contracts / 0 | `scripts/tests/release-contract/plan.test.mjs` | optional peer metadata 已进入严格快照、拓扑和版本门禁；仍不 build、sign、生成 SBOM、上传或发布。 |
 | `SL-P4-005` | `9a0171386834c5b906d3d6a424641e35697ed85c` | `docs/release/**`、`scripts/release/**`、`scripts/tests/release-contract/**` | `node --test scripts/tests/release-contract/*.test.mjs` + 全模块 `node --check` + schema parse + `git diff --check` / 0 | macOS / Node 22 | 29 adversarial contract tests / 0 | `scripts/tests/release-contract`、`docs/release` | 只交付 plan/final-manifest 与 fail-closed 验证器；不 build、sign、notarize、staple、生成 SBOM、上传或发布；外部上传 TOCTOU 仍需不可变 byte handle/上传点重验。 |
 
@@ -339,3 +338,4 @@ contract-tested、live-fixture-tested 或 target-app-tested；没有 live 证据
 | 2026-09-18 | `SL-P3-094` 经 5.6 Sol High 实现、GPT-6 Xhigh 复审和主 Agent 整仓回归后关闭：一条命令运行真实 Playwright v3 的固定 M1 四 Case 并聚合为单一 Reporter v3 bundle；2 绿 2 红保持业务 exit 1，teardown、cleanup、缺浏览器或发布故障为 infra exit 2 且无 final complete。按本地同信任域模型删除重复磁盘安全验证层，只保留运行身份、附件完整性、异步收尾和发布顺序等工程正确性。 |
 | 2026-09-18 | `SL-P0-060` 经 5.6 Sol High 修订、GPT-6 Xhigh 事实复审和主 Agent 静态门禁后关闭：公开 README 将 SurfaceLoom 定义为 Agent 行为验证与测试编排层，Playwright/native/trace 明确为 backend；能力矩阵同步 M1、macOS stdio host 与 Windows 59+5 证据，同时继续区分 declared、contract、live fixture、target app，并禁止把 host contract 或 C# live 扩大为统一 TS native live。 |
 | 2026-09-18 | `SL-P3-031` 经 5.6 Sol High 实现、GPT-6 Xhigh 三轮 deadline/ownership/cleanup 反例审计和主 Agent 整仓回归后关闭：公开 `@surfaceloom/native/windows` 与 `/windows/v3`，基础 client 不依赖 test，v3 以 optional peer 接入现有 Case kernel；脚本 host 已覆盖 codec、typed session、late acquisition、unknown/no-retry 和清理闭环，真实 Node→Windows host→WPF/UIA 仍由 `SL-P3-060` 验收。 |
+| 2026-09-19 | `SL-P3-087` 经 5.6 Sol High 实现、GPT-6 Xhigh 两轮提交/deadline/settle 反例审计和主 Agent 整仓回归后关闭：reference-agent 的 append-note executor 支持确定性 checkpoint、同步提交边界、合作 stop/emergency 与有界 settle；提交前、提交后未决、effect 已发生分别保留 `notExecuted/unknown/executed`，绝对 deadline 已过但 timer 未投递也不能迟到提交；M1 showcase 继续保持 2 绿 2 红/exit 1。 |
