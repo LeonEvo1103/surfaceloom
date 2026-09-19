@@ -45,22 +45,32 @@ export async function publishGateState(directory: string, name: string,
 
 export async function readGateState(directory: string, name: string): Promise<WindowsGuiGateState | null> {
   const root = gateStatePath(directory, name);
-  const rootInfo = await stateDirectoryInfo(root);
-  if (rootInfo === null) return null;
-  const entries = await readdir(root);
-  const active = entries.filter((entry) => ACTIVE.test(entry));
-  if (entries.some((entry) => !ACTIVE.test(entry) && !PENDING.test(entry) && !RETIRED.test(entry))) {
-    throw new Error("Windows GUI gate quarantine directory contains an invalid entry.");
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const rootInfo = await stateDirectoryInfo(root);
+    if (rootInfo === null) return null;
+    const entries = await readdir(root);
+    const active = entries.filter((entry) => ACTIVE.test(entry));
+    if (entries.some((entry) => !ACTIVE.test(entry) && !PENDING.test(entry) && !RETIRED.test(entry))) {
+      throw new Error("Windows GUI gate quarantine directory contains an invalid entry.");
+    }
+    if (active.length > 1) throw new Error("Windows GUI gate has multiple active quarantine generations.");
+    if (active.length === 0) return null;
+    const match = ACTIVE.exec(active[0]!);
+    if (match === null) throw new Error("Windows GUI gate quarantine filename is invalid.");
+    let state: WindowsGuiGateState;
+    try { state = await readStateFile(path.join(root, active[0]!), root, rootInfo); }
+    catch (error) {
+      // A valid release retires the active generation with an atomic rename. If
+      // that happens after readdir, retry the complete identity-checked read.
+      if (errorCode(error) === "ENOENT") continue;
+      throw error;
+    }
+    if (state.leaseToken !== match[1]) {
+      throw new Error("Windows GUI gate quarantine filename does not match its generation.");
+    }
+    return state;
   }
-  if (active.length > 1) throw new Error("Windows GUI gate has multiple active quarantine generations.");
-  if (active.length === 0) return null;
-  const match = ACTIVE.exec(active[0]!);
-  if (match === null) throw new Error("Windows GUI gate quarantine filename is invalid.");
-  const state = await readStateFile(path.join(root, active[0]!), root, rootInfo);
-  if (state.leaseToken !== match[1]) {
-    throw new Error("Windows GUI gate quarantine filename does not match its generation.");
-  }
-  return state;
+  throw new Error("Windows GUI gate quarantine generation changed repeatedly while reading.");
 }
 
 export async function retireGateState(directory: string, name: string, state: WindowsGuiGateState,
