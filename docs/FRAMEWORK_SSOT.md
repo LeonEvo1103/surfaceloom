@@ -2,7 +2,7 @@
 
 > 状态：Active
 >
-> 当前代码基线：`9482192c29449597d0ec32af4e4713795779a8e8`
+> 当前代码基线：`d4eba3f0c5a7eba6eb98cd3254ee44aefa42d7c8`
 >
 > 重新审计日期：2026-09-20
 >
@@ -226,8 +226,8 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P0-040` | done | `SL-P0-010` | `docs/framework/capabilities.md`、README 事实段 | 同步 Windows C# live、TS transport-neutral、macOS fixture build-only 与 P3/P4 边界；事实矩阵和 SSOT 不互相矛盾 |
 | `SL-P0-050` | done | `SL-P0-040` | `docs/FRAMEWORK_SSOT.md` | 将路线收紧为 Agent 验证闭环优先，保留历史 done 证据；账本校验、架构检查和 GPT-6 反向审查通过后，由集成人关闭 |
 | `SL-P0-060` | done | `SL-P0-050`,`SL-P3-094` | README、`docs/framework/capabilities.md`、相关入口文档 | 按 M1 实际证据同步对外事实；修正“无 macOS stdio host”等过时措辞，同时继续区分 host contract、TS binding 和 live AX/UIA |
-| `SL-P0-070` | review | `SL-P0-060` | SSOT、AGENTS 与公开/私有仓边界说明 | 固化 open-source-first 的 service/Planner/Judge 分工、A1–A4 门槛和 P5/P6 原子任务；保留历史任务与证据；共识审查、独立反向审查、架构和 diff 门禁通过 |
-| `SL-P0-071` | review | `SL-P0-020` | SSOT validator 与 tests | 校验器识别 P5/P6 及后续数字阶段，拒绝格式错误的任务 ID/依赖；继续检查重复、未知依赖、环、状态和 done 证据 |
+| `SL-P0-070` | done | `SL-P0-060` | SSOT、AGENTS 与公开/私有仓边界说明 | 固化 open-source-first 的 service/Planner/Judge 分工、A1–A4 门槛和 P5/P6 原子任务；保留历史任务与证据；共识审查、独立反向审查、架构和 diff 门禁通过 |
+| `SL-P0-071` | done | `SL-P0-020` | SSOT validator 与 tests | 校验器识别 P5/P6 及后续数字阶段，拒绝格式错误的任务 ID/依赖；继续检查重复、未知依赖、环、状态和 done 证据 |
 
 ### P1：首个可信 Agent Case
 
@@ -308,7 +308,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
-| `SL-P5-010` | planned | `SL-P0-070`,`SL-P0-071` | 新 `packages/service` contracts/catalog/tests | 定义带稳定 service `testId` 的 TestDefinition、WorkspaceProvider、Executor、RunResult、artifact 与 cancel 合同；TestDefinition 显式列 0..n 个 CaseSpec 引用、覆盖/排除、参数、runtime/effect；四类 ID 与执行状态/业务 outcome 分离 |
+| `SL-P5-010` | ready | `SL-P0-070`,`SL-P0-071` | 新 `packages/service` contracts/catalog/tests | 定义带稳定 service `testId` 的 TestDefinition、WorkspaceProvider、Executor、RunResult、artifact 与 cancel 合同；TestDefinition 显式列 0..n 个 CaseSpec 引用、覆盖/排除、参数、runtime/effect；四类 ID 与执行状态/业务 outcome 分离 |
 | `SL-P5-020` | planned | `SL-P5-010` | service workspace provider/tests | 本地不可变 snapshot provider 返回 resolved revision、runtime/AUT metadata；失败不回退当前工作树；准备操作以 `operationId` 追踪；active/unconfirmed run 的 snapshot 不复用 |
 | `SL-P5-030` | planned | `SL-P5-010` | service command executor/tests | `shell:false` argv、cwd/env allowlist、有界 stdout/stderr、deadline/cancel、进程身份与 cleanup；未知/基础设施退出不得伪装产品失败，cleanup 永不确认时有界结束为 `unconfirmed/tainted` |
 | `SL-P5-040` | planned | `SL-P5-020`,`SL-P5-030` | service run store/artifact store/tests | dispatch 前持久化 `runId` 及 snapshot/`testId`/参数/可选 `taskId`，按调用方 `requestId` 幂等；响应丢失重试返回原 run；断线可重读；重启后恢复 owned process 或隔离为 interrupted+tainted，未确认 cleanup 不释放 workspace；cancel 有界终态化 |
@@ -320,10 +320,10 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
-| `SL-P6-010` | planned | `SL-P0-070`,`SL-P0-071` | 新 `packages/llm-judge` contracts/fake/tests | 定义 rubric、允许标签、有界 multimodal evidence、当前 run evidence refs、observed facts/hypotheses、structured result、`insufficient` 与 provider failure；Fake provider 可重复，provider SDK 为可选依赖 |
+| `SL-P6-010` | ready | `SL-P0-070`,`SL-P0-071` | 新 `packages/llm-judge` contracts/fake/tests | 定义 rubric、允许标签、有界 multimodal evidence、当前 run evidence refs、observed facts/hypotheses、structured result、`insufficient` 与 provider failure；Fake provider 可重复，provider SDK 为可选依赖 |
 | `SL-P6-020` | planned | `SL-P6-010` | llm-judge provider adapter/tests | 基于成熟 SDK 的结构化输出、AbortSignal、deadline、401/429/5xx、token/latency metadata；未知标签 fail closed；真实 API 只做显式 smoke |
 | `SL-P6-030` | planned | `SL-P6-010`,`SL-P3-055` | test/reporter Judge integration/tests | Case 显式声明 Judge criterion，结果进入 Reporter v3 evidence/correlation；确定性失败、insufficient 或 provider failure 不能被模型改绿，不创建 Reporter v4 |
-| `SL-P6-040` | planned | `SL-P0-070` | 新 `examples/login-testing` fixture/tests | 中性本地登录应用与邮箱：两个入口、全新/旧账号、测试模式验证码、可开关误分流故障、稳定 run/attempt identity；账号/邮箱/验证码按 attempt 隔离并可重置，连续两次与故障恢复后结果一致；不接真实模型/邮箱/公司页面 |
+| `SL-P6-040` | ready | `SL-P0-070` | 新 `examples/login-testing` fixture/tests | 中性本地登录应用与邮箱：两个入口、全新/旧账号、测试模式验证码、可开关误分流故障、稳定 run/attempt identity；账号/邮箱/验证码按 attempt 隔离并可重置，连续两次与故障恢复后结果一致；不接真实模型/邮箱/公司页面 |
 | `SL-P6-050` | planned | `SL-P5-050`,`SL-P5-060`,`SL-P6-020`,`SL-P6-030`,`SL-P6-040` | login Playwright Cases、MCP showcase、Reporter assertions | 真实 Playwright 覆盖正常/误分流/邮件缺失/Judge insufficient/API failure；Fake 默认、real opt-in；一条命令通过 MCP 生成可解释报告 |
 | `SL-P6-060` | planned | `SL-P5-050`,`SL-P5-070` | `packages/service/src/planner/{contracts,tools}/**` 与 tests | Planner 只能 catalog/read/write patch/run/diff；外部 requirement/acceptance 为只读保护对象，CaseSpec 预期变化必须单独提出并经外部确认；patch 后冻结 revision并调用同一 service，返回 diff 与 `runId`；禁止 commit/push/merge |
 | `SL-P6-070` | planned | `SL-P6-060` | `packages/service/src/planner/codex/**` 与 tests | 可配置 binary/version/model，限隔离工作区、预算、取消和工具白名单；fixture contract 必需，真实 Codex 只做显式 smoke |
@@ -373,6 +373,8 @@ contract-tested、live-fixture-tested 或 target-app-tested；没有 live 证据
 | `SL-P0-040` | `c9a235e2eaef8b379c0fd7748deea14e2cc73360` | `README.md`、`docs/framework/capabilities.md` | `node scripts/check-framework-ssot.mjs && ./scripts/check-architecture.sh && git diff --check` / 0 | macOS | 2 document/architecture checks / 0 | `README.md`、`docs/framework/capabilities.md` | 明确 Windows 5/5 live 经 C# client、macOS `.app` 只到 artifact contract、TS native 仍无 process transport/live；未提升任何未验能力。 |
 | `SL-P0-050` | `91df92f206ffac6ac295f1b1874ac1f2aa527a15` | `docs/FRAMEWORK_SSOT.md` | `node scripts/check-framework-ssot.mjs && node --test scripts/tests/framework-ssot.test.mjs && ./scripts/check-architecture.sh && git diff --check` / 0 | macOS / Node 22 | 58-task ledger + 2 validator tests + architecture / 0 | `docs/FRAMEWORK_SSOT.md`、`scripts/tests/framework-ssot.test.mjs` | 只收紧产品边界、里程碑和原子依赖；未把 M1–M3 规划写成已交付能力。 |
 | `SL-P0-060` | `3534a731cc12fc7a96d9a6d11d1beae0c9f013b6` | `README.md`、`docs/framework/capabilities.md` | 本地 Markdown 链接检查 + `./scripts/check-architecture.sh && node scripts/check-framework-ssot.mjs && git diff --check` / 0 | macOS / Node 22 | 152 local links + architecture + 58-task ledger / 0 | `README.md`、`docs/framework/capabilities.md` | M1、macOS stdio host 和 Windows C#→UIA live 事实已同步；仍无 TS→native live、macOS TCC/AX live、target-app 证据或通用 multi-Case v3 CLI，sharding/watch 保持冻结。 |
+| `SL-P0-070` | `d4eba3f0c5a7eba6eb98cd3254ee44aefa42d7c8` | `docs/FRAMEWORK_SSOT.md`、`AGENTS.md` | `node scripts/check-framework-ssot.mjs && node --test scripts/tests/framework-ssot.test.mjs && node --test scripts/tests/release-contract/*.test.mjs && ./scripts/check-architecture.sh && git diff --check` / 0 | macOS / Node 22 | 79-task ledger + 4 validator + 31 release contract + architecture / 0 | `docs/FRAMEWORK_SSOT.md`、`AGENTS.md` | 只冻结 service/Planner/Judge/open-source-first 路线与验收合同；不代表 P5/P6 实现、MCP、模型调用或登录示例已经交付。 |
+| `SL-P0-071` | `d4eba3f0c5a7eba6eb98cd3254ee44aefa42d7c8` | `scripts/lib/framework-ssot.mjs`、`scripts/tests/framework-ssot.test.mjs` | `node --test scripts/tests/framework-ssot.test.mjs && node scripts/check-framework-ssot.mjs` / 0 | macOS / Node 22 | 4 tests + 79-task ledger / 0 | `scripts/tests/framework-ssot.test.mjs` | 识别任意数字 phase 并拒绝畸形/裸/残缺依赖与任务 ID；只验证账本结构，不调度任务，也不机器判断证据真实性或依赖是否适合开工。 |
 | `SL-P1-020` | `cbd21b9d43e681e924015cda20095583f31f478e` | `examples/reference-agent/**` | `npm ci --ignore-scripts && npm test && git diff --check` / 0 | macOS / Node 22 | 11 tests / 0 | `examples/reference-agent/test` | 内存 effect；无真实 browser/model/外部服务；ledger 不对任意伪造快照提供密码学认证。 |
 | `SL-P1-010` | `80f3302c09ab8967cc85a86e0abdbb4e55afc67f` | `packages/test/**` | `npm ci && npm run typecheck && npm test && npm pack --dry-run` / 0 | macOS / Node 22 | 24 tests / 0 | `packages/test/tests` | 无 CLI、deadline/强制取消、policy/effects、自动 observation 或真实 backend conformance；挂起的非合作 JavaScript 仍会等待。 |
 | `SL-P1-030` | `f72a0d21849dc256973faa92410fdf32b38d8214` | `packages/test/src/assertion*`、`observation*`、`errors.ts` 与对应 tests/exports | `npm run typecheck && npm test && npm pack --dry-run` / 0 | macOS / Node 22 | 32 scoped tests（77 package total）/ 0 | `packages/test/tests/assertion*.test.ts`、`observation.test.ts` | reader/provider 的真实重读与 completeness 是信任契约；无强制取消，挂起 reader 仍会等待。 |
@@ -442,3 +444,4 @@ contract-tested、live-fixture-tested 或 target-app-tested；没有 live 证据
 | 2026-09-19 | `SL-P3-088` 经 5.6 Sol High 实现、GPT-6 Xhigh 两轮故障/报告/cleanup 对抗审计和主 Agent 整仓回归后关闭：新增独立 8 Case 真实 Playwright v3 故障矩阵，固定 2 绿 6 红；跨 callId 重复由独立资源 probe 抓住，missing/truncated/open ledger 不满足完整性，stop 三态和 cleanup unconfirmed 保守判定。M1 与矩阵共用一份 browser plan/policy，预期红额外注入 browser close 故障时验收会拒绝，不能吞掉基础设施失败。 |
 | 2026-09-19 | `SL-P2-080` 的 execution-wide Windows GUI gate 已在 `af9979c` 合入本地 `main`，并通过 GPT-6 Xhigh 的 stale proof、ABA retirement、提前 contender 与 inherited-pipe 生命周期复审；本地 TypeScript/Swift/架构门禁通过。相同 clean revision 在 Windows 11 复验时，独立 WPF/UIA 继续 5/5、0 skip 且 cleanup 后无残留进程，但默认账户的两个真实 file-symlink storage Case 均以 `EPERM` 失败，因此一键 gate evidence 未生成，任务继续保持 review；未修改 Developer Mode、UAC 或账户权限，也未以 junction 替代。 |
 | 2026-09-20 | 主 Agent 与 GPT-6 Xhigh 就 Agent 调用、LLM Judge、Planner 和开源边界达成共识：采用 open-source-first，两项通用能力直接落在 `@surfaceloom/service` 与 `@surfaceloom/llm-judge`；公司仓只注入 Git/runtime/auth/deploy 与产品 adapter。外部 Agent 和本地 Planner 共用同一 MCP/service，Runner 保持唯一执行内核，Judge 只做显式语义判断。新增 A1–A4 与 P5/P6，历史 P0–P4 状态和证据不重写；独立反向审查尚未完成，首批实现任务保持 planned。 |
+| 2026-09-20 | 独立 GPT-6 Xhigh 反向审查先后阻断并推动修正四类运行时 ID、MCP 响应丢失/服务重启/cleanup 不确认窗口，以及 validator 对裸依赖、残缺反引号和缩进任务的静默漏检；最终复验无 P0/P1，给出 Go。关闭 `SL-P0-070/071`，开放 `SL-P5-010`、`SL-P6-010`、`SL-P6-040` 第一波施工；此结论只批准蓝图，不把规划写成能力。 |
