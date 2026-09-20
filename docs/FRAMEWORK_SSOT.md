@@ -2,9 +2,9 @@
 
 > 状态：Active
 >
-> 当前代码基线：`29eb24f8c7da704ed48eedad2bc786e671b48f09`
+> 当前代码基线：`14689246462809d5588b31e07e66e0e2972f4f05`
 >
-> 重新审计日期：2026-09-20
+> 重新审计日期：2026-09-21
 >
 > 当前里程碑：A1——外部 Agent 通过 MCP 以精确代码版本调用一个已存在的任务，获得可追踪的真实
 > 运行状态、结果和制品；不把 Planner、Runner 与 Judge 混成第二套执行内核。
@@ -64,9 +64,13 @@ effect、显式语义判断、证据完整性和 cleanup 组合为一个保守 v
   TypeScript→host→AX live。
 - native effect 与 browser+native mixed-surface Case 尚未交付；Windows 真实 GUI gate 仍有账户 symlink
   权限阻断，不能把部分 live 证据扩大为完整统一 native 路径。
-- 尚无通用 task service、MCP server、持久化 run lifecycle、LLM Judge 包、Planner adapter 或中性登录
-  showcase；当前 CLI 的 v3 分支仍要求精确选择一个 Case，不是通用 suite runner。
-- 没有仓库外 packed consumer，没有第二个公开消费者，也没有包含 service/Judge 的 npm alpha 发布证据。
+- service 已有 catalog、不可变本地 Git snapshot provider 与 registered-argv command executor，但尚无
+  持久化 run/artifact store、MCP server 或 Planner adapter；当前 CLI 的 v3 分支仍要求精确选择一个
+  Case，不是通用 suite runner。
+- LLM Judge 已接入 Case 与 Reporter v3 required evidence，但仍只有 Fake/provider contract，没有真实模型
+  adapter/API smoke；中性登录仍只是 fixture，尚无 Playwright+Judge+MCP showcase。
+- browser/native 已有仓库外 packed consumer，但没有包含 service/Judge 的端到端仓外 consumer、第二个
+  公开消费者或 npm alpha 发布证据。
 
 ### 2.3 第三方复用的真实状态
 
@@ -299,7 +303,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P4-020` | planned | `SL-P4-010` | clean packed-consumer project/script | 隐藏源码树，在仓库外用消费端自己的依赖安装候选；真实 Browser+Native Case 与 report/v3，不用 fake backend/仓库 tsc |
 | `SL-P4-030` | planned | `SL-P4-020` | 第二消费者 adapter example、conformance、release notes | 独立应用只通过公开扩展点增加 adapter/probe，复用 approval/duplicate/unknown/cleanup 契约；不得修改共享 core |
 | `SL-P4-025` | planned | `SL-P4-020`,`SL-P4-030` | registry staging/publish/post-install workflow | 验证 npm scope/身份/provenance；发布后安装精确版本，以 `npx --no-install sl-test <case/config>` 运行，不下载 latest |
-| `SL-P4-040` | planned | `SL-P0-070`,`SL-P4-005` | release graph/version contract | 版本化演进既有“恰好七包”v1 合同，增加 service/Judge/browser 子集 release profile；旧合同与证据原样保留，不能静默改快照 |
+| `SL-P4-040` | in_progress | `SL-P0-070`,`SL-P4-005` | release graph/version contract | 已保留“恰好七包”v1 schema、历史顺序和证据，并新增“恰好九包”v2；仍需增加 browser/service/Judge 可安装子集 profile，不能静默改旧快照 |
 | `SL-P4-050` | planned | `SL-P4-040`,`SL-P5-070`,`SL-P6-050` | 新包 manifests、exports、license/third-party notices、候选 tgz | browser/service/Judge 所需闭包无 `file:`，MIT 与第三方许可证完整，bin/assets/optional provider 清单与最终字节一致 |
 | `SL-P4-060` | planned | `SL-P4-050` | 仓库外 consumer 与验证脚本 | 独立临时目录只安装 `.tgz`，运行真实 Browser+service+Judge Case 并生成 Reporter v3；文档明确 Fake/real provider 差异 |
 | `SL-P4-070` | planned | `SL-P4-060` | registry staging/publish/post-install workflow | registry 发布与候选构建分离；发布后按精确版本安装并重跑，不用 tag/latest 或源码目录兜底 |
@@ -309,9 +313,9 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
 | `SL-P5-010` | done | `SL-P0-070`,`SL-P0-071` | 新 `packages/service` contracts/catalog/tests | 定义带稳定 service `testId` 的 TestDefinition、WorkspaceProvider、Executor、RunResult、artifact 与 cancel 合同；TestDefinition 显式列 0..n 个 CaseSpec 引用、覆盖/排除、参数、runtime/effect；四类 ID 与执行状态/业务 outcome 分离 |
-| `SL-P5-020` | in_progress | `SL-P5-010` | service workspace provider/tests | 本地不可变 snapshot provider 返回 resolved revision、runtime/AUT metadata；失败不回退当前工作树；准备操作以 `operationId` 追踪；active/unconfirmed run 的 snapshot 不复用 |
-| `SL-P5-030` | in_progress | `SL-P5-010` | service command executor/tests | `shell:false` argv、cwd/env allowlist、有界 stdout/stderr、deadline/cancel、进程身份与 cleanup；未知/基础设施退出不得伪装产品失败，cleanup 永不确认时有界结束为 `unconfirmed/tainted` |
-| `SL-P5-040` | planned | `SL-P5-020`,`SL-P5-030` | service run store/artifact store/tests | dispatch 前持久化 `runId` 及 snapshot/`testId`/参数/可选 `taskId`，按调用方 `requestId` 幂等；响应丢失重试返回原 run；断线可重读；重启后恢复 owned process 或隔离为 interrupted+tainted，未确认 cleanup 不释放 workspace；cancel 有界终态化 |
+| `SL-P5-020` | done | `SL-P5-010` | service workspace provider/tests | 本地不可变 snapshot provider 返回 resolved revision、runtime/AUT metadata；失败不回退当前工作树；准备操作以 `operationId` 追踪；active/unconfirmed run 的 snapshot 不复用 |
+| `SL-P5-030` | done | `SL-P5-010` | service command executor/tests | `shell:false` argv、cwd/env allowlist、有界 stdout/stderr、deadline/cancel、进程身份与 cleanup；未知/基础设施退出不得伪装产品失败，cleanup 永不确认时有界结束为 `unconfirmed/tainted` |
+| `SL-P5-040` | ready | `SL-P5-020`,`SL-P5-030` | service run store/artifact store/tests | dispatch 前持久化 `runId` 及 snapshot/`testId`/参数/可选 `taskId`，按调用方 `requestId` 幂等；响应丢失重试返回原 run；断线可重读；重启后恢复 owned process 或隔离为 interrupted+tainted，未确认 cleanup 不释放 workspace；cancel 有界终态化 |
 | `SL-P5-050` | planned | `SL-P5-040` | service MCP server/SDK adapter/tests | 使用正式 MCP SDK 暴露 prepare/status/catalog/run/get-result/get-artifact/cancel；结构化 schema、四类 ID、`requestId` 与 lifecycle 同 service，不拼 shell、不复制 runner；断开 MCP 不等于取消 |
 | `SL-P5-060` | planned | `SL-P5-040`,`SL-P3-094` | service SurfaceLoom v3 executor/tests | 通过公开 API 调用现有 v3 kernel，保留原 verdict、Reporter v3、deadline 与 cleanup；command 成功不能冒充其中所有 Case 通过 |
 | `SL-P5-070` | planned | `SL-P5-050`,`SL-P5-060` | 中性 provider/consumer conformance | 独立 consumer 执行 Node/CLI 与 v3 任务，验证 prepare→run→reconnect→artifact→cancel，并注入“已启动但响应丢失”、service crash+存活 child、cleanup 永不确认；不得重复执行或复用 tainted workspace；私有消费证据只作补充 |
@@ -322,7 +326,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | --- | --- | --- | --- | --- |
 | `SL-P6-010` | done | `SL-P0-070`,`SL-P0-071` | 新 `packages/llm-judge` contracts/fake/tests | 定义 rubric、允许标签、有界 multimodal evidence、当前 run evidence refs、observed facts/hypotheses、structured result、`insufficient` 与 provider failure；Fake provider 可重复，provider SDK 为可选依赖 |
 | `SL-P6-020` | ready | `SL-P6-010` | llm-judge provider adapter/tests | 基于成熟 SDK 的结构化输出、AbortSignal、deadline、401/429/5xx、token/latency metadata；未知标签 fail closed；真实 API 只做显式 smoke |
-| `SL-P6-030` | in_progress | `SL-P6-010`,`SL-P3-055` | test/reporter Judge integration/tests | Case 显式声明 Judge criterion，结果进入 Reporter v3 evidence/correlation；确定性失败、insufficient 或 provider failure 不能被模型改绿，不创建 Reporter v4 |
+| `SL-P6-030` | done | `SL-P6-010`,`SL-P3-055` | test/reporter Judge integration/tests | Case 显式声明 Judge criterion，结果进入 Reporter v3 evidence/correlation；确定性失败、insufficient 或 provider failure 不能被模型改绿，不创建 Reporter v4 |
 | `SL-P6-040` | done | `SL-P0-070` | 新 `examples/login-testing` fixture/tests | 中性本地登录应用与邮箱：两个入口、全新/旧账号、测试模式验证码、可开关误分流故障、稳定 run/attempt identity；账号/邮箱/验证码按 attempt 隔离并可重置，连续两次与故障恢复后结果一致；不接真实模型/邮箱/公司页面 |
 | `SL-P6-050` | planned | `SL-P5-050`,`SL-P5-060`,`SL-P6-020`,`SL-P6-030`,`SL-P6-040` | login Playwright Cases、MCP showcase、Reporter assertions | 真实 Playwright 覆盖正常/误分流/邮件缺失/Judge insufficient/API failure；Fake 默认、real opt-in；一条命令通过 MCP 生成可解释报告 |
 | `SL-P6-060` | planned | `SL-P5-050`,`SL-P5-070` | `packages/service/src/planner/{contracts,tools}/**` 与 tests | Planner 只能 catalog/read/write patch/run/diff；外部 requirement/acceptance 为只读保护对象，CaseSpec 预期变化必须单独提出并经外部确认；patch 后冻结 revision并调用同一 service，返回 diff 与 `runId`；禁止 commit/push/merge |
@@ -358,8 +362,9 @@ run/artifact store 与 MCP transport 扩展点；新 Judge 开放 provider adapt
 evaluator 暂不开放。
 
 npm 包、native wire protocol、report schema、trace schema 和 component behavior/manifest 分别版本化。
-当前 ReleasePlan/ReleaseManifest v1 合同固定恰好七个 npm 包；`SL-P4-040` 必须通过新版本/profile 显式
-演进，不能篡改旧快照或证据。consumer 可以只安装所需依赖闭包。平台支持必须标明 declared、
+ReleasePlan/ReleaseManifest v1 继续固定原七包及历史顺序；v2 显式固定当前九包和
+`test → llm-judge` 拓扑。`SL-P4-040` 仍需补充可安装子集 profile，不能篡改旧快照或证据。consumer
+可以只安装所需依赖闭包。平台支持必须标明 declared、
 contract-tested、live-fixture-tested 或 target-app-tested；没有 live 证据只能写 contract-tested。
 
 ## 11. 验收记录
@@ -378,6 +383,9 @@ contract-tested、live-fixture-tested 或 target-app-tested；没有 live 证据
 | `SL-P5-010` | `29eb24f8c7da704ed48eedad2bc786e671b48f09` | `packages/service/**`、TypeScript/框架测试与 CI 接线 | `npm --prefix packages/service test && npm --prefix packages/service run typecheck && npm --prefix packages/service pack --dry-run && ./scripts/run-framework-p1-tests.sh` / 0 | macOS / Node 22 / Chrome | 19 service tests + 全量框架门禁 / 0 required skip | `packages/service/tests`、`scripts/run-framework-p1-tests.sh` | 交付 service 身份、TestDefinition/catalog 和执行边界合同；没有真实 workspace、进程 executor、run store、artifact store 或 MCP。 |
 | `SL-P6-010` | `29eb24f8c7da704ed48eedad2bc786e671b48f09` | `packages/llm-judge/**`、TypeScript/框架测试与 CI 接线 | `npm --prefix packages/llm-judge test && npm --prefix packages/llm-judge run typecheck && npm --prefix packages/llm-judge pack --dry-run && ./scripts/run-framework-p1-tests.sh` / 0 | macOS / Node 22 / Chrome | 41 Judge tests + 全量框架门禁 / 0 required skip | `packages/llm-judge/tests`、`scripts/run-framework-p1-tests.sh` | 只有可重复 Fake 与 provider contract；没有真实模型 SDK、Reporter 接线或 API smoke，且不拥有确定性 verdict。 |
 | `SL-P6-040` | `29eb24f8c7da704ed48eedad2bc786e671b48f09` | `examples/login-testing/**`、框架测试与 CI 接线 | `npm --prefix examples/login-testing test && node --check examples/login-testing/src/*.mjs && ./scripts/run-framework-p1-tests.sh` / 0 | macOS / Node 22 / Chrome | 18 fixture tests + 全量框架门禁 / 0 required skip | `examples/login-testing/test`、`scripts/run-framework-p1-tests.sh` | 证明中性本地登录/邮箱状态机、attempt 隔离和故障恢复；没有 Playwright、Judge、MCP、Reporter 或真实外部资源。 |
+| `SL-P5-020` | `14689246462809d5588b31e07e66e0e2972f4f05` | `packages/service/src/workspaces/**`、`packages/service/tests/workspaces/**` | `npm --prefix packages/service test && npm --prefix packages/service run typecheck && ./scripts/run-framework-p1-tests.sh` / 0 | macOS / Node 22 / Chrome | 20 workspace tests（70 service total）+ 全量框架门禁 / 0 required skip | `packages/service/tests/workspaces`、`scripts/run-framework-p1-tests.sh` | 证明本地 Git snapshot、identity/lease、只读 executable bit、symlink/TOCTOU 与 UUID collision fail closed；只有本机 provider，没有 remote checkout 或持久化 run ownership。 |
+| `SL-P5-030` | `14689246462809d5588b31e07e66e0e2972f4f05` | `packages/service/src/executors/command/**`、`packages/service/tests/executors/command/**` | `npm --prefix packages/service test && npm --prefix packages/service run typecheck && ./scripts/run-framework-p1-tests.sh` / 0 | macOS / Node 22 / Chrome | 31 command tests（70 service total）+ 全量框架门禁 / 0 required skip | `packages/service/tests/executors/command`、`scripts/run-framework-p1-tests.sh` | registered argv、bounded output、deadline/cancel、tree/stdio cleanup 与 replay identity 已测；公开包尚无内建 OS process-tree controller，缺少 containment proof 时保守为 unconfirmed/tainted。 |
+| `SL-P6-030` | `14689246462809d5588b31e07e66e0e2972f4f05` | `packages/test/src/judge/**`、`packages/reporter/src/v3/judge/**` 及对应 tests | `npm --prefix packages/llm-judge test && npm --prefix packages/reporter test && npm --prefix packages/test test && ./scripts/run-framework-p1-tests.sh` / 0 | macOS / Node 22 / Chrome | 41 Judge contract + 60 Reporter + 365 test package + 7 live browser Cases / 0 required skip | `packages/test/tests/judge`、`packages/reporter/tests/v3/judge`、`scripts/run-framework-p1-tests.sh` | 当前 attempt evidence、image budget、required retention 和 Reporter v3 correlation 已接通；没有真实模型 provider/API smoke，Judge 不拥有确定性 verdict。 |
 | `SL-P1-020` | `cbd21b9d43e681e924015cda20095583f31f478e` | `examples/reference-agent/**` | `npm ci --ignore-scripts && npm test && git diff --check` / 0 | macOS / Node 22 | 11 tests / 0 | `examples/reference-agent/test` | 内存 effect；无真实 browser/model/外部服务；ledger 不对任意伪造快照提供密码学认证。 |
 | `SL-P1-010` | `80f3302c09ab8967cc85a86e0abdbb4e55afc67f` | `packages/test/**` | `npm ci && npm run typecheck && npm test && npm pack --dry-run` / 0 | macOS / Node 22 | 24 tests / 0 | `packages/test/tests` | 无 CLI、deadline/强制取消、policy/effects、自动 observation 或真实 backend conformance；挂起的非合作 JavaScript 仍会等待。 |
 | `SL-P1-030` | `f72a0d21849dc256973faa92410fdf32b38d8214` | `packages/test/src/assertion*`、`observation*`、`errors.ts` 与对应 tests/exports | `npm run typecheck && npm test && npm pack --dry-run` / 0 | macOS / Node 22 | 32 scoped tests（77 package total）/ 0 | `packages/test/tests/assertion*.test.ts`、`observation.test.ts` | reader/provider 的真实重读与 completeness 是信任契约；无强制取消，挂起 reader 仍会等待。 |
@@ -449,3 +457,4 @@ contract-tested、live-fixture-tested 或 target-app-tested；没有 live 证据
 | 2026-09-20 | 主 Agent 与 GPT-6 Xhigh 就 Agent 调用、LLM Judge、Planner 和开源边界达成共识：采用 open-source-first，两项通用能力直接落在 `@surfaceloom/service` 与 `@surfaceloom/llm-judge`；公司仓只注入 Git/runtime/auth/deploy 与产品 adapter。外部 Agent 和本地 Planner 共用同一 MCP/service，Runner 保持唯一执行内核，Judge 只做显式语义判断。新增 A1–A4 与 P5/P6，历史 P0–P4 状态和证据不重写；独立反向审查尚未完成，首批实现任务保持 planned。 |
 | 2026-09-20 | 独立 GPT-6 Xhigh 反向审查先后阻断并推动修正四类运行时 ID、MCP 响应丢失/服务重启/cleanup 不确认窗口，以及 validator 对裸依赖、残缺反引号和缩进任务的静默漏检；最终复验无 P0/P1，给出 Go。关闭 `SL-P0-070/071`，开放 `SL-P5-010`、`SL-P6-010`、`SL-P6-040` 第一波施工；此结论只批准蓝图，不把规划写成能力。 |
 | 2026-09-20 | 第一波由三路 5.6 Sol High 分别实现 service 合同、LLM Judge 合同和中性登录 fixture；GPT-6 Xhigh 多轮反向审查阻断并修复 catalog getter/Proxy、预算口径、deadline 同 tick、provider mutation/泄漏、验证码跨 attempt 重用和页面竞态等问题。主 Agent 完成九个 TypeScript 包、真实 Playwright showcase、架构与 SSOT 全量回归，关闭 `SL-P5-010`、`SL-P6-010`、`SL-P6-040`，开放 workspace、command executor、provider adapter 与 Judge integration 第二波。 |
+| 2026-09-21 | 第二波由三路 5.6 Sol High 实现本地 Git workspace、registered command executor 与 Judge→Reporter v3。GPT-6 Xhigh 终审以独立反例阻断并修复 destination symlink 写回源仓库、UUID collision 误删 active snapshot、spawn 后/迟到 spawn 清理、tree/stdio 顺序、argv 合法重复/空值、required evidence 与 release v1 兼容等问题；最终复验 Workspace 20/20、Command 31/31、Judge 12/12、Reporter 6/6、Release 37/37 并给出 Go。主 Agent 以 `1468924` 完成全框架 7 个真实 Playwright Case、18 个登录 fixture Case、架构与公开扫描，关闭 `SL-P5-020/030`、`SL-P6-030`，开放 `SL-P5-040`；release v2 九包已落地但可安装子集 profile 仍归 `SL-P4-040`。 |
