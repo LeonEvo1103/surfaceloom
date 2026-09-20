@@ -1,4 +1,5 @@
 export { importReportV2, importV2Report } from "./import-v2.js";
+export * from "./judge/index.js";
 export * from "./model.js";
 export { renderHTMLReportV3 } from "./render-html.js";
 export { renderAIReviewV3 } from "./render-markdown.js";

@@ -26,7 +26,10 @@ jobs:
             packages/agent-loop/package-lock.json
             packages/test/package-lock.json
             packages/native/package-lock.json
+            packages/service/package-lock.json
+            packages/llm-judge/package-lock.json
             examples/reference-agent/package-lock.json
+            examples/login-testing/package-lock.json
       - run: node ./scripts/check-license-contract.mjs
       - run: ./scripts/check-architecture.sh
       - run: ./scripts/run-framework-p1-tests.sh
@@ -61,7 +64,10 @@ jobs:
             packages/agent-loop/package-lock.json
             packages/test/package-lock.json
             packages/native/package-lock.json
+            packages/service/package-lock.json
+            packages/llm-judge/package-lock.json
             examples/reference-agent/package-lock.json
+            examples/login-testing/package-lock.json
       - run: dotnet build .\SurfaceLoom.WindowsHost.sln -c Release
       - run: dotnet run --project .\tests\SurfaceLoom.WindowsHost.ContractTests -c Release
       - name: Artifact release contracts

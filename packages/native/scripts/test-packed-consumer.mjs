@@ -37,10 +37,10 @@ try {
   `);
   execFileSync(process.execPath, ["consume.mjs"], { cwd: rootOnly, stdio: "inherit" });
 
-  for (const packageName of ["core", "reporter", "test"]) {
+  for (const packageName of ["core", "reporter", "llm-judge", "test"]) {
     npm(["run", "build"], path.join(repositoryRoot, "packages", packageName));
   }
-  const peer = ["core", "reporter", "test"].map((name) =>
+  const peer = ["core", "reporter", "llm-judge", "test"].map((name) =>
     pack(path.join(repositoryRoot, "packages", name)).path);
   const withPeer = path.join(temporary, "with-peer");
   mkdirSync(withPeer);

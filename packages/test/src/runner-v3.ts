@@ -14,7 +14,7 @@ import {
 } from "@surfaceloom/reporter";
 
 import type { CaseContext, CaseDefinition } from "./contracts.js";
-import { requireCaseV3 } from "./definition-v3.js";
+import { judgeCriteriaForCaseV3, requireCaseV3 } from "./definition-v3.js";
 import {
   EvidenceSubmissionCollector,
   RunnerExecutionAuthority,
@@ -24,6 +24,9 @@ import {
   type SurfaceCleanup,
 } from "./evidence/index.js";
 import { executeCaseWithRunnerContext } from "./execute.js";
+import { mergeJudgeResultV3, runJudgeCriteriaV3 } from "./judge/integration.js";
+import type { CaseImageEvidenceSubmissionV3 } from "./judge/contracts.js";
+import { ImageEvidenceCollectorV3, materializeImageEvidenceV3 } from "./judge/image-evidence.js";
 import { createCaseReportV3, createReportV3Attempt, createSurfaceCatalogV3 } from "./report/v3/adapter.js";
 import { materializeEvidenceV3 } from "./report/v3/materialize.js";
 import {
@@ -129,15 +132,20 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
   const scope = authority.issue({ caseExecutionId: executionId(definition.spec.id),
     attemptId: "attempt-1", ordinal: 1 });
   const evidence = new EvidenceSubmissionCollector(scope);
+  const imageEvidence = new ImageEvidenceCollectorV3(scope);
   const registry = new SurfaceAcquisitionRegistry(scope);
   const requiredPolicy = new RunnerRequiredEvidenceAuthority().issue(scope,
     options.requiredEvidence ?? []);
   const evidencePolicy = policy(options.evidencePolicy);
+  const judgeCriteria = judgeCriteriaForCaseV3(definition);
   const acquired: AcquiredSurface[] = [];
   const shell = definition as CaseDefinition;
+  let judgeExecution: { readonly signal: AbortSignal; readonly deadlineAt: number } | undefined;
   const execution = await executeCaseWithRunnerContext(shell, {
     ...options.execution, platform: options.platform,
   }, async (base, internals) => {
+    judgeExecution = Object.freeze({ signal: base.signal,
+      deadlineAt: Date.now() + Math.floor(Math.max(0, base.remainingMs())) });
     const setup = surfaceSetupContext(base, internals.cleanupBoundary.deadlineAt,
       evidenceSink(evidence, scope));
     for (const config of options.surfaces) {
@@ -154,7 +162,12 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
       gate.markGuiAcquisitionCompleted();
       acquired.push(captureAcquisition(config, author));
     }
-    await definition.run(authorContext(base, acquired, evidence, scope));
+    for (const criterion of judgeCriteria) {
+      await base.step({ id: judgePendingStepId(criterion.id),
+        title: `Pending Judge criterion: ${criterion.id}`,
+        criterionIds: [criterion.criterionId] }, () => undefined);
+    }
+    await definition.run(authorContext(base, acquired, evidence, imageEvidence, scope));
   });
   gate.observeExecution(execution);
   if (!execution.publicationReady) {
@@ -168,26 +181,52 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
   }
   let surfaces: ReturnType<SurfaceAcquisitionRegistry["seal"]>;
   let evidenceSnapshot: ReturnType<EvidenceSubmissionCollector["seal"]>;
+  let imageSnapshot: ReturnType<ImageEvidenceCollectorV3["seal"]>;
   try {
     submitSurfaceAcquisitions(registry, scope, acquired, execution.cleanup.status === "passed");
     surfaces = registry.seal();
     evidenceSnapshot = evidence.seal({ capturedAt: new Date().toISOString() });
+    imageSnapshot = imageEvidence.seal();
   } catch (error) {
     throw new RunCaseV3Error(execution.report, "evidence", error);
   }
   let materialized: Awaited<ReturnType<typeof materializeEvidenceV3>>;
-  try { materialized = await materializeEvidenceV3(evidenceSnapshot, options.stagingDirectory); }
+  let materializedImages: Awaited<ReturnType<typeof materializeImageEvidenceV3>>;
+  try {
+    materialized = await materializeEvidenceV3(evidenceSnapshot, options.stagingDirectory);
+    materializedImages = await materializeImageEvidenceV3(imageSnapshot, options.stagingDirectory);
+  }
   catch (error) { throw new RunCaseV3Error(execution.report, "materialization", error); }
+  let result = stripJudgePendingSteps(execution.report.result, judgeCriteria.map((item) => item.id));
+  result = Object.freeze({ ...result,
+    artifacts: Object.freeze([...(result.artifacts ?? []), ...materializedImages.artifacts]) });
+  let judgeRequiredArtifacts: readonly RequiredReportArtifactReferenceV3[] = Object.freeze([]);
+  if (judgeCriteria.length > 0 && result.status !== "skipped" && result.status !== "unsupported") {
+    try {
+      if (judgeExecution === undefined) throw new Error("Judge execution boundary was not captured.");
+      const judged = await runJudgeCriteriaV3({ caseId: definition.spec.id,
+        reportRunId: options.run.id,
+        criteria: judgeCriteria, ...(options.judge === undefined ? {} : { binding: options.judge }),
+        scope, execution: { ...judgeExecution,
+          ...(options.execution.signal === undefined ? {} : {
+            externalSignal: options.execution.signal,
+          }) },
+        evidence: evidenceSnapshot, materialized, imageEvidence: imageSnapshot,
+        materializedImages,
+        stagingDirectory: options.stagingDirectory });
+      result = mergeJudgeResultV3(result, judged);
+      judgeRequiredArtifacts = judged.requiredArtifacts;
+    } catch (error) { throw new RunCaseV3Error(execution.report, "evidence", error); }
+  }
   let reportCase: CaseReportV3Input;
   try {
     const adapted = createReportV3Attempt({ scope, surfaces, evidence: evidenceSnapshot,
       materializedEvidence: materialized, requiredEvidencePolicy: requiredPolicy,
-      evidencePolicy, result: execution.report.result });
+      evidencePolicy, result });
     const finalAttempt = authority.finalize(scope.caseExecutionId, scope.attemptId);
     reportCase = createCaseReportV3({ spec: definition.spec, attempts: [adapted], finalAttempt });
   } catch (error) { throw new RunCaseV3Error(execution.report, "adaptation", error); }
-  const runFinishedAt = finishTimestamp(execution.report.result.startedAt,
-    execution.report.result.durationMs);
+  const runFinishedAt = finishTimestamp(result.startedAt, result.durationMs);
   const run: ReportRunV3 = Object.freeze({ id: options.run.id, title: options.run.title,
     startedAt: earlier(runStartedAt, execution.report.result.startedAt), finishedAt: runFinishedAt,
     app: options.run.app, ...(options.run.environment === undefined ? {} : {
@@ -196,11 +235,21 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
     hosts: Object.freeze({ state: "known" as const, value: Object.freeze([...options.run.hosts]) }),
     surfaces: createSurfaceCatalogV3([surfaces]) });
   const input = Object.freeze({ run, tests: Object.freeze([reportCase]) });
-  const requiredArtifacts = requiredReportArtifactsV3(definition.spec.id, requiredPolicy,
-    materialized, evidenceSnapshot);
+  const requiredArtifacts = mergeRequiredArtifacts(
+    requiredReportArtifactsV3(definition.spec.id, requiredPolicy, materialized, evidenceSnapshot),
+    judgeRequiredArtifacts);
   const prepared = Object.freeze({ input, requiredArtifacts, kernelReport: execution.report });
   preparedClaims.set(prepared, Object.freeze({ claim, gate }));
   return prepared;
+}
+
+function judgePendingStepId(id: string): string { return `surfaceloom.judge.pending.${id}`; }
+
+function stripJudgePendingSteps(result: NormalizedCaseReportInput["result"],
+  criterionIds: readonly string[]): NormalizedCaseReportInput["result"] {
+  const pending = new Set(criterionIds.map(judgePendingStepId));
+  return Object.freeze({ ...result,
+    steps: Object.freeze(result.steps.filter((step) => !pending.has(step.id))) });
 }
 
 export async function publishPreparedCaseV3(prepared: PreparedCaseV3, outputDirectory: string,
@@ -237,7 +286,8 @@ function surfaceSetupContext(base: CaseContext, deadlineAt: number,
 }
 
 function authorContext(base: CaseContext, acquired: readonly AcquiredSurface[],
-  collector: EvidenceSubmissionCollector, scope: ExecutionScope): CaseContextV3 {
+  collector: EvidenceSubmissionCollector, imageCollector: ImageEvidenceCollectorV3,
+  scope: ExecutionScope): CaseContextV3 {
   const byId = new Map(acquired.map((item) => [item.author.surfaceId, item.author]));
   return Object.freeze({ ...base,
     surface: (surfaceId: string) => {
@@ -246,8 +296,26 @@ function authorContext(base: CaseContext, acquired: readonly AcquiredSurface[],
       return result;
     },
     evidence: Object.freeze({ submit: (input: CaseEvidenceSubmissionV3) =>
-      submitAuthorEvidence(collector, scope, input) }),
+      submitAuthorEvidence(collector, scope, input),
+    submitImage: (input: CaseImageEvidenceSubmissionV3) => imageCollector.submit(input) }),
   });
+}
+
+function mergeRequiredArtifacts(...groups: readonly (readonly RequiredReportArtifactReferenceV3[])[]):
+  readonly RequiredReportArtifactReferenceV3[] {
+  const result = new Map<string, RequiredReportArtifactReferenceV3>();
+  for (const group of groups) {
+    for (const item of group) {
+      const key = JSON.stringify([item.caseId, item.attemptId, item.artifactId]);
+      const prior = result.get(key);
+      if (prior !== undefined && (prior.expectedSizeBytes !== item.expectedSizeBytes
+          || prior.expectedSha256 !== item.expectedSha256)) {
+        throw new Error(`Conflicting required artifact integrity: ${item.artifactId}.`);
+      }
+      result.set(key, item);
+    }
+  }
+  return Object.freeze([...result.values()]);
 }
 
 function evidenceSink(collector: EvidenceSubmissionCollector,

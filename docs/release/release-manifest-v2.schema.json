@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://surfaceloom.dev/schemas/release-manifest-v2.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "releaseId", "packages", "packageBuildOrder", "targets", "protocols", "source", "artifacts", "sboms", "compliance", "provenance", "pipeline"],
+  "properties": {
+    "schemaVersion": { "const": "surfaceloom.release-manifest/2" },
+    "releaseId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$" },
+    "packages": { "type": "array", "minItems": 9, "maxItems": 9, "items": { "$ref": "release-common.schema.json#/$defs/package" } },
+    "packageBuildOrder": { "type": "array", "minItems": 9, "maxItems": 9, "uniqueItems": true, "items": { "type": "string" } },
+    "targets": { "type": "array", "minItems": 1, "items": { "$ref": "release-common.schema.json#/$defs/target" } },
+    "protocols": { "$ref": "release-common.schema.json#/$defs/protocols" },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["repository", "revision", "snapshotDigest", "dirtyPolicy", "lockDigest", "build"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "revision": { "type": "string", "pattern": "^[a-f0-9]{40}([a-f0-9]{24})?$" },
+        "snapshotDigest": { "$ref": "release-common.schema.json#/$defs/digest" },
+        "dirtyPolicy": {
+          "oneOf": [
+            { "type": "object", "additionalProperties": false, "required": ["mode"], "properties": { "mode": { "const": "require-clean" } } },
+            { "type": "object", "additionalProperties": false, "required": ["mode", "changesDigest"], "properties": { "mode": { "const": "recorded-dirty" }, "changesDigest": { "$ref": "release-common.schema.json#/$defs/digest" } } }
+          ]
+        },
+        "lockDigest": { "$ref": "release-common.schema.json#/$defs/digest" },
+        "build": { "$ref": "release-common.schema.json#/$defs/build" }
+      }
+    },
+    "artifacts": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "targetId", "path", "kind", "byteLength", "digest", "inventory", "scan", "signature"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "targetId": { "type": "string", "minLength": 1 },
+          "path": { "type": "string", "minLength": 1 },
+          "kind": { "enum": ["tgz", "zip", "exe", "app"] },
+          "byteLength": { "type": "integer", "minimum": 1 },
+          "digest": { "$ref": "release-common.schema.json#/$defs/digest" },
+          "inventory": { "$ref": "release-common.schema.json#/$defs/inventory" },
+          "scan": { "$ref": "#/$defs/scan" },
+          "signature": { "$ref": "release-common.schema.json#/$defs/finalSignature" }
+        }
+      }
+    },
+    "sboms": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "schema", "path", "byteLength", "digest", "coverage"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "schema": {
+            "type": "object", "additionalProperties": false,
+            "required": ["name", "version"],
+            "properties": { "name": { "const": "CycloneDX" }, "version": { "const": "1.6" } }
+          },
+          "path": { "type": "string", "minLength": 1 },
+          "byteLength": { "type": "integer", "minimum": 1 },
+          "digest": { "$ref": "release-common.schema.json#/$defs/digest" },
+          "coverage": {
+            "type": "object", "additionalProperties": false,
+            "required": ["artifactIds", "packageNames"],
+            "properties": {
+              "artifactIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+              "packageNames": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "compliance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["licenseFiles", "noticeFiles", "thirdParty"],
+      "properties": {
+        "licenseFiles": { "type": "array", "minItems": 1, "items": { "$ref": "release-common.schema.json#/$defs/auxiliary" } },
+        "noticeFiles": { "type": "array", "minItems": 1, "items": { "$ref": "release-common.schema.json#/$defs/auxiliary" } },
+        "thirdParty": {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "coveredPackageNames", "coveredDependencyNames"],
+          "properties": {
+            "status": { "const": "complete" },
+            "coveredPackageNames": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+            "coveredDependencyNames": { "type": "array", "uniqueItems": true, "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "provenance": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "path", "byteLength", "digest", "artifactId", "subject"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "path": { "type": "string", "minLength": 1 },
+          "byteLength": { "type": "integer", "minimum": 1 },
+          "digest": { "$ref": "release-common.schema.json#/$defs/digest" },
+          "artifactId": { "type": "string", "minLength": 1 },
+          "subject": {
+            "type": "object", "additionalProperties": false,
+            "required": ["name", "digest"],
+            "properties": { "name": { "type": "string", "minLength": 1 }, "digest": { "$ref": "release-common.schema.json#/$defs/digest" } }
+          }
+        }
+      }
+    },
+    "pipeline": { "const": ["build", "strip", "platform-sign-and-staple", "final-package", "digest", "sbom-scan-provenance", "manifest", "detached-manifest-signature"] }
+  },
+  "$defs": {
+    "scan": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schemaVersion", "artifactDigest", "complete", "limits", "entryCount", "totalUncompressedBytes", "maxDepth", "inventoryDigest"],
+      "properties": {
+        "schemaVersion": { "const": "surfaceloom.release-scan/1" },
+        "artifactDigest": { "$ref": "release-common.schema.json#/$defs/digest" },
+        "complete": { "const": true },
+        "limits": {
+          "type": "object", "additionalProperties": false,
+          "required": ["maxArchiveBytes", "maxEntries", "maxEntryBytes", "maxTotalBytes", "maxCompressionRatio", "maxDepth"],
+          "properties": {
+            "maxArchiveBytes": { "type": "integer", "minimum": 1 },
+            "maxEntries": { "type": "integer", "minimum": 1 },
+            "maxEntryBytes": { "type": "integer", "minimum": 1 },
+            "maxTotalBytes": { "type": "integer", "minimum": 1 },
+            "maxCompressionRatio": { "type": "integer", "minimum": 1 },
+            "maxDepth": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "entryCount": { "type": "integer", "minimum": 1 },
+        "totalUncompressedBytes": { "type": "integer", "minimum": 1 },
+        "maxDepth": { "type": "integer", "minimum": 0 },
+        "inventoryDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    }
+  }
+}

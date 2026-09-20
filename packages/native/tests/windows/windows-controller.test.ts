@@ -19,24 +19,25 @@ const field: WindowsUiaLocator = Object.freeze({ automationIds: Object.freeze(["
 test("scripted v1 controller preserves identities, checked actions, receipts, and idempotent end", async (t) => {
   const controller = controllerFor("ok");
   t.after(() => controller.close());
-  const connected = await controller.connect();
+  const operation = Object.freeze({ timeoutMs: 30_000 });
+  const connected = await controller.connect(operation.timeoutMs);
   assert.equal(connected.logicalHostId, "windows.scripted");
   assert.equal(connected.host.hostInstanceId, "windows-scripted-host");
   assert.notEqual(connected.childIdentity, connected.host.hostInstanceId);
   assert.ok(connected.effectiveCapabilities.includes("ui.invoke"));
 
-  const session = await controller.launch({ executablePath: target, timeoutMs: 2_000 });
+  const session = await controller.launch({ executablePath: target, timeoutMs: operation.timeoutMs });
   assert.equal(session.targetIdentity, "windows-process:4242");
-  const found = await session.find(field);
+  const found = await session.find(field, operation);
   assert.equal(found.value.snapshot.automationId, "fixture.name");
-  assert.equal((await session.get(found.value.handle)).value.processId, 4242);
-  assert.equal((await session.invoke(field)).operation?.outcome, "executed");
-  assert.equal((await session.setValue(field, "updated")).operation?.outcome, "executed");
-  const first = await session.lifecyclePort.quit();
-  const second = await session.lifecyclePort.quit();
+  assert.equal((await session.get(found.value.handle, operation)).value.processId, 4242);
+  assert.equal((await session.invoke(field, operation)).operation?.outcome, "executed");
+  assert.equal((await session.setValue(field, "updated", operation)).operation?.outcome, "executed");
+  const first = await session.lifecyclePort.quit(operation);
+  const second = await session.lifecyclePort.quit(operation);
   assert.deepEqual(first, second);
   assert.equal(session.removed, true);
-  assert.deepEqual(await session.cleanupPort.release(), { kind: "sessionRelease",
+  assert.deepEqual(await session.cleanupPort.release(operation), { kind: "sessionRelease",
     hostInstanceId: "windows-scripted-host", sessionId: "windows-scripted-session" });
   assert.equal((await controller.close()).status, "exited");
 });

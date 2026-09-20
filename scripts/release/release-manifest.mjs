@@ -1,6 +1,9 @@
 import { safeArchivePath } from "./archive-path.mjs";
 import { assertScanBindsPublishedBytes, scanArtifact } from "./artifact-scan.mjs";
-import { artifactKinds, manifestSchemaVersion, scanSchemaVersion } from "./constants.mjs";
+import {
+  artifactKinds, manifestSchemaVersion, manifestSchemaVersionV1,
+  planSchemaVersion, planSchemaVersionV1, releasePackageNamesForSchemaVersion, scanSchemaVersion,
+} from "./constants.mjs";
 import { canonicalInventoryDigest, sameDigest } from "./digest.mjs";
 import { assertPackageSnapshotMatches, validatePackageSet } from "./package-graph.mjs";
 import {
@@ -15,6 +18,7 @@ import {
   assertNoPendingOrSecrets, digest, fail, integer, list, oneOf, record, sameJson, string,
 } from "./shape.mjs";
 import { parseStrictJson } from "./strict-json.mjs";
+import { validateReleasePlan } from "./release-plan.mjs";
 
 const manifestFields = [
   "schemaVersion", "releaseId", "packages", "packageBuildOrder", "targets", "protocols",
@@ -24,9 +28,11 @@ const manifestFields = [
 export function validateReleaseManifest(value, options) {
   assertNoPendingOrSecrets(value);
   const manifest = record(value, "release manifest", manifestFields);
-  if (manifest.schemaVersion !== manifestSchemaVersion) fail("schemaVersion", "Unsupported ReleaseManifest schemaVersion.");
+  const packageNames = manifestPackageNames(manifest.schemaVersion);
   string(manifest.releaseId, "releaseId", /^[a-z0-9][a-z0-9._-]{2,127}$/u);
-  const packages = validatePackageSet(manifest.packages, { allowLocalDependencies: false });
+  const packages = validatePackageSet(manifest.packages, {
+    allowLocalDependencies: false, packageNames,
+  });
   if (!sameJson(manifest.packageBuildOrder, packages.buildOrder)) {
     fail("buildOrder", "Manifest package build order does not match its dependency graph.");
   }
@@ -37,6 +43,14 @@ export function validateReleaseManifest(value, options) {
   const settings = record(options, "manifest validation options",
     ["artifactEvidence", "auxiliaryBytes", "plan"]);
   if (!(settings.artifactEvidence instanceof Map)) fail("evidenceMap", "Artifact evidence must be supplied as a Map.");
+  if (settings.plan !== undefined) {
+    const plan = validateReleasePlan(settings.plan);
+    const expectedPlanVersion = manifest.schemaVersion === manifestSchemaVersionV1
+      ? planSchemaVersionV1 : planSchemaVersion;
+    if (plan.schemaVersion !== expectedPlanVersion) {
+      fail("planVersion", "Manifest and plan must use the same release contract version.");
+    }
+  }
   const artifacts = validateArtifacts(manifest.artifacts, targets.ids, source, settings);
   const artifactTargets = new Set(artifacts.artifacts.map((item) => item.targetId));
   if (artifactTargets.size !== targets.ids.size
@@ -58,6 +72,13 @@ export function validateReleaseManifest(value, options) {
   validateProvenance(manifest.provenance, context);
   if (settings.plan !== undefined) assertPlanMatch(manifest, settings.plan, artifacts.byId);
   return manifest;
+}
+
+function manifestPackageNames(schemaVersion) {
+  if (schemaVersion !== manifestSchemaVersionV1 && schemaVersion !== manifestSchemaVersion) {
+    fail("schemaVersion", "Unsupported ReleaseManifest schemaVersion.");
+  }
+  return releasePackageNamesForSchemaVersion(schemaVersion);
 }
 
 export function validateReleaseManifestJson(text, options) {

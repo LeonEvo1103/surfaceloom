@@ -2,13 +2,68 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { assertScanBindsPublishedBytes } from "../../release/artifact-scan.mjs";
 import { canonicalInventoryDigest, digestRecord } from "../../release/digest.mjs";
+import {
+  manifestSchemaVersion, manifestSchemaVersionV1, releasePackageNames, releasePackageNamesV1,
+} from "../../release/constants.mjs";
 import { validateReleaseManifest } from "../../release/release-manifest.mjs";
 import { ReleaseContractError } from "../../release/shape.mjs";
-import { releaseFixture } from "./helpers/release-fixture.mjs";
+import { releaseFixture, releaseFixtureV1 } from "./helpers/release-fixture.mjs";
 
 test("final manifest validates exact bytes, inventory, SBOM, licenses, and provenance", () => {
   const fixture = releaseFixture();
+  assert.equal(fixture.manifest.schemaVersion, manifestSchemaVersion);
   assert.doesNotThrow(() => validateReleaseManifest(fixture.manifest, fixture.options));
+});
+
+test("v1 manifest and SBOM evidence remain valid for exactly the original seven packages", () => {
+  const fixture = releaseFixtureV1();
+  assert.equal(fixture.manifest.schemaVersion, manifestSchemaVersionV1);
+  assert.deepEqual(fixture.manifest.packages.map((item) => item.name), releasePackageNamesV1);
+  const document = JSON.parse(fixture.options.auxiliaryBytes.get("evidence/sbom.cdx.json"));
+  assert.deepEqual(document.components
+    .filter((entry) => entry.name.startsWith("@surfaceloom/"))
+    .map((entry) => entry.name), releasePackageNamesV1);
+  assert.doesNotThrow(() => validateReleaseManifest(fixture.manifest, fixture.options));
+});
+
+test("historical v1 manifest without optional test peer edges keeps its original build order", () => {
+  const fixture = releaseFixtureV1();
+  const plan = structuredClone(fixture.plan);
+  const historicalOrder = [
+    "@surfaceloom/core", "@surfaceloom/component-catalog", "@surfaceloom/reporter",
+    "@surfaceloom/agent-loop", "@surfaceloom/native", "@surfaceloom/browser-playwright",
+    "@surfaceloom/test",
+  ];
+  for (const packages of [plan.packages, fixture.manifest.packages]) {
+    for (const name of ["@surfaceloom/native", "@surfaceloom/browser-playwright"]) {
+      const entry = packages.find((item) => item.name === name);
+      delete entry.peerDependencies["@surfaceloom/test"];
+      delete entry.peerDependenciesMeta["@surfaceloom/test"];
+    }
+  }
+  plan.packageBuildOrder = historicalOrder;
+  fixture.manifest.packageBuildOrder = historicalOrder;
+  fixture.options.plan = plan;
+
+  assert.doesNotThrow(() => validateReleaseManifest(fixture.manifest, fixture.options));
+});
+
+test("manifest schema versions reject the other package profile", () => {
+  const legacy = releaseFixtureV1();
+  const current = releaseFixture();
+  legacy.manifest.packages = current.manifest.packages;
+  legacy.manifest.packageBuildOrder = current.manifest.packageBuildOrder;
+  assert.throws(() => validateReleaseManifest(legacy.manifest, legacy.options),
+    contract("packageCount"));
+
+  current.manifest.packages = releaseFixtureV1().manifest.packages;
+  assert.throws(() => validateReleaseManifest(current.manifest, current.options),
+    contract("packageCount"));
+
+  const mismatchedPlan = releaseFixture();
+  mismatchedPlan.options.plan = releaseFixtureV1().plan;
+  assert.throws(() => validateReleaseManifest(mismatchedPlan.manifest, mismatchedPlan.options),
+    contract("planVersion"));
 });
 
 test("one changed artifact byte and scan-A/publish-B both fail closed", () => {
@@ -142,9 +197,17 @@ test("digest comparison uses algorithm/value semantics instead of object key ord
   assert.doesNotThrow(() => validateReleaseManifest(fixture.manifest, fixture.options));
 });
 
-test("SBOM bytes must derive all seven packages, dependencies, artifact, and inventory components", () => {
+test("SBOM bytes must derive every release package, dependency, artifact, and inventory component", () => {
+  const baseline = releaseFixture();
+  const baselineDocument = JSON.parse(
+    baseline.options.auxiliaryBytes.get("evidence/sbom.cdx.json"));
+  assert.deepEqual(baselineDocument.components
+    .filter((entry) => entry.name.startsWith("@surfaceloom/"))
+    .map((entry) => entry.name), releasePackageNames);
   for (const remove of [
     (components) => components.findIndex((entry) => entry.name === "@surfaceloom/core"),
+    (components) => components.findIndex((entry) => entry.name === "@surfaceloom/llm-judge"),
+    (components) => components.findIndex((entry) => entry.name === "@surfaceloom/service"),
     (components) => components.findIndex((entry) => entry.name === "release/surfaceloom.zip"),
     (components) => components.findIndex((entry) => entry.name.includes("!/package/LICENSE")),
     (components) => components.findIndex((entry) => entry.name === "playwright-core"),
@@ -172,6 +235,19 @@ test("SBOM bytes must derive all seven packages, dependencies, artifact, and inv
 });
 
 test("license and NOTICE bytes must substantiate claimed package/dependency coverage", () => {
+  const baseline = releaseFixture();
+  assert.deepEqual(baseline.manifest.compliance.thirdParty.coveredPackageNames,
+    releasePackageNames);
+  assert.deepEqual(baseline.manifest.compliance.thirdParty.coveredDependencyNames,
+    ["playwright-core"]);
+
+  const packageCoverage = releaseFixture();
+  packageCoverage.manifest.compliance.thirdParty.coveredPackageNames =
+    packageCoverage.manifest.compliance.thirdParty.coveredPackageNames
+      .filter((name) => name !== "@surfaceloom/service");
+  assert.throws(() => validateReleaseManifest(packageCoverage.manifest, packageCoverage.options),
+    contract("coverage"));
+
   const license = releaseFixture();
   replaceAuxiliary(license, license.manifest.compliance.licenseFiles[0],
     Buffer.from("A file named LICENSE without license terms\n"));

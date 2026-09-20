@@ -18,8 +18,9 @@ export async function materializeArtifacts(
   status: TestStatus,
   artifacts: readonly SourceArtifact[],
   policy: EvidencePolicy,
+  forceRetainArtifactIds: ReadonlySet<string> = new Set(),
 ): Promise<readonly ReportArtifact[]> {
-  const retained = artifactsForRetention(artifacts, status, policy);
+  const retained = artifactsForRetention(artifacts, status, policy, forceRetainArtifactIds);
   if (retained.length === 0) return [];
 
   const testDirectoryName = `${safeSegment(testId)}-${shortHash(testId)}`;
@@ -78,8 +79,10 @@ function artifactsForRetention(
   artifacts: readonly SourceArtifact[],
   status: TestStatus,
   policy: EvidencePolicy,
+  forceRetainArtifactIds: ReadonlySet<string>,
 ): readonly SourceArtifact[] {
-  return artifacts.filter((artifact) => retainEvidence(artifact, status, policy));
+  return artifacts.filter((artifact) => forceRetainArtifactIds.has(artifact.id)
+    || retainEvidence(artifact, status, policy));
 }
 
 function withoutSourcePath(

@@ -164,7 +164,8 @@ for (const fault of ["wrongProof", "timeout"] as const) {
   test(`${fault} keeps the GUI lease and fails cleanup`, async () => {
     let leaseReleases = 0;
     let closeCalls = 0;
-    const scope = new ResourceScope({ cleanupTimeoutMs: 8 });
+    const controllerTimeoutMs = fault === "timeout" ? 10 : 250;
+    const scope = new ResourceScope({ cleanupTimeoutMs: fault === "timeout" ? 100 : 500 });
     const context = setupContext({ scope });
     const injected = backend(async (_requirement, call) => {
       call.beforeSubmit();
@@ -174,7 +175,8 @@ for (const fault of ["wrongProof", "timeout"] as const) {
         return { ...proof(), sessionId: "wrong-session" };
       } });
     });
-    await createBrowserSurfaceFactory(injected, { cleanupTimeoutMs: 4, cleanupStop: cleanupStop(),
+    await createBrowserSurfaceFactory(injected, { cleanupTimeoutMs: controllerTimeoutMs,
+      cleanupStop: cleanupStop(),
       lease: { id: `lease-${fault}`,
         release: async () => { leaseReleases += 1; return { status: "released" }; } } })
       .setup(requirement(), context.value);

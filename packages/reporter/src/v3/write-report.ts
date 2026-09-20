@@ -77,7 +77,7 @@ export async function writeReportV3Bundle(
     createdOutput = true;
     const tests: ReportedTestCaseV3[] = [];
     for (const test of snapshot.tests) {
-      tests.push(await materializeTest(output, test, evidencePolicy));
+      tests.push(await materializeTest(output, test, evidencePolicy, requiredArtifacts));
     }
     const frozenTests = Object.freeze(tests);
     await assertRequiredArtifactsPublished(output, snapshot.tests, frozenTests, requiredArtifacts);
@@ -283,10 +283,12 @@ async function materializeTest(
   output: string,
   test: CaseReportV3Input,
   policy: EvidencePolicy,
+  required: readonly RequiredReportArtifactV3[],
 ): Promise<ReportedTestCaseV3> {
   if (test.attempts.state === "unknown") {
     const result = await materializeResult(
       output, evidenceKey(test.spec.id, null), test.attempts.result, policy,
+      requiredIds(required, test.spec.id, null),
     );
     return Object.freeze({
       spec: test.spec,
@@ -302,6 +304,7 @@ async function materializeTest(
   for (const attempt of test.attempts.items) {
     const result = await materializeResult(
       output, evidenceKey(test.spec.id, attempt.id), attempt.result, policy,
+      requiredIds(required, test.spec.id, attempt.id),
     );
     items.push(Object.freeze({ ...attempt, result }));
   }
@@ -320,11 +323,18 @@ async function materializeResult(
   evidenceKey: string,
   result: CaseExecutionResultInput,
   policy: EvidencePolicy,
+  forceRetainArtifactIds: ReadonlySet<string>,
 ): Promise<ReportedCaseExecutionResult> {
   const artifacts = await materializeArtifacts(
-    output, evidenceKey, result.status, result.artifacts ?? [], policy,
+    output, evidenceKey, result.status, result.artifacts ?? [], policy, forceRetainArtifactIds,
   );
   return Object.freeze({ ...result, artifacts });
+}
+
+function requiredIds(required: readonly RequiredReportArtifactV3[], caseId: string,
+  attemptId: string | null): ReadonlySet<string> {
+  return new Set(required.filter((item) => item.caseId === caseId && item.attemptId === attemptId)
+    .map((item) => item.artifactId));
 }
 
 async function writeViews(

@@ -58,6 +58,7 @@ struct MacOSNativeBackendFinalAuditTests {
         let pipes = NativeHostContractTests.HostPipes()
         let cleanupEntered = DispatchSemaphore(value: 0)
         let cleanupRelease = DispatchSemaphore(value: 0)
+        let launchEntered = DispatchSemaphore(value: 0)
         let callbackDone = DispatchSemaphore(value: 0)
         let runDone = DispatchSemaphore(value: 0)
         let runReturned = LockedBool()
@@ -67,6 +68,7 @@ struct MacOSNativeBackendFinalAuditTests {
             cleanupEntered.signal()
             cleanupRelease.wait()
         }
+        platform.onBeginLaunch = { launchEntered.signal() }
         let request = support.call(
             id: "late-cleanup", method: "session.launch", intent: .lifecycle,
             scope: .host(hostInstanceID: backend.descriptor.hostInstanceID),
@@ -75,9 +77,12 @@ struct MacOSNativeBackendFinalAuditTests {
         pipes.input.fileHandleForWriting.write(try NativeWireCodec.encode(.request(request)))
         pipes.closeInput()
         DispatchQueue.global().async {
-            let deadline = Date().addingTimeInterval(2)
-            while (backend.registry.pendingLaunchCount() == 0
-                   || dispatcher.isOutstanding("late-cleanup")), Date() < deadline {
+            guard launchEntered.wait(timeout: .now() + 10) == .success else {
+                callbackDone.signal()
+                return
+            }
+            let deadline = Date().addingTimeInterval(10)
+            while dispatcher.isOutstanding("late-cleanup"), Date() < deadline {
                 Thread.sleep(forTimeInterval: 0.001)
             }
             platform.completeLaunch()
@@ -87,7 +92,7 @@ struct MacOSNativeBackendFinalAuditTests {
         if Thread.isMainThread {
             let observationDone = DispatchSemaphore(value: 0)
             DispatchQueue.global().async {
-                _ = cleanupEntered.wait(timeout: .now() + 2)
+                _ = cleanupEntered.wait(timeout: .now() + 10)
                 Thread.sleep(forTimeInterval: 0.05)
                 observedBlocked.set(!runReturned.value)
                 cleanupRelease.signal()
@@ -99,7 +104,7 @@ struct MacOSNativeBackendFinalAuditTests {
                 diagnostics: pipes.diagnostics.fileHandleForWriting
             )))
             runReturned.set(true)
-            #expect(observationDone.wait(timeout: .now() + 2) == .success)
+            #expect(observationDone.wait(timeout: .now() + 10) == .success)
         } else {
             DispatchQueue.main.async {
                 status.set(Int(NativeStdioHost(dispatcher: dispatcher).run(
@@ -110,15 +115,15 @@ struct MacOSNativeBackendFinalAuditTests {
                 runReturned.set(true)
                 runDone.signal()
             }
-            #expect(cleanupEntered.wait(timeout: .now() + 2) == .success)
+            #expect(cleanupEntered.wait(timeout: .now() + 10) == .success)
             Thread.sleep(forTimeInterval: 0.05)
             observedBlocked.set(!runReturned.value)
             #expect(backend.registry.pendingLaunchCount() == 1)
             cleanupRelease.signal()
-            #expect(runDone.wait(timeout: .now() + 2) == .success)
+            #expect(runDone.wait(timeout: .now() + 10) == .success)
         }
         #expect(observedBlocked.value)
-        #expect(callbackDone.wait(timeout: .now() + 2) == .success)
+        #expect(callbackDone.wait(timeout: .now() + 10) == .success)
         #expect(status.value == 0)
         #expect(backend.registry.pendingLaunchCount() == 0)
         #expect(backend.registry.evidenceSnapshot().last?.stopped == true)

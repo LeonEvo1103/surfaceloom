@@ -12,6 +12,11 @@ import type { ExecutionGuiGate } from "./execution-gate.js";
 import type { EvidenceCompleteness } from "./evidence/content.js";
 import type { RequiredEvidenceRequirement } from "./evidence/required-policy.js";
 import type {
+  JudgeCriterionV3,
+  JudgeRunnerBindingV3,
+  CaseImageEvidenceSubmissionV3,
+} from "./judge/contracts.js";
+import type {
   BrowserSurfaceAuthor,
   BrowserSurfaceBackendPort,
   BrowserSurfaceRequirement,
@@ -32,6 +37,8 @@ export interface CaseEvidenceSubmissionV3 {
 
 export interface CaseEvidenceV3 {
   submit(input: CaseEvidenceSubmissionV3): void;
+  /** Copies bounded image bytes into the current attempt; URLs and paths are not accepted. */
+  submitImage(input: CaseImageEvidenceSubmissionV3): void;
 }
 
 export type CaseSurfaceV3 = BrowserSurfaceAuthor
@@ -43,11 +50,15 @@ export interface CaseContextV3 extends CaseContext {
   readonly evidence: CaseEvidenceV3;
 }
 
-export interface CaseDefinitionV3 {
+export interface CaseDefinitionV3Input {
   readonly spec: CaseSpec;
   readonly fixtures?: readonly FixtureDefinition<unknown>[];
+  /** Semantic checks are opt-in and must bind an existing acceptance criterion. */
+  readonly judgeCriteria?: readonly JudgeCriterionV3[];
   readonly run: (context: CaseContextV3) => void | Promise<void>;
 }
+
+export type CaseDefinitionV3 = Omit<CaseDefinitionV3Input, "judgeCriteria">;
 
 export interface BrowserRunnerSurfaceV3 {
   readonly kind: "browser";
@@ -78,6 +89,8 @@ export interface RunCaseV3Options {
   readonly run: RunCaseV3Identity;
   readonly surfaces: readonly RunnerSurfaceV3[];
   readonly requiredEvidence?: readonly RequiredEvidenceRequirement[];
+  /** Trusted host binding for @surfaceloom/llm-judge's judge() entry point. */
+  readonly judge?: JudgeRunnerBindingV3;
   readonly evidencePolicy?: Partial<EvidencePolicy>;
   /** Held until surface/host/fixture cleanup is confirmed and runner publication finishes. */
   readonly executionGate?: ExecutionGuiGate;

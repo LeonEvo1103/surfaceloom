@@ -1,21 +1,68 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { scanArtifact } from "../../../release/artifact-scan.mjs";
 import { digestRecord } from "../../../release/digest.mjs";
 import { validatePackageSet } from "../../../release/package-graph.mjs";
 import { createReleasePlanFromPackageManifests } from "../../../release/release-plan.mjs";
-import { releasePackageNames, releasePipeline } from "../../../release/constants.mjs";
+import {
+  manifestSchemaVersion, manifestSchemaVersionV1, planSchemaVersion, planSchemaVersionV1,
+  releasePackageNames, releasePackageNamesV1, releasePipeline,
+} from "../../../release/constants.mjs";
 import { zip } from "./archive-builder.mjs";
 
 export function loadPackageManifests(root = process.cwd()) {
-  return releasePackageNames.map((name) => {
-    const leaf = name.slice("@surfaceloom/".length);
-    return JSON.parse(readFileSync(path.join(root, "packages", leaf, "package.json"), "utf8"));
+  const discovered = discoverPackageManifests(root);
+  assertCurrentPackageProfile(discovered);
+  const byName = new Map(discovered.map((manifest) => [manifest.name, manifest]));
+  return releasePackageNames.map((name) => byName.get(name));
+}
+
+export function loadLegacyPackageManifests(root = process.cwd()) {
+  const byName = new Map(discoverPackageManifests(root)
+    .map((manifest) => [manifest.name, manifest]));
+  const missing = releasePackageNamesV1.filter((name) => !byName.has(name));
+  if (missing.length > 0) {
+    throw new Error(`Legacy release package evidence is missing [${missing.join(", ")}].`);
+  }
+  return releasePackageNamesV1.map((name) => {
+    const manifest = structuredClone(byName.get(name));
+    for (const field of ["dependencies", "peerDependencies", "optionalDependencies"]) {
+      for (const dependency of Object.keys(manifest[field] ?? {})) {
+        if (dependency.startsWith("@surfaceloom/")
+            && !releasePackageNamesV1.includes(dependency)) delete manifest[field][dependency];
+      }
+    }
+    for (const dependency of Object.keys(manifest.peerDependenciesMeta ?? {})) {
+      if (!releasePackageNamesV1.includes(dependency)) delete manifest.peerDependenciesMeta[dependency];
+    }
+    return manifest;
   });
 }
 
-export function publishableManifests() {
-  const manifests = structuredClone(loadPackageManifests());
+function discoverPackageManifests(root) {
+  const packagesRoot = path.join(root, "packages");
+  return readdirSync(packagesRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(packagesRoot, entry.name, "package.json"))
+    .filter((manifestPath) => existsSync(manifestPath))
+    .map((manifestPath) => JSON.parse(readFileSync(manifestPath, "utf8")))
+    .filter((manifest) => manifest.name?.startsWith("@surfaceloom/"));
+}
+
+function assertCurrentPackageProfile(discovered) {
+  const byName = new Map(discovered.map((manifest) => [manifest.name, manifest]));
+  const expected = new Set(releasePackageNames);
+  const missing = releasePackageNames.filter((name) => !byName.has(name));
+  const unexpected = [...byName.keys()].filter((name) => !expected.has(name)).sort();
+  if (missing.length > 0 || unexpected.length > 0 || byName.size !== discovered.length) {
+    throw new Error(`Release package profile drift: missing [${missing.join(", ")}], `
+      + `unexpected [${unexpected.join(", ")}], discovered ${discovered.length}.`);
+  }
+}
+
+export function publishableManifests({ schemaVersion = planSchemaVersion } = {}) {
+  const manifests = structuredClone(schemaVersion === planSchemaVersionV1
+    ? loadLegacyPackageManifests() : loadPackageManifests());
   const versions = new Map(manifests.map((item) => [item.name, item.version]));
   for (const item of manifests) {
     item.private = false;
@@ -28,8 +75,10 @@ export function publishableManifests() {
   return manifests;
 }
 
-export function releaseFixture() {
-  const manifests = publishableManifests();
+export function releaseFixture({ schemaVersion = manifestSchemaVersion } = {}) {
+  const legacy = schemaVersion === manifestSchemaVersionV1;
+  const planVersion = legacy ? planSchemaVersionV1 : planSchemaVersion;
+  const manifests = publishableManifests({ schemaVersion: planVersion });
   const artifactBytes = zip([
     { path: "package/dist/index.js", bytes: "export const ok = true;\n" },
     { path: "package/LICENSE", bytes: "MIT License\n" },
@@ -63,7 +112,7 @@ export function releaseFixture() {
       id: "bundle", targetId: target.id, path: "release/surfaceloom.zip", kind: "zip",
       inventoryPaths: receipt.inventory.map((entry) => entry.path), signature: { status: "planned" },
     }],
-  });
+  }, { schemaVersion: planVersion });
   const licenseBytes = readFileSync(path.join(process.cwd(), "LICENSE"));
   const dependencyLicenseBytes = readFileSync(path.join(process.cwd(),
     "packages", "browser-playwright", "node_modules", "playwright-core", "LICENSE"));
@@ -85,7 +134,10 @@ export function releaseFixture() {
   delete scan.format;
   delete scan.byteLength;
   const packages = structuredClone(plan.packages);
-  const graph = validatePackageSet(packages, { allowLocalDependencies: false });
+  const graph = validatePackageSet(packages, {
+    allowLocalDependencies: false,
+    packageNames: legacy ? releasePackageNamesV1 : releasePackageNames,
+  });
   const artifact = {
     id: "bundle", targetId: target.id, path: "release/surfaceloom.zip", kind: "zip",
     byteLength: receipt.byteLength, digest: structuredClone(receipt.artifactDigest),
@@ -105,7 +157,7 @@ export function releaseFixture() {
     ],
   }));
   const manifest = {
-    schemaVersion: "surfaceloom.release-manifest/1", releaseId: plan.releaseId,
+    schemaVersion, releaseId: plan.releaseId,
     packages, packageBuildOrder: graph.buildOrder, targets: [structuredClone(target)],
     protocols: structuredClone(protocols),
     source: {
@@ -140,6 +192,10 @@ export function releaseFixture() {
       ]),
     },
   };
+}
+
+export function releaseFixtureV1() {
+  return releaseFixture({ schemaVersion: manifestSchemaVersionV1 });
 }
 
 function aux(path, bytes) {

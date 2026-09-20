@@ -2,13 +2,21 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { packageDescriptor, validatePackageSet } from "../../release/package-graph.mjs";
 import { createReleasePlanFromPackageManifests, validateReleasePlan } from "../../release/release-plan.mjs";
+import {
+  planSchemaVersion, planSchemaVersionV1, releasePackageNames, releasePackageNamesV1,
+} from "../../release/constants.mjs";
 import { ReleaseContractError } from "../../release/shape.mjs";
-import { loadPackageManifests, publishableManifests } from "./helpers/release-fixture.mjs";
+import {
+  loadLegacyPackageManifests, loadPackageManifests, publishableManifests,
+} from "./helpers/release-fixture.mjs";
 
-test("plan is generated from all seven real package manifests without mutating publish blockers", () => {
-  const manifests = loadPackageManifests();
-  const plan = createReleasePlanFromPackageManifests(manifests, planInput("pending"));
+test("plan is generated from all seven v1 package manifests without mutating publish blockers", () => {
+  const manifests = loadLegacyPackageManifests();
+  const plan = createReleasePlanFromPackageManifests(
+    manifests, planInput("pending"), { schemaVersion: planSchemaVersionV1 });
+  assert.equal(plan.schemaVersion, planSchemaVersionV1);
   assert.equal(plan.packages.length, 7);
+  assert.deepEqual(plan.packages.map((item) => item.name), releasePackageNamesV1);
   assert.equal(plan.readiness.status, "pending");
   assert.ok(plan.readiness.blockers.some((entry) => entry.endsWith(":private")));
   assert.ok(plan.readiness.blockers.some((entry) => entry.includes(":file:")));
@@ -27,6 +35,44 @@ test("plan is generated from all seven real package manifests without mutating p
   const browser = plan.packages.find((item) => item.name === "@surfaceloom/browser-playwright");
   assert.deepEqual(Object.keys(browser.peerDependenciesMeta), ["@surfaceloom/test"]);
   assert.deepEqual(browser.peerDependenciesMeta["@surfaceloom/test"], { optional: true });
+  assert.doesNotThrow(() => validateReleasePlan(plan));
+});
+
+test("v1 preserves the historical package iteration tie-break when optional peer edges are absent", () => {
+  const manifests = loadLegacyPackageManifests();
+  for (const name of ["@surfaceloom/native", "@surfaceloom/browser-playwright"]) {
+    const manifest = manifests.find((item) => item.name === name);
+    delete manifest.peerDependencies?.["@surfaceloom/test"];
+    delete manifest.peerDependenciesMeta?.["@surfaceloom/test"];
+  }
+  const plan = createReleasePlanFromPackageManifests(
+    manifests, planInput("pending"), { schemaVersion: planSchemaVersionV1 });
+
+  assert.deepEqual(plan.packages.map((item) => item.name), [
+    "@surfaceloom/core", "@surfaceloom/component-catalog", "@surfaceloom/reporter",
+    "@surfaceloom/agent-loop", "@surfaceloom/native", "@surfaceloom/browser-playwright",
+    "@surfaceloom/test",
+  ]);
+  assert.deepEqual(plan.packageBuildOrder, plan.packages.map((item) => item.name));
+  assert.doesNotThrow(() => validateReleasePlan(plan));
+});
+
+test("v2 plan is generated from every real release package manifest", () => {
+  const manifests = loadPackageManifests();
+  const plan = createReleasePlanFromPackageManifests(manifests, planInput("pending"));
+  assert.equal(plan.schemaVersion, planSchemaVersion);
+  assert.equal(plan.packages.length, releasePackageNames.length);
+  assert.deepEqual(plan.packages.map((item) => item.name), releasePackageNames);
+  assert.deepEqual(plan.packageBuildOrder, [
+    "@surfaceloom/core", "@surfaceloom/component-catalog", "@surfaceloom/reporter",
+    "@surfaceloom/agent-loop", "@surfaceloom/llm-judge", "@surfaceloom/service",
+    "@surfaceloom/test", "@surfaceloom/native", "@surfaceloom/browser-playwright",
+  ]);
+  const testPackage = plan.packages.find((item) => item.name === "@surfaceloom/test");
+  assert.equal(testPackage.dependencies["@surfaceloom/llm-judge"], "file:../llm-judge");
+  assert.ok(plan.packageBuildOrder.indexOf("@surfaceloom/llm-judge")
+    < plan.packageBuildOrder.indexOf("@surfaceloom/test"));
+  assert.ok(plan.packages.some((item) => item.name === "@surfaceloom/service"));
   assert.doesNotThrow(() => validateReleasePlan(plan));
 });
 
@@ -94,6 +140,27 @@ test("package dependency graph rejects a cycle and a missing internal package", 
   missing[0].dependencies["@surfaceloom/absent"] = "0.1.0";
   assert.throws(() => validatePackageSet(missing, { allowLocalDependencies: true }),
     contract("missingPackageDependency"));
+});
+
+test("versioned package profiles reject cross-version, missing, and extra packages", () => {
+  const packages = loadPackageManifests().map(packageDescriptor);
+  assert.throws(() => validatePackageSet(packages, {
+    allowLocalDependencies: true, packageNames: releasePackageNamesV1,
+  }), contract("packageCount"));
+  for (const name of ["@surfaceloom/service", "@surfaceloom/llm-judge"]) {
+    assert.throws(() => validatePackageSet(
+      packages.filter((item) => item.name !== name), { allowLocalDependencies: true }),
+    contract("packageCount"));
+  }
+  const extra = [...packages, structuredClone(packages[0])];
+  extra.at(-1).name = "@surfaceloom/extra";
+  assert.throws(() => validatePackageSet(extra, { allowLocalDependencies: true }),
+    contract("packageCount"));
+  assert.throws(() => validateReleasePlan({
+    ...createReleasePlanFromPackageManifests(
+      loadLegacyPackageManifests(), planInput("pending"), { schemaVersion: planSchemaVersionV1 }),
+    packages,
+  }), contract("packageCount"));
 });
 
 test("plan pipeline order and pending fact shape fail closed", () => {

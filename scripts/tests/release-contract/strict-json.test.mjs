@@ -19,14 +19,30 @@ test("strict JSON rejects trailing bytes, malformed escapes, and excessive nesti
 });
 
 test("release schemas are independently versioned strict top-level objects", async () => {
-  const [plan, manifest, common] = await Promise.all([
+  const [planV1, manifestV1, planV2, manifestV2, common] = await Promise.all([
     schema("release-plan.schema.json"), schema("release-manifest.schema.json"),
+    schema("release-plan-v2.schema.json"), schema("release-manifest-v2.schema.json"),
     schema("release-common.schema.json"),
   ]);
-  assert.equal(plan.additionalProperties, false);
-  assert.equal(manifest.additionalProperties, false);
-  assert.equal(plan.properties.schemaVersion.const, "surfaceloom.release-plan/1");
-  assert.equal(manifest.properties.schemaVersion.const, "surfaceloom.release-manifest/1");
+  for (const schema of [planV1, manifestV1, planV2, manifestV2]) {
+    assert.equal(schema.additionalProperties, false);
+  }
+  assert.equal(planV1.properties.schemaVersion.const, "surfaceloom.release-plan/1");
+  assert.equal(manifestV1.properties.schemaVersion.const, "surfaceloom.release-manifest/1");
+  assert.equal(planV2.properties.schemaVersion.const, "surfaceloom.release-plan/2");
+  assert.equal(manifestV2.properties.schemaVersion.const, "surfaceloom.release-manifest/2");
+  assert.deepEqual([
+    planV1.properties.packages.minItems, planV1.properties.packages.maxItems,
+    manifestV1.properties.packages.minItems, manifestV1.properties.packages.maxItems,
+    planV2.properties.packages.minItems, planV2.properties.packages.maxItems,
+    manifestV2.properties.packages.minItems, manifestV2.properties.packages.maxItems,
+  ], [7, 7, 7, 7, 9, 9, 9, 9]);
+  for (const [schema, count] of [
+    [planV1, 7], [manifestV1, 7], [planV2, 9], [manifestV2, 9],
+  ]) {
+    assert.equal(schema.properties.packageBuildOrder.minItems, count);
+    assert.equal(schema.properties.packageBuildOrder.maxItems, count);
+  }
   for (const definition of Object.values(common.$defs)) {
     if (definition.type === "object" && definition !== common.$defs.stringMap
         && definition !== common.$defs.jsonValue) assert.equal(definition.additionalProperties, false);

@@ -83,15 +83,19 @@ replacement for those platform engines.
 | Browser | Optional Playwright Core backend; semantic DOM locators; strict single-target actions; screenshots and traces. The M1 Agent approval slice is live-fixture-tested in owned Chrome/Chromium |
 | Agent loop | Extensible `TraceAdapter`; unified event schema; Codex, native, and third-party imports; cross-clock merge; explicit evidence correlation; static HTML timeline |
 | Execution kernel | Fixtures/resources, criteria, observation polling, effect policy, deadlines, cleanup receipts, Reporter v3 evidence, and an explicit single-Case v3 CLI path |
+| Agent-callable service foundation | Contract-tested service identities and catalog, immutable local Git snapshots, and a registered-argv command executor with bounded output, cancellation, and conservative process-tree cleanup. Persisted runs, artifact storage, and MCP are not implemented yet |
+| LLM Judge foundation | Contract-tested evidence-bound semantic judgment interface, deterministic Fake provider, explicit outcomes, Case deadline/cancellation inheritance, and Reporter v3 evidence/correlation. No real model provider or API smoke yet |
 | M1 Agent showcase | Four real Playwright v3 Cases run serially against a deterministic reference Agent and produce one Reporter v3 bundle: two expected passes and two honest product failures |
-| Release contracts | Separate release-plan and final-manifest schemas; exact artifact digests and inventory; SBOM, license, provenance and signature evidence validation; recursive fail-closed archive scanning. No registry publication is performed |
+| Neutral login fixture | Browser-ready local HTTP fixture with two entry points, new/existing accounts, attempt-scoped mailbox/CAPTCHA/session state, deterministic fault injection, and reset/cleanup contracts. It is contract-tested, not yet Playwright-live |
+| Release contracts | Preserved seven-package v1 and explicit nine-package v2 plan/manifest schemas; exact artifact digests and inventory; SBOM, license, provenance and signature evidence validation; recursive fail-closed archive scanning. No registry publication is performed |
 | macOS | Swift AX/AppKit library plus a real `surfaceloom.native/1.0` stdio executable. Protocol, lifecycle, fake-platform backend behavior, and subprocess handshake are contract-tested; there is no TS-to-host or live AX fixture proof |
 | Windows | .NET 8 UIA/Win32 backend; isolated `0.2` and `1.0` NDJSON routes; neutral WPF fixture. Verified on Windows 11 with 59 host contract cases and 5 live C#-client-to-UIA cases, with zero skipped |
 
-Still missing are platform-specific TypeScript native bindings, a
-TypeScript-to-host-to-AX/UIA live path, live AX conformance for the macOS
-fixture, target-application evidence, and full runner features such as
-parallelism, sharding, and watch mode.
+Still missing are persisted service runs, artifact storage, MCP, a real model
+provider, Playwright Cases for the login fixture, platform-specific
+TypeScript native bindings, a TypeScript-to-host-to-AX/UIA live path, live AX
+conformance for the macOS fixture, target-application evidence, and full runner
+features such as parallelism, sharding, and watch mode.
 
 The Agent computer-control and emergency-stop manifests describe UI exposed by
 an agent application. SurfaceLoom itself still drives that UI deterministically
@@ -109,6 +113,8 @@ packages/
   reporter/            Reporter v2/v3 schemas and report generators
   native/              Versioned native protocol and TypeScript client
   test/                Execution kernel, assertions, and minimal CLI
+  service/             Test catalog and service lifecycle contracts
+  llm-judge/           Evidence-bound semantic Judge contracts and Fake provider
 Sources/
   SurfaceLoomMacOS/    macOS Accessibility/AppKit backend
   SurfaceLoomMacOSHost/ macOS native/1.0 stdio host and AX adapter
@@ -122,6 +128,9 @@ native/
 projects/              Product-neutral framework examples
 Templates/             Scenario and fixture templates
 docs/                  Architecture, capability, and security documentation
+examples/
+  reference-agent/     Live browser approval/effect verification showcase
+  login-testing/       Contract-tested neutral login and local-mail fixture
 ```
 
 The intended dependency direction is:
@@ -144,7 +153,7 @@ npm --prefix examples/reference-agent ci --ignore-scripts
 node scripts/check-framework-ssot.mjs
 ```
 
-`run-typescript-tests.sh` installs and tests all seven TypeScript packages. The
+`run-typescript-tests.sh` installs and tests all nine TypeScript packages. The
 next command installs the reference example without downloading a browser. The
 test script also runs product-contract discovery against any sibling
 repositories that explicitly declare a dependency on SurfaceLoom. Product
@@ -184,8 +193,8 @@ exit status, duration, and redacted logs:
 npm --prefix packages/reporter run repository-report
 ```
 
-On macOS, the repository report runs all seven TypeScript packages, the
-architecture guard, and the root Swift contracts. On Windows, it runs all seven
+On macOS, the repository report runs all nine TypeScript packages, the
+architecture guard, and the root Swift contracts. On Windows, it runs all nine
 TypeScript packages and the .NET host contracts. These are command-level checks,
 not per-case imports.
 
@@ -450,7 +459,7 @@ const safeAgentComponents = listComponentManifests({
 });
 ```
 
-All seven TypeScript packages are currently marked `private` and are not
+All nine TypeScript packages are currently marked `private` and are not
 published to npm. Tools that do not execute TypeScript may read
 `dist/catalog.json` and `dist/fixtures.json` after a build.
 

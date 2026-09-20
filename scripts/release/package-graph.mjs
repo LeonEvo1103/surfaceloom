@@ -30,9 +30,11 @@ export function packageDescriptor(packageJson) {
   });
 }
 
-export function validatePackageSet(value, { allowLocalDependencies }) {
-  const packages = list(value, "packages", { min: releasePackageNames.length });
-  if (packages.length !== releasePackageNames.length) fail("packageCount", "Release must contain exactly seven packages.");
+export function validatePackageSet(value, { allowLocalDependencies, packageNames = releasePackageNames }) {
+  const packages = list(value, "packages");
+  if (packages.length !== packageNames.length) {
+    fail("packageCount", `Release must contain exactly ${packageNames.length} packages.`);
+  }
   const byName = new Map();
   for (const [index, input] of packages.entries()) {
     const item = record(input, `packages[${index}]`, packageFields);
@@ -57,11 +59,11 @@ export function validatePackageSet(value, { allowLocalDependencies }) {
     if (byName.has(item.name)) fail("duplicatePackage", `Duplicate package ${item.name}.`);
     byName.set(item.name, item);
   }
-  for (const name of releasePackageNames) {
+  for (const name of packageNames) {
     if (!byName.has(name)) fail("missingPackage", `Missing release package ${name}.`);
   }
   for (const name of byName.keys()) {
-    if (!releasePackageNames.includes(name)) fail("unexpectedPackage", `Unexpected release package ${name}.`);
+    if (!packageNames.includes(name)) fail("unexpectedPackage", `Unexpected release package ${name}.`);
   }
   if (!allowLocalDependencies) {
     for (const item of packages) {
@@ -75,7 +77,7 @@ export function validatePackageSet(value, { allowLocalDependencies }) {
       }
     }
   }
-  return { packages, byName, buildOrder: topologicalOrder(byName) };
+  return { packages, byName, buildOrder: topologicalOrder(byName, packageNames) };
 }
 
 export function assertPackageSnapshotMatches(actual, expected) {
@@ -94,7 +96,7 @@ export function localDependencyBlockers(packages) {
   return blockers.sort();
 }
 
-function topologicalOrder(byName) {
+function topologicalOrder(byName, packageNames) {
   const visiting = new Set();
   const visited = new Set();
   const output = [];
@@ -115,7 +117,7 @@ function topologicalOrder(byName) {
     visited.add(name);
     output.push(name);
   };
-  for (const name of releasePackageNames) visit(name);
+  for (const name of packageNames) visit(name);
   return Object.freeze(output);
 }
 

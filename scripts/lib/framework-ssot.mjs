@@ -1,16 +1,22 @@
-const taskIdPattern = /^SL-P[0-4]-\d{3}$/u;
+const taskIdPattern = /^SL-P\d+-\d{3}$/u;
 const states = new Set(["planned", "ready", "in_progress", "review", "done", "blocked"]);
 
 export function validateFrameworkSsot(markdown) {
   const taskSection = section(markdown, "## 8. 原子任务账本", "## 9. 并行施工规则");
   const evidenceSection = section(markdown, "## 11. 验收记录", "## 12. 变更记录");
-  const tasks = parseRows(taskSection)
+  const taskRows = parseRows(taskSection);
+  for (const cells of taskRows) {
+    const rawId = cells[0] ?? "";
+    if (isTableMetadata(rawId, "ID")) continue;
+    const id = unquote(rawId);
+    if (!taskIdPattern.test(id)) throw new Error(`Malformed SSOT task id: ${rawId}`);
+  }
+  const tasks = taskRows
     .filter((cells) => taskIdPattern.test(unquote(cells[0] ?? "")))
     .map((cells) => ({
       id: unquote(cells[0]),
       state: cells[1],
-      dependencies: [...(cells[2] ?? "").matchAll(/`(SL-P[0-4]-\d{3})`/gu)]
-        .map((match) => match[1]),
+      dependencies: parseDependencies(cells[2] ?? "", unquote(cells[0])),
     }));
 
   if (tasks.length === 0) throw new Error("SSOT task ledger is empty.");
@@ -29,7 +35,14 @@ export function validateFrameworkSsot(markdown) {
   }
   assertAcyclic(byId);
 
-  const evidenceIds = new Set(parseRows(evidenceSection)
+  const evidenceRows = parseRows(evidenceSection);
+  for (const cells of evidenceRows) {
+    const rawId = cells[0] ?? "";
+    if (isTableMetadata(rawId, "taskId")) continue;
+    const id = unquote(rawId);
+    if (!taskIdPattern.test(id)) throw new Error(`Malformed SSOT evidence task id: ${rawId}`);
+  }
+  const evidenceIds = new Set(evidenceRows
     .map((cells) => unquote(cells[0] ?? ""))
     .filter((id) => taskIdPattern.test(id)));
   for (const task of tasks) {
@@ -40,6 +53,38 @@ export function validateFrameworkSsot(markdown) {
   return { tasks, evidenceIds: [...evidenceIds].sort() };
 }
 
+function isTableMetadata(value, header) {
+  return value === header || /^-+$/u.test(value);
+}
+
+function parseDependencies(value, taskId) {
+  const normalized = value.trim();
+  if (normalized === "—") return [];
+  if (normalized.length === 0) {
+    throw new Error(`Missing SSOT dependencies for ${taskId}.`);
+  }
+  return normalized.split(",").map((token) => {
+    const dependency = unquote(token.trim());
+    if (token.trim() !== `\`${dependency}\`` || !taskIdPattern.test(dependency)) {
+      throw new Error(`Malformed SSOT task reference in dependencies for ${taskId}: ${token.trim()}`);
+    }
+    return dependency;
+  });
+}
+
+function parseRows(markdown) {
+  const rows = [];
+  for (const rawLine of markdown.split("\n")) {
+    const line = rawLine.trim();
+    if (!line.startsWith("|")) continue;
+    if (!line.endsWith("|")) {
+      throw new Error(`Malformed SSOT table row: ${line}`);
+    }
+    rows.push(line.slice(1, -1).split("|").map((cell) => cell.trim()));
+  }
+  return rows;
+}
+
 function section(markdown, startHeading, endHeading) {
   const start = markdown.indexOf(startHeading);
   const end = markdown.indexOf(endHeading);
@@ -47,12 +92,6 @@ function section(markdown, startHeading, endHeading) {
     throw new Error(`SSOT section boundary is missing: ${startHeading}`);
   }
   return markdown.slice(start, end);
-}
-
-function parseRows(markdown) {
-  return markdown.split("\n")
-    .filter((line) => line.startsWith("|"))
-    .map((line) => line.slice(1, -1).split("|").map((cell) => cell.trim()));
 }
 
 function unquote(value) {

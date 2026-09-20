@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "@surfaceloom/core": "file:../core",
+    "@surfaceloom/llm-judge": "file:../llm-judge",
     "@surfaceloom/reporter": "file:../reporter"
   },
   "devDependencies": {
