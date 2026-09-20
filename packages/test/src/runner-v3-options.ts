@@ -9,6 +9,10 @@ import type { ExecutionGuiGate } from "./execution-gate.js";
 import { jsonSnapshot } from "./evidence/json-data.js";
 import type { RequiredEvidenceRequirement } from "./evidence/required-policy.js";
 import type {
+  JudgeRunnerBindingV3,
+} from "./judge/contracts.js";
+import type { JudgeProvider, JudgeProviderContext, JudgeRequest } from "@surfaceloom/llm-judge";
+import type {
   BrowserRunnerSurfaceV3,
   NativeRunnerSurfaceV3,
   RunCaseV3Identity,
@@ -30,8 +34,10 @@ import type {
 /** Descriptor-only snapshot of every runner-controlled field before the first await. */
 export function snapshotRunCaseV3Options(input: unknown): RunCaseV3Options {
   const value = record(input, "runner v3 options", ["platform", "runnerHostId", "run", "surfaces",
-    "requiredEvidence", "evidencePolicy", "executionGate", "execution", "stagingDirectory", "outputDirectory"]);
+    "requiredEvidence", "judge", "evidencePolicy", "executionGate", "execution",
+    "stagingDirectory", "outputDirectory"]);
   const requiredEvidenceValue = optional(value, "requiredEvidence", "runner v3 options");
+  const judgeValue = optional(value, "judge", "runner v3 options");
   const evidencePolicyValue = optional(value, "evidencePolicy", "runner v3 options");
   const executionGateValue = optional(value, "executionGate", "runner v3 options");
   const surfaces = Object.freeze(items(required(value, "surfaces", "runner v3 options"),
@@ -53,6 +59,7 @@ export function snapshotRunCaseV3Options(input: unknown): RunCaseV3Options {
           ["artifactId", "requireComplete"]),
       )),
     }),
+    ...(judgeValue === undefined ? {} : { judge: snapshotJudgeBinding(judgeValue) }),
     ...(evidencePolicyValue === undefined ? {} : {
       evidencePolicy: exactJson<Partial<EvidencePolicy>>(evidencePolicyValue, "evidence policy",
         ["screenshots", "video", "trace", "accessibilityTree", "logs"]),
@@ -64,6 +71,55 @@ export function snapshotRunCaseV3Options(input: unknown): RunCaseV3Options {
     outputDirectory: absolutePath(required(value, "outputDirectory", "runner v3 options"),
       "runner v3 outputDirectory"),
   });
+}
+
+const abortSignalAborted = Object.getOwnPropertyDescriptor(AbortSignal.prototype, "aborted")?.get;
+
+function snapshotJudgeBinding(input: unknown): JudgeRunnerBindingV3 {
+  const value = record(input, "runner v3 judge", ["provider", "deadlineAt", "signal"]);
+  const deadlineAt = optional(value, "deadlineAt", "runner v3 judge");
+  if (deadlineAt !== undefined && (!Number.isSafeInteger(deadlineAt) || (deadlineAt as number) < 0)) {
+    throw new Error("runner v3 judge.deadlineAt must be an absolute epoch-millisecond integer.");
+  }
+  const signal = optional(value, "signal", "runner v3 judge");
+  if (signal !== undefined && !genuineAbortSignal(signal)) {
+    throw new Error("runner v3 judge.signal must be a genuine AbortSignal.");
+  }
+  return Object.freeze({ provider: snapshotJudgeProvider(required(value, "provider", "runner v3 judge")),
+    ...(deadlineAt === undefined ? {} : { deadlineAt: deadlineAt as number }),
+    ...(signal === undefined ? {} : { signal: signal as AbortSignal }) });
+}
+
+function snapshotJudgeProvider(input: unknown): JudgeProvider {
+  if (typeof input !== "object" || input === null || types.isProxy(input)) {
+    throw new Error("runner v3 judge.provider must be a non-Proxy object.");
+  }
+  const nameDescriptor = Object.getOwnPropertyDescriptor(input, "name");
+  if (nameDescriptor === undefined || !("value" in nameDescriptor)
+      || typeof nameDescriptor.value !== "string") {
+    throw new Error("runner v3 judge.provider.name must be an own data string.");
+  }
+  let owner: object | null = input;
+  let judge: unknown;
+  for (let depth = 0; owner !== null && depth < 3; depth += 1) {
+    const descriptor = Object.getOwnPropertyDescriptor(owner, "judge");
+    if (descriptor !== undefined) {
+      if (!("value" in descriptor)) throw new Error("runner v3 judge.provider.judge must not be an accessor.");
+      judge = descriptor.value;
+      break;
+    }
+    owner = Object.getPrototypeOf(owner) as object | null;
+  }
+  if (typeof judge !== "function") throw new Error("runner v3 judge.provider.judge must be a function.");
+  return Object.freeze({ name: nameDescriptor.value,
+    judge: (request: JudgeRequest, context: JudgeProviderContext) =>
+      Reflect.apply(judge as Function, input, [request, context]) as Promise<unknown> });
+}
+
+function genuineAbortSignal(input: unknown): boolean {
+  if (typeof input !== "object" || input === null || types.isProxy(input)
+      || abortSignalAborted === undefined) return false;
+  try { abortSignalAborted.call(input); return true; } catch { return false; }
 }
 
 /** Capture an already-acquired gate before validating unrelated runner fields. */

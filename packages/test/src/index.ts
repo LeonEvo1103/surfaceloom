@@ -18,6 +18,7 @@ export type { RunCaseV3AdditionalFailure, RunCaseV3FailurePhase } from "./runner
 export type {
   BrowserRunnerSurfaceV3,
   CaseContextV3,
+  CaseDefinitionV3Input,
   CaseDefinitionV3,
   CaseEvidenceSubmissionV3,
   CaseEvidenceV3,
@@ -28,6 +29,11 @@ export type {
   RunCaseV3Options,
   RunCaseV3Result,
 } from "./runner-v3-contracts.js";
+export type {
+  CaseImageEvidenceSubmissionV3,
+  JudgeCriterionV3,
+  JudgeRunnerBindingV3,
+} from "./judge/contracts.js";
 export type {
   AxAction, AxLocator, BrowserAction, BrowserCloseProof, BrowserSurfaceAuthor,
   BrowserSurfaceBackendPort, BrowserSurfaceRequirement, BrowserSurfaceSessionPort,

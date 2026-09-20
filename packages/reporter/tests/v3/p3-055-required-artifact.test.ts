@@ -24,9 +24,9 @@ test("required artifact failures abort the real bundle before a completion marke
     { name: "missing", code: "missing" },
     { name: "capture-failed", artifact: artifact({ captureStatus: "captureFailed" }),
       code: "captureFailed" },
-    { name: "retained-out", artifact: artifact({ captureStatus: "captured",
+    { name: "policy-off-still-required", artifact: artifact({ captureStatus: "captured",
       sourcePath: path.join(root, "retained.txt") }), evidencePolicy: { logs: "off" },
-      code: "retainedOut" },
+      code: "copyChanged" },
     { name: "copy-failed", artifact: artifact({ captureStatus: "captured",
       sourcePath: path.join(root, "does-not-exist.txt") }), code: "captureFailed" },
   ];

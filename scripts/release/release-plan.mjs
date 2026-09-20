@@ -1,4 +1,7 @@
-import { artifactKinds, planSchemaVersion, releasePipeline } from "./constants.mjs";
+import {
+  artifactKinds, planSchemaVersion, planSchemaVersionV1,
+  releasePackageNamesForSchemaVersion, releasePipeline,
+} from "./constants.mjs";
 import { localDependencyBlockers, packageDescriptor, validatePackageSet } from "./package-graph.mjs";
 import {
   validateBuild, validatePipeline, validateProtocols, validateSignature, validateTargets,
@@ -12,10 +15,13 @@ const planFields = [
   "targets", "protocols", "source", "signingPolicy", "expectedArtifacts", "pipeline",
 ];
 
-export function createReleasePlanFromPackageManifests(packageJsons, input) {
-  const manifests = list(packageJsons, "package manifests", { min: 7 });
+export function createReleasePlanFromPackageManifests(packageJsons, input, options = {}) {
+  const settings = record(options, "release plan generator options", ["schemaVersion"], []);
+  const schemaVersion = settings.schemaVersion ?? planSchemaVersion;
+  const packageNames = planPackageNames(schemaVersion);
+  const manifests = list(packageJsons, "package manifests", { min: packageNames.length });
   const packages = manifests.map(packageDescriptor);
-  const graph = validatePackageSet(packages, { allowLocalDependencies: true });
+  const graph = validatePackageSet(packages, { allowLocalDependencies: true, packageNames });
   const blockers = [];
   for (const manifest of manifests) {
     if (manifest.private === true) blockers.push(`${manifest.name}:private`);
@@ -24,7 +30,7 @@ export function createReleasePlanFromPackageManifests(packageJsons, input) {
   const values = record(input, "release plan input", planFields.filter((field) =>
     !["schemaVersion", "packages", "packageBuildOrder", "readiness", "pipeline"].includes(field)));
   const plan = Object.freeze({
-    schemaVersion: planSchemaVersion,
+    schemaVersion,
     ...values,
     packages: Object.freeze(packages),
     packageBuildOrder: graph.buildOrder,
@@ -38,10 +44,10 @@ export function createReleasePlanFromPackageManifests(packageJsons, input) {
 
 export function validateReleasePlan(value) {
   const plan = record(value, "release plan", planFields);
-  if (plan.schemaVersion !== planSchemaVersion) fail("schemaVersion", "Unsupported ReleasePlan schemaVersion.");
+  const packageNames = planPackageNames(plan.schemaVersion);
   string(plan.releaseId, "releaseId", /^[a-z0-9][a-z0-9._-]{2,127}$/u);
   oneOf(plan.state, ["pending", "ready"], "release plan state");
-  const graph = validatePackageSet(plan.packages, { allowLocalDependencies: true });
+  const graph = validatePackageSet(plan.packages, { allowLocalDependencies: true, packageNames });
   if (JSON.stringify(plan.packageBuildOrder) !== JSON.stringify(graph.buildOrder)) {
     fail("buildOrder", "Package build order does not match the dependency graph.");
   }
@@ -64,6 +70,13 @@ export function validateReleasePlan(value) {
   }
   validatePipeline(plan.pipeline);
   return plan;
+}
+
+function planPackageNames(schemaVersion) {
+  if (schemaVersion !== planSchemaVersionV1 && schemaVersion !== planSchemaVersion) {
+    fail("schemaVersion", "Unsupported ReleasePlan schemaVersion.");
+  }
+  return releasePackageNamesForSchemaVersion(schemaVersion);
 }
 
 export function validateReleasePlanJson(text) {

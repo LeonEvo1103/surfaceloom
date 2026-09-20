@@ -1,8 +1,10 @@
-export const planSchemaVersion = "surfaceloom.release-plan/1";
-export const manifestSchemaVersion = "surfaceloom.release-manifest/1";
+export const planSchemaVersionV1 = "surfaceloom.release-plan/1";
+export const planSchemaVersion = "surfaceloom.release-plan/2";
+export const manifestSchemaVersionV1 = "surfaceloom.release-manifest/1";
+export const manifestSchemaVersion = "surfaceloom.release-manifest/2";
 export const scanSchemaVersion = "surfaceloom.release-scan/1";
 
-export const releasePackageNames = Object.freeze([
+export const releasePackageNamesV1 = Object.freeze([
   "@surfaceloom/core",
   "@surfaceloom/component-catalog",
   "@surfaceloom/reporter",
@@ -11,6 +13,28 @@ export const releasePackageNames = Object.freeze([
   "@surfaceloom/browser-playwright",
   "@surfaceloom/test",
 ]);
+
+export const releasePackageNames = Object.freeze([
+  "@surfaceloom/core",
+  "@surfaceloom/component-catalog",
+  "@surfaceloom/reporter",
+  "@surfaceloom/agent-loop",
+  "@surfaceloom/llm-judge",
+  "@surfaceloom/service",
+  "@surfaceloom/test",
+  "@surfaceloom/native",
+  "@surfaceloom/browser-playwright",
+]);
+
+export function releasePackageNamesForSchemaVersion(schemaVersion) {
+  if (schemaVersion === planSchemaVersionV1 || schemaVersion === manifestSchemaVersionV1) {
+    return releasePackageNamesV1;
+  }
+  if (schemaVersion === planSchemaVersion || schemaVersion === manifestSchemaVersion) {
+    return releasePackageNames;
+  }
+  return undefined;
+}
 
 export const releasePipeline = Object.freeze([
   "build",
