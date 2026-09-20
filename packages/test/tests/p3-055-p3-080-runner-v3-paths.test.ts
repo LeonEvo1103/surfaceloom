@@ -100,10 +100,19 @@ test("a noncooperative producer keeps its process-local path claim sticky", asyn
   const root = await temporary(context);
   const spec = caseSpec("runner.v3.path-sticky");
   let launches = 0;
-  const hanging = defineCaseV3({ spec, run: () => new Promise<void>(() => undefined) });
+  let signalStarted!: () => void;
+  const started = new Promise<void>((resolve) => { signalStarted = resolve; });
+  const hanging = defineCaseV3({ spec, run: () => {
+    signalStarted();
+    return new Promise<void>(() => undefined);
+  } });
+  const stop = new AbortController();
   const first = options(root, spec, backend(() => { launches += 1; }));
-  (first.execution as { timeoutMs: number }).timeoutMs = 5;
-  await assert.rejects(runCaseV3(hanging, first), /publishable terminal state/u);
+  (first.execution as { signal?: AbortSignal }).signal = stop.signal;
+  const running = runCaseV3(hanging, first);
+  await started;
+  stop.abort(new Error("stop noncooperative producer"));
+  await assert.rejects(running, /publishable terminal state/u);
   const second = options(root, spec, backend(() => { launches += 1; }));
   await assert.rejects(runCaseV3(hanging, second), /active in-process run/u);
   assert.equal(launches, 1);
