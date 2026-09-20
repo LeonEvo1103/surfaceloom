@@ -309,8 +309,8 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
 | `SL-P5-010` | done | `SL-P0-070`,`SL-P0-071` | 新 `packages/service` contracts/catalog/tests | 定义带稳定 service `testId` 的 TestDefinition、WorkspaceProvider、Executor、RunResult、artifact 与 cancel 合同；TestDefinition 显式列 0..n 个 CaseSpec 引用、覆盖/排除、参数、runtime/effect；四类 ID 与执行状态/业务 outcome 分离 |
-| `SL-P5-020` | ready | `SL-P5-010` | service workspace provider/tests | 本地不可变 snapshot provider 返回 resolved revision、runtime/AUT metadata；失败不回退当前工作树；准备操作以 `operationId` 追踪；active/unconfirmed run 的 snapshot 不复用 |
-| `SL-P5-030` | ready | `SL-P5-010` | service command executor/tests | `shell:false` argv、cwd/env allowlist、有界 stdout/stderr、deadline/cancel、进程身份与 cleanup；未知/基础设施退出不得伪装产品失败，cleanup 永不确认时有界结束为 `unconfirmed/tainted` |
+| `SL-P5-020` | in_progress | `SL-P5-010` | service workspace provider/tests | 本地不可变 snapshot provider 返回 resolved revision、runtime/AUT metadata；失败不回退当前工作树；准备操作以 `operationId` 追踪；active/unconfirmed run 的 snapshot 不复用 |
+| `SL-P5-030` | in_progress | `SL-P5-010` | service command executor/tests | `shell:false` argv、cwd/env allowlist、有界 stdout/stderr、deadline/cancel、进程身份与 cleanup；未知/基础设施退出不得伪装产品失败，cleanup 永不确认时有界结束为 `unconfirmed/tainted` |
 | `SL-P5-040` | planned | `SL-P5-020`,`SL-P5-030` | service run store/artifact store/tests | dispatch 前持久化 `runId` 及 snapshot/`testId`/参数/可选 `taskId`，按调用方 `requestId` 幂等；响应丢失重试返回原 run；断线可重读；重启后恢复 owned process 或隔离为 interrupted+tainted，未确认 cleanup 不释放 workspace；cancel 有界终态化 |
 | `SL-P5-050` | planned | `SL-P5-040` | service MCP server/SDK adapter/tests | 使用正式 MCP SDK 暴露 prepare/status/catalog/run/get-result/get-artifact/cancel；结构化 schema、四类 ID、`requestId` 与 lifecycle 同 service，不拼 shell、不复制 runner；断开 MCP 不等于取消 |
 | `SL-P5-060` | planned | `SL-P5-040`,`SL-P3-094` | service SurfaceLoom v3 executor/tests | 通过公开 API 调用现有 v3 kernel，保留原 verdict、Reporter v3、deadline 与 cleanup；command 成功不能冒充其中所有 Case 通过 |
@@ -322,7 +322,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | --- | --- | --- | --- | --- |
 | `SL-P6-010` | done | `SL-P0-070`,`SL-P0-071` | 新 `packages/llm-judge` contracts/fake/tests | 定义 rubric、允许标签、有界 multimodal evidence、当前 run evidence refs、observed facts/hypotheses、structured result、`insufficient` 与 provider failure；Fake provider 可重复，provider SDK 为可选依赖 |
 | `SL-P6-020` | ready | `SL-P6-010` | llm-judge provider adapter/tests | 基于成熟 SDK 的结构化输出、AbortSignal、deadline、401/429/5xx、token/latency metadata；未知标签 fail closed；真实 API 只做显式 smoke |
-| `SL-P6-030` | ready | `SL-P6-010`,`SL-P3-055` | test/reporter Judge integration/tests | Case 显式声明 Judge criterion，结果进入 Reporter v3 evidence/correlation；确定性失败、insufficient 或 provider failure 不能被模型改绿，不创建 Reporter v4 |
+| `SL-P6-030` | in_progress | `SL-P6-010`,`SL-P3-055` | test/reporter Judge integration/tests | Case 显式声明 Judge criterion，结果进入 Reporter v3 evidence/correlation；确定性失败、insufficient 或 provider failure 不能被模型改绿，不创建 Reporter v4 |
 | `SL-P6-040` | done | `SL-P0-070` | 新 `examples/login-testing` fixture/tests | 中性本地登录应用与邮箱：两个入口、全新/旧账号、测试模式验证码、可开关误分流故障、稳定 run/attempt identity；账号/邮箱/验证码按 attempt 隔离并可重置，连续两次与故障恢复后结果一致；不接真实模型/邮箱/公司页面 |
 | `SL-P6-050` | planned | `SL-P5-050`,`SL-P5-060`,`SL-P6-020`,`SL-P6-030`,`SL-P6-040` | login Playwright Cases、MCP showcase、Reporter assertions | 真实 Playwright 覆盖正常/误分流/邮件缺失/Judge insufficient/API failure；Fake 默认、real opt-in；一条命令通过 MCP 生成可解释报告 |
 | `SL-P6-060` | planned | `SL-P5-050`,`SL-P5-070` | `packages/service/src/planner/{contracts,tools}/**` 与 tests | Planner 只能 catalog/read/write patch/run/diff；外部 requirement/acceptance 为只读保护对象，CaseSpec 预期变化必须单独提出并经外部确认；patch 后冻结 revision并调用同一 service，返回 diff 与 `runId`；禁止 commit/push/merge |
