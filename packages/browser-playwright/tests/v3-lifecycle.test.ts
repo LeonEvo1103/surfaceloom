@@ -15,26 +15,34 @@ import { createPlaywrightBrowserSurfaceBackend } from "@surfaceloom/browser-play
 
 import { FakeBrowserType, fakePlaywright } from "./fakes.js";
 
-test("runner/controller closes an acquisition that arrives after setup deadline", async (t) => {
+test("runner/controller closes an acquisition that arrives after setup cancellation", async (t) => {
   const root = await temporary(t);
   const module = fakePlaywright();
   const browserType = module.chromium as FakeBrowserType;
   const launched = deferred<Awaited<ReturnType<FakeBrowserType["launch"]>>>();
+  const launchStarted = deferred<void>();
   const closed = deferred<void>();
   const close = browserType.browser.close.bind(browserType.browser);
   browserType.browser.close = async () => {
     await close();
     closed.resolve(undefined);
   };
-  browserType.launch = async () => launched.promise;
+  browserType.launch = async () => {
+    launchStarted.resolve(undefined);
+    return launched.promise;
+  };
   const backend = createPlaywrightBrowserSurfaceBackend({ loader: async () => module });
+  const stop = new AbortController();
 
   const subject = definition("playwright.v3.late", async () => undefined);
-  await assert.rejects(runCaseV3(subject, runnerOptions(root, backend, subject, {
-    surfaceTimeoutMs: 5, cleanupTimeoutMs: 200,
-  })));
-  // Resolve only after the runner has observed the deadline. Fixed timer gaps
-  // become ambiguous when a loaded CI event loop wakes both timers together.
+  const execution = runCaseV3(subject, runnerOptions(root, backend, subject, {
+    surfaceTimeoutMs: 5_000, cleanupTimeoutMs: 200, signal: stop.signal,
+  }));
+  await waitBounded(launchStarted.promise, 5_000);
+  stop.abort(new Error("cancel submitted browser acquisition"));
+  await assert.rejects(execution);
+  // Resolve only after the runner has observed cancellation. Fixed timer gaps
+  // become ambiguous when a loaded CI event loop wakes both operations together.
   launched.resolve(browserType.browser);
   await waitBounded(closed.promise, 5_000);
   assert.equal(browserType.browser.context.closeCount, 0);
