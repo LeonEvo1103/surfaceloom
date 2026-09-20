@@ -2,12 +2,12 @@
 
 > 状态：Active
 >
-> 当前代码基线：`099274b3d44a2e0ee72e6ea1791e883ea81293d2`
+> 当前代码基线：`9482192c29449597d0ec32af4e4713795779a8e8`
 >
-> 重新审计日期：2026-09-18
+> 重新审计日期：2026-09-20
 >
-> 当前里程碑：M1——把已存在的 Agent 验证内核交付为一个外部作者能理解、能一键运行、能查看
-> Reporter v3 结果的 Browser 纵向闭环；在此之前冻结新的底层驱动和组件目录扩张。
+> 当前里程碑：A1——外部 Agent 通过 MCP 以精确代码版本调用一个已存在的任务，获得可追踪的真实
+> 运行状态、结果和制品；不把 Planner、Runner 与 Judge 混成第二套执行内核。
 
 本文档是 SurfaceLoom 产品边界、执行语义、实施顺序和完成证据的唯一事实源（SSOT）。
 `docs/framework/capabilities.md` 只记录事实能力矩阵；README 只做对外说明。三者冲突时，先按源码和
@@ -15,16 +15,24 @@
 
 ## 1. 产品定义与成功标准
 
-SurfaceLoom 是 **Agent 行为验证与测试编排框架**。Playwright、UIA、AX、winapp、XCTest 或其他
-工具是可替换执行后端，不是产品中心。框架的中心对象是一次 `CaseExecution`：它把 UI 行为、
-Agent run、tool lifecycle、实际资源 effect、证据完整性和 cleanup 组合为一个保守 verdict。
+SurfaceLoom 是 **Agent 测试编排与验证框架**。它让 Agent 生成或维护的 UI/API 测试沉淀为可重复
+Case，让外部 Agent 通过 MCP 在固定代码版本上执行这些 Case，并允许 Case 对明确范围的页面语义
+调用 LLM Judge。Playwright、UIA、AX、winapp、XCTest 或其他工具是可替换执行后端，不是产品中心。
 
-首个必须做透的用户故事只有一个：
+框架的中心仍是一次 `CaseExecution`：它把确定性 UI 行为、Agent run、tool lifecycle、实际资源
+effect、显式语义判断、证据完整性和 cleanup 组合为一个保守 verdict。Planner 只负责选择、生成和
+维护 Case；Runner 独占执行与确定性 verdict；Judge 只读取明确提供的证据，不能覆盖确定性失败。
+
+已经做透的第一条用户故事是：
 
 > Agent 请求向受控资源写入一条记录；审批 UI 允许或拒绝；Case 必须证明指定 run/call 的工具
 > 生命周期、资源实际变化和清理结果，而不是只相信 UI 状态或 trace 文本。
 
-项目是否具有独立价值，由以下三个实验判定：
+下一阶段增加第二条公开用户故事：开发者给出登录流程的重要步骤和预期，Agent 可以维护 Case；稳定
+步骤由 Playwright 执行，Case 只在显式节点调用 Judge 判断错误类型；此后同一任务可由 MCP 重复运行，
+无需每次让 Agent 重新看图探索。
+
+项目是否具有独立价值，由以下四个实验判定：
 
 1. **故障识别：** UI 显示相同状态时，实际执行、截断账本、延迟 effect、未确认 cleanup 必须得到
    不同且正确的失败原因。
@@ -32,6 +40,8 @@ Agent run、tool lifecycle、实际资源 effect、证据完整性和 cleanup �
    backend adapter 与 conformance。
 3. **第二消费者：** 独立应用只新增 adapter/probe 就能复用 approval、duplicate、unknown 和 cleanup
    契约；若必须重写 ledger 和判定内核，则通用性假设失败。
+4. **Agent 可调用：** 外部 Agent 与内置 Planner 必须调用同一 service；同一精确版本、参数和任务产生
+   同一种运行记录，不允许出现“Agent 路径”专用 runner。
 
 ## 2. 当前事实基线
 
@@ -45,14 +55,18 @@ Agent run、tool lifecycle、实际资源 effect、证据完整性和 cleanup �
   child exit 分开记录；timeout、kill 或 stdio close 不冒充资源已清理。
 - Reporter v3、evidence materialization、显式 correlation、Browser/Native author facade、macOS stdio
   host 和 Windows C# UIA live fixture 已有独立合同或实验证据，具体等级以事实矩阵为准。
+- reference-agent 故障矩阵已用真实 Playwright v3 固定覆盖 2 个绿色和 6 个红色 Case，包括跨 callId
+  重复 effect、ledger 缺失/截断、stop 三态和 cleanup unconfirmed。
 
 ### 2.2 尚未交付
 
 - Windows 5/5 live 经 C# client，不证明 TypeScript→host→UIA；macOS host contract 不证明 TCC 下的
   TypeScript→host→AX live。
-- M1 已有真实 Playwright v3 四 Case bundle，reference-agent 也已具备确定性异步/stop 三态；但完整的
-  故障 CaseSpec/Reporter 矩阵、native effect 与 browser+native mixed-surface Case 尚未交付。
-- 没有仓库外 packed consumer，没有第二个公开消费者，也没有 npm alpha 发布证据。
+- native effect 与 browser+native mixed-surface Case 尚未交付；Windows 真实 GUI gate 仍有账户 symlink
+  权限阻断，不能把部分 live 证据扩大为完整统一 native 路径。
+- 尚无通用 task service、MCP server、持久化 run lifecycle、LLM Judge 包、Planner adapter 或中性登录
+  showcase；当前 CLI 的 v3 分支仍要求精确选择一个 Case，不是通用 suite runner。
+- 没有仓库外 packed consumer，没有第二个公开消费者，也没有包含 service/Judge 的 npm alpha 发布证据。
 
 ### 2.3 第三方复用的真实状态
 
@@ -90,6 +104,35 @@ AX、native host/protocol 大量为自研代码。替换只能在同一 fixture 
 - `sl-test` 与嵌入调用必须经过同一 kernel。首版只做发现、过滤、顺序执行、deadline、报告和 exit
   code，不自研通用 runner 生态。
 
+### 3.4 Service、MCP 与 Planner
+
+- `@surfaceloom/service` 拥有任务目录、工作区快照、执行器选择、运行状态、取消和制品读取；MCP 只是
+  这组服务方法的一个传输入口，不能另写执行语义。
+- Service 固定四类身份：`testId` 标识 catalog 中已登记的可执行测试，`operationId` 标识工作区准备，
+  `runId` 标识一次执行，`taskId` 只标识 Planner 工作；四者不能混用。service `testId` 有自己的命名
+  空间，不等同于 UI locator 的 `testId`；service `runId` 也不等同于 AUT/Agent/native 各自的 run 或
+  operation identity。Run 必须显式关联 snapshot/revision、`testId`、归一化参数、可选 `taskId`，并按
+  需关联 `CaseSpec.id`、Agent run/call 和 native operation identity。
+- 第一个 command executor 只运行已登记的 argv，使用 `shell:false`、有界输出、deadline/cancel 和明确
+  cleanup；MCP 参数不得直接拼成 shell。
+- Planner 可以查找、创建或修改 Case，但只能在隔离工作区产出 patch；执行前冻结 revision，完成后返回
+  diff 与 `runId`。它不能自行改变业务预期、提交、推送或合入。
+- 公司 Git、部署、认证、机器调度、告警和产品任务发现属于消费方 adapter，不进入公开 service。
+- 三仓依赖保持单向：公开 SurfaceLoom 提供通用 service/Judge/runner；私有组件库只提供产品 locator、
+  action 和 evidence adapter；公司测试 Kit 只装配代码同步、runtime/auth/deploy、真实 Case 与巡检。
+  私有仓可以消费公开包，公开仓不得读取私有路径、配置或产品实现。
+
+### 3.5 LLM Judge
+
+- `@surfaceloom/llm-judge` 接受显式 rubric、允许标签和有界证据，返回结构化 label、confidence、reasons、
+  evidence references、模型与用量元数据。
+- Judge 是可选断言/诊断，不是截图的默认全局评分器；未配置、超时、401/429/5xx、无效结构或证据不足
+  必须得到明确的 `insufficient`/provider failure，不能判绿。
+- evidence reference 必须存在且属于当前执行；Judge 必须把 observed facts 与 hypotheses 分开。只有页面
+  证据时，后端根因只能是待验证假设或 `insufficient`，不能写成已证实原因。
+- Fake provider 用于默认可重复测试；真实模型 smoke 必须显式启用。模型 API token 由消费方运行环境注入，
+  不进入 Case、报告或仓库。
+
 ## 4. 明确冻结和非目标
 
 当前阶段冻结：
@@ -97,9 +140,10 @@ AX、native host/protocol 大量为自研代码。替换只能在同一 fixture 
 - 新增 component/fixture manifest，以及没有真实消费者的组件行为扩张；现有 37 个组件主要是声明，
   不作为首页核心卖点。
 - 通用 DOM/AX/UIA 动作扩张；仅当 M1/M2 参考闭环缺少必需能力且候选 backend 无法提供时补充。
-- watch、sharding、worker pool、分布式调度、通用插件市场和 AI 自动评分器。
-- 豪华 trace viewer、通用日志平台和新的 Agent testing npm 包；trace/OTel 只作为证据导入导出，
-  不拥有 verdict。
+- watch、sharding、worker pool、分布式调度和通用插件市场。
+- 对任意截图自动打分的万能 Judge、让模型改写业务预期、无人工边界的 computer-use/browser-use runtime、
+  自动 commit/push/merge 和远程 IDE；显式 LLM Judge 与受限 Planner 属于当前目标。
+- 豪华 trace viewer 和通用日志平台；trace/OTel 只作为证据导入导出，不拥有 verdict。
 - native wire 新特性；现有 ownership、receipt 和安全语义继续维护，除修复合同缺陷外不扩协议。
 
 不立即删除现有 Windows UIA 或 macOS AX 实现，也不发动全面第三方替换。先证明候选 backend 能通过
@@ -132,6 +176,18 @@ await expectAgent(run.tool("write-note")).toHaveExecutedExactlyOnce({ barrier })
 resource probe 验证它，不能调用只适用于 `boundary: "external"` 的零外部副作用断言来抬高证据等级。
 真正 external resource 的否定断言留给提供可信完成 barrier 的后续消费者。
 
+Agent 可调用闭环必须先支持“精确引用已存在任务”，再支持 Planner 写测试。首个 MCP 纵向切片为：
+
+1. 消费方准备不可变工作区并返回 `operationId` 与 resolved revision；
+2. Agent 查询 task catalog，并以结构化参数启动任务获得 `runId`；
+3. service 按稳定 `testId` 通过登记 executor 执行现有 Node/CLI 或 SurfaceLoom v3 Case；
+4. Agent 查询状态、结果和制品，断线重连后仍能读取；
+5. 只有 Planner 任务使用 `taskId`，其 patch 必须在冻结 revision 后通过同一 service 执行。
+
+中性登录 showcase 必须是 browser-only 的本地应用，包含两个入口、全新/旧账号、本地邮箱、测试模式
+验证码和可开关的“旧账号误走注册”故障。默认 Fake Judge 可离线复现；可选真实 provider 只替换判断
+层。示例不得接真实邮箱、真实验证码、公司页面或公司账号。
+
 ## 6. 里程碑门槛
 
 | 里程碑 | 唯一主要闭环 | 完成门槛 | No-go |
@@ -139,8 +195,13 @@ resource probe 验证它，不能调用只适用于 `boundary: "external"` 的�
 | M1：可理解的 Agent Case | Browser approval 从高层作者 API 到 Reporter v3 | 真实 Playwright port；四项最小矩阵；一条仓库内命令生成 JSON/HTML/AI review；文档与事实矩阵同步 | 相对路径内部导入冒充外部 API；假报告；扩 manifest/native 驱动 |
 | M2：执行边界与可替换 backend | 异步 stop + 一条 Browser→Native effect | 提交前取消、提交后 unknown、effect 已发生三态；Windows TS live；候选 backend 用同 fixture 比较；mixed Case 报告两面和 cleanup | cancel arrival 冒充 stopped；UI 状态冒充 effect；一次重写所有 backend |
 | M3：独立消费与第二应用 | 源码树不可见的安装和复用 | packed consumer 用精确版本运行真实 Case/report；第二消费者只新增 adapter/probe；发布字节通过扫描和 provenance 门禁 | 借仓库 node_modules/tsc；产品规则进入 core；安装未闭合先发布 |
+| A1：Agent 可调用执行 | MCP 精确版本运行已有任务 | task catalog、不可变 workspace、command executor、持久化 run、artifact/cancel；Node/CLI 真实任务可重复执行 | MCP 拼 shell；断线即丢结果；Planner 与 runner 共用一个不透明进程 |
+| A2：语义判断闭环 | 登录 Case + Playwright + Judge + Reporter v3 | 正常/误分流/邮件缺失/Judge insufficient/provider failure；Fake 默认、真实模型显式；确定性失败不可被 Judge 覆盖 | 把 Judge 当万能 verdict；依赖真实邮箱/验证码；报告只有模型文本 |
+| A3：Agent 维护 Case | 外部 Agent 或受限 Planner 产出 patch 后复跑 | patch→冻结 revision→同一 service 执行→返回 diff/runId；Codex Exec 与模型 API 共享工具合同 | Planner 改业务预期；自动提交合入；第二套执行器 |
+| A4：公开安装 | 仓库外安装 browser/service/Judge 子集 | `.tgz` consumer 看不到源码树；无 `file:`；真实 browser task、MCP 与 Judge 报告通过 | 借 monorepo node_modules；先发 registry 再补 consumer；把旧七包合同静默改写 |
 
-M1 与 M3 严格分开：M1 证明公开作者入口和产品体验，M3 才证明打包安装与源码树隔离。
+M1 与 M3、A1 与 A4 都严格分开：仓库内体验或 contract 不等于仓库外可安装。M1–M3 的历史任务和
+证据继续有效；A1–A4 是面向 Agent 调用、Judge 与开源交付的新主线，不重写已完成事实。
 
 ## 7. 任务状态和完成证据
 
@@ -150,6 +211,7 @@ M1 与 M3 严格分开：M1 证明公开作者入口和产品体验，M3 才证�
 done 记录至少包含：taskId、sourceRevision、changedPaths、command、exitCode、platform、
 executedTests、skippedTests、evidencePath、remainingLimitations。源码存在、manifest 声明、fake
 contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算完成证据。
+本节验收记录的 `taskId` 专指 `SL-P*-*` 账本 ID，不是 service 中的 Planner `taskId`。
 
 ## 8. 原子任务账本
 
@@ -164,6 +226,8 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P0-040` | done | `SL-P0-010` | `docs/framework/capabilities.md`、README 事实段 | 同步 Windows C# live、TS transport-neutral、macOS fixture build-only 与 P3/P4 边界；事实矩阵和 SSOT 不互相矛盾 |
 | `SL-P0-050` | done | `SL-P0-040` | `docs/FRAMEWORK_SSOT.md` | 将路线收紧为 Agent 验证闭环优先，保留历史 done 证据；账本校验、架构检查和 GPT-6 反向审查通过后，由集成人关闭 |
 | `SL-P0-060` | done | `SL-P0-050`,`SL-P3-094` | README、`docs/framework/capabilities.md`、相关入口文档 | 按 M1 实际证据同步对外事实；修正“无 macOS stdio host”等过时措辞，同时继续区分 host contract、TS binding 和 live AX/UIA |
+| `SL-P0-070` | review | `SL-P0-060` | SSOT、AGENTS 与公开/私有仓边界说明 | 固化 open-source-first 的 service/Planner/Judge 分工、A1–A4 门槛和 P5/P6 原子任务；保留历史任务与证据；共识审查、独立反向审查、架构和 diff 门禁通过 |
+| `SL-P0-071` | review | `SL-P0-020` | SSOT validator 与 tests | 校验器识别 P5/P6 及后续数字阶段，拒绝格式错误的任务 ID/依赖；继续检查重复、未知依赖、环、状态和 done 证据 |
 
 ### P1：首个可信 Agent Case
 
@@ -235,13 +299,46 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | `SL-P4-020` | planned | `SL-P4-010` | clean packed-consumer project/script | 隐藏源码树，在仓库外用消费端自己的依赖安装候选；真实 Browser+Native Case 与 report/v3，不用 fake backend/仓库 tsc |
 | `SL-P4-030` | planned | `SL-P4-020` | 第二消费者 adapter example、conformance、release notes | 独立应用只通过公开扩展点增加 adapter/probe，复用 approval/duplicate/unknown/cleanup 契约；不得修改共享 core |
 | `SL-P4-025` | planned | `SL-P4-020`,`SL-P4-030` | registry staging/publish/post-install workflow | 验证 npm scope/身份/provenance；发布后安装精确版本，以 `npx --no-install sl-test <case/config>` 运行，不下载 latest |
+| `SL-P4-040` | planned | `SL-P0-070`,`SL-P4-005` | release graph/version contract | 版本化演进既有“恰好七包”v1 合同，增加 service/Judge/browser 子集 release profile；旧合同与证据原样保留，不能静默改快照 |
+| `SL-P4-050` | planned | `SL-P4-040`,`SL-P5-070`,`SL-P6-050` | 新包 manifests、exports、license/third-party notices、候选 tgz | browser/service/Judge 所需闭包无 `file:`，MIT 与第三方许可证完整，bin/assets/optional provider 清单与最终字节一致 |
+| `SL-P4-060` | planned | `SL-P4-050` | 仓库外 consumer 与验证脚本 | 独立临时目录只安装 `.tgz`，运行真实 Browser+service+Judge Case 并生成 Reporter v3；文档明确 Fake/real provider 差异 |
+| `SL-P4-070` | planned | `SL-P4-060` | registry staging/publish/post-install workflow | registry 发布与候选构建分离；发布后按精确版本安装并重跑，不用 tag/latest 或源码目录兜底 |
+
+### P5：Agent 可调用测试服务
+
+| ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
+| --- | --- | --- | --- | --- |
+| `SL-P5-010` | planned | `SL-P0-070`,`SL-P0-071` | 新 `packages/service` contracts/catalog/tests | 定义带稳定 service `testId` 的 TestDefinition、WorkspaceProvider、Executor、RunResult、artifact 与 cancel 合同；TestDefinition 显式列 0..n 个 CaseSpec 引用、覆盖/排除、参数、runtime/effect；四类 ID 与执行状态/业务 outcome 分离 |
+| `SL-P5-020` | planned | `SL-P5-010` | service workspace provider/tests | 本地不可变 snapshot provider 返回 resolved revision、runtime/AUT metadata；失败不回退当前工作树；准备操作以 `operationId` 追踪；active/unconfirmed run 的 snapshot 不复用 |
+| `SL-P5-030` | planned | `SL-P5-010` | service command executor/tests | `shell:false` argv、cwd/env allowlist、有界 stdout/stderr、deadline/cancel、进程身份与 cleanup；未知/基础设施退出不得伪装产品失败，cleanup 永不确认时有界结束为 `unconfirmed/tainted` |
+| `SL-P5-040` | planned | `SL-P5-020`,`SL-P5-030` | service run store/artifact store/tests | dispatch 前持久化 `runId` 及 snapshot/`testId`/参数/可选 `taskId`，按调用方 `requestId` 幂等；响应丢失重试返回原 run；断线可重读；重启后恢复 owned process 或隔离为 interrupted+tainted，未确认 cleanup 不释放 workspace；cancel 有界终态化 |
+| `SL-P5-050` | planned | `SL-P5-040` | service MCP server/SDK adapter/tests | 使用正式 MCP SDK 暴露 prepare/status/catalog/run/get-result/get-artifact/cancel；结构化 schema、四类 ID、`requestId` 与 lifecycle 同 service，不拼 shell、不复制 runner；断开 MCP 不等于取消 |
+| `SL-P5-060` | planned | `SL-P5-040`,`SL-P3-094` | service SurfaceLoom v3 executor/tests | 通过公开 API 调用现有 v3 kernel，保留原 verdict、Reporter v3、deadline 与 cleanup；command 成功不能冒充其中所有 Case 通过 |
+| `SL-P5-070` | planned | `SL-P5-050`,`SL-P5-060` | 中性 provider/consumer conformance | 独立 consumer 执行 Node/CLI 与 v3 任务，验证 prepare→run→reconnect→artifact→cancel，并注入“已启动但响应丢失”、service crash+存活 child、cleanup 永不确认；不得重复执行或复用 tainted workspace；私有消费证据只作补充 |
+
+### P6：语义判断与 Agent 维护工作流
+
+| ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
+| --- | --- | --- | --- | --- |
+| `SL-P6-010` | planned | `SL-P0-070`,`SL-P0-071` | 新 `packages/llm-judge` contracts/fake/tests | 定义 rubric、允许标签、有界 multimodal evidence、当前 run evidence refs、observed facts/hypotheses、structured result、`insufficient` 与 provider failure；Fake provider 可重复，provider SDK 为可选依赖 |
+| `SL-P6-020` | planned | `SL-P6-010` | llm-judge provider adapter/tests | 基于成熟 SDK 的结构化输出、AbortSignal、deadline、401/429/5xx、token/latency metadata；未知标签 fail closed；真实 API 只做显式 smoke |
+| `SL-P6-030` | planned | `SL-P6-010`,`SL-P3-055` | test/reporter Judge integration/tests | Case 显式声明 Judge criterion，结果进入 Reporter v3 evidence/correlation；确定性失败、insufficient 或 provider failure 不能被模型改绿，不创建 Reporter v4 |
+| `SL-P6-040` | planned | `SL-P0-070` | 新 `examples/login-testing` fixture/tests | 中性本地登录应用与邮箱：两个入口、全新/旧账号、测试模式验证码、可开关误分流故障、稳定 run/attempt identity；账号/邮箱/验证码按 attempt 隔离并可重置，连续两次与故障恢复后结果一致；不接真实模型/邮箱/公司页面 |
+| `SL-P6-050` | planned | `SL-P5-050`,`SL-P5-060`,`SL-P6-020`,`SL-P6-030`,`SL-P6-040` | login Playwright Cases、MCP showcase、Reporter assertions | 真实 Playwright 覆盖正常/误分流/邮件缺失/Judge insufficient/API failure；Fake 默认、real opt-in；一条命令通过 MCP 生成可解释报告 |
+| `SL-P6-060` | planned | `SL-P5-050`,`SL-P5-070` | `packages/service/src/planner/{contracts,tools}/**` 与 tests | Planner 只能 catalog/read/write patch/run/diff；外部 requirement/acceptance 为只读保护对象，CaseSpec 预期变化必须单独提出并经外部确认；patch 后冻结 revision并调用同一 service，返回 diff 与 `runId`；禁止 commit/push/merge |
+| `SL-P6-070` | planned | `SL-P6-060` | `packages/service/src/planner/codex/**` 与 tests | 可配置 binary/version/model，限隔离工作区、预算、取消和工具白名单；fixture contract 必需，真实 Codex 只做显式 smoke |
+| `SL-P6-080` | planned | `SL-P6-020`,`SL-P6-060` | `packages/service/src/planner/model-api/**` 与 tests | 使用同一 Planner tools 的结构化 tool loop，限制轮次/token/写入范围；无第二 runner，provider/预算错误结构化返回 |
 
 ## 9. 并行施工规则
 
-M1 的 `SL-P3-090/091/092/093/094` 与 M2 的 `SL-P3-087/088` 已完成。下一条 Windows native
-路径先关闭 `SL-P2-080` 的 live lease 门槛，再执行 `SL-P3-060` 和 `SL-P3-089`；不得为了“先接
-backend”改写已冻结的 M1 作者 API。只有测试/fixture 与互斥目录明确时才并行，聚合门槛
-`SL-P3-086` 不重复实现子任务。
+M1 的 `SL-P3-090/091/092/093/094` 与 M2 的 `SL-P3-087/088` 已完成。native 路径继续按既有依赖推进，
+但不阻塞 browser-first 的 A1/A2。第一波只并行 `SL-P5-010`、`SL-P6-010`、`SL-P6-040`；三者分别
+写 service、Judge 与中性示例，不修改共享 exports、lock、SSOT、Reporter schema 或根 CI。主集成人
+统一处理新 package manifests/exports、根接线和全量回归。
+
+第二波按依赖推进 workspace/command executor、provider adapter 与 Judge integration；MCP 必须等 run
+lifecycle 固定后接入，Planner 必须等 MCP/consumer conformance 后接入。不能为了展示 AI 而越过 A1，
+也不能要求现有消费方先把所有传统 Node/CLI 测试迁移成 `defineCaseV3`。
 
 即使源码目录互斥，`core/dist`、package exports、locks、Reporter schema 和根 CI 仍共享。实现 Agent
 只运行 scoped typecheck/test；主集成人串行运行全量构建、架构守卫和 SSOT 校验。修改
@@ -254,14 +351,15 @@ TCC 下的 live AX。Linux 交叉编译、fake 或 portable model 不能替代�
 
 ## 10. 扩展与版本边界
 
-首个 alpha 只承诺 product adapter、fixture provider、Agent observation/resource probe、完成后的 report
-消费接口和已有 TraceAdapter。Backend SPI 必须先通过真实 Playwright port、first-party native live 和
-至少一个第三方替换实验，再承诺稳定兼容。任意生命周期 hook、全局 service container、scheduler
-interception 和 AI evaluator 暂不开放。
+首个 alpha 对已有包只承诺 product adapter、fixture provider、Agent observation/resource probe、完成
+后的 report 消费接口和已有 TraceAdapter。新 service 开放 TestDefinition、WorkspaceProvider、Executor、
+run/artifact store 与 MCP transport 扩展点；新 Judge 开放 provider adapter 与结构化判定合同；Planner
+只开放有界工具合同。任意生命周期 hook、全局 service container、scheduler interception 和万能 AI
+evaluator 暂不开放。
 
 npm 包、native wire protocol、report schema、trace schema 和 component behavior/manifest 分别版本化。
-当前 ReleasePlan/ReleaseManifest 合同固定恰好七个 npm 包；consumer 可以只安装所需依赖闭包，但缩包
-或合包属于单独的 release-contract 演进任务，不能在文档中提前宣称。平台支持必须标明 declared、
+当前 ReleasePlan/ReleaseManifest v1 合同固定恰好七个 npm 包；`SL-P4-040` 必须通过新版本/profile 显式
+演进，不能篡改旧快照或证据。consumer 可以只安装所需依赖闭包。平台支持必须标明 declared、
 contract-tested、live-fixture-tested 或 target-app-tested；没有 live 证据只能写 contract-tested。
 
 ## 11. 验收记录
@@ -343,3 +441,4 @@ contract-tested、live-fixture-tested 或 target-app-tested；没有 live 证据
 | 2026-09-19 | `SL-P3-087` 经 5.6 Sol High 实现、GPT-6 Xhigh 两轮提交/deadline/settle 反例审计和主 Agent 整仓回归后关闭：reference-agent 的 append-note executor 支持确定性 checkpoint、同步提交边界、合作 stop/emergency 与有界 settle；提交前、提交后未决、effect 已发生分别保留 `notExecuted/unknown/executed`，绝对 deadline 已过但 timer 未投递也不能迟到提交；M1 showcase 继续保持 2 绿 2 红/exit 1。 |
 | 2026-09-19 | `SL-P3-088` 经 5.6 Sol High 实现、GPT-6 Xhigh 两轮故障/报告/cleanup 对抗审计和主 Agent 整仓回归后关闭：新增独立 8 Case 真实 Playwright v3 故障矩阵，固定 2 绿 6 红；跨 callId 重复由独立资源 probe 抓住，missing/truncated/open ledger 不满足完整性，stop 三态和 cleanup unconfirmed 保守判定。M1 与矩阵共用一份 browser plan/policy，预期红额外注入 browser close 故障时验收会拒绝，不能吞掉基础设施失败。 |
 | 2026-09-19 | `SL-P2-080` 的 execution-wide Windows GUI gate 已在 `af9979c` 合入本地 `main`，并通过 GPT-6 Xhigh 的 stale proof、ABA retirement、提前 contender 与 inherited-pipe 生命周期复审；本地 TypeScript/Swift/架构门禁通过。相同 clean revision 在 Windows 11 复验时，独立 WPF/UIA 继续 5/5、0 skip 且 cleanup 后无残留进程，但默认账户的两个真实 file-symlink storage Case 均以 `EPERM` 失败，因此一键 gate evidence 未生成，任务继续保持 review；未修改 Developer Mode、UAC 或账户权限，也未以 junction 替代。 |
+| 2026-09-20 | 主 Agent 与 GPT-6 Xhigh 就 Agent 调用、LLM Judge、Planner 和开源边界达成共识：采用 open-source-first，两项通用能力直接落在 `@surfaceloom/service` 与 `@surfaceloom/llm-judge`；公司仓只注入 Git/runtime/auth/deploy 与产品 adapter。外部 Agent 和本地 Planner 共用同一 MCP/service，Runner 保持唯一执行内核，Judge 只做显式语义判断。新增 A1–A4 与 P5/P6，历史 P0–P4 状态和证据不重写；独立反向审查尚未完成，首批实现任务保持 planned。 |

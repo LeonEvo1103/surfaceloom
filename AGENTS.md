@@ -5,7 +5,8 @@
 
 ## 框架 SSOT
 
-- 框架执行模型、P0–P4 原子任务、依赖、状态和验收证据以 `docs/FRAMEWORK_SSOT.md` 为唯一事实源。
+- 框架执行模型、全部 `SL-P*` 原子任务、依赖、状态和验收证据以
+  `docs/FRAMEWORK_SSOT.md` 为唯一事实源；当前账本包含 P0–P6，后续阶段仍沿用同一编号和校验规则。
 - 当前能力必须按 `docs/framework/capabilities.md` 的 `declared`、`contract-tested`、
   `live-fixture-tested`、`target-app-tested` 分级描述；manifest、接口或默认跳过的 smoke 不能冒充 live 实现。
 - 实现 Agent 只能把任务交付到 `review`；只有主集成人运行任务 DoD 并写入验收记录后才能置 `done`。
@@ -17,12 +18,22 @@
 - `packages/component-catalog`：普通桌面、System Surface 与 Agent 扩展的机器可读 manifest。
 - `packages/reporter`：跨平台测试结果、证据保留策略和 AI/HTML 报告，不实现 UI 操作。
 - `packages/agent-loop`：产品无关的 trace adapter、统一 Agent loop schema、合并与静态 viewer。
+- `packages/service`：任务目录、工作区准备、执行器、运行/制品生命周期与 MCP 接口；不包含公司 Git、
+  部署、认证、告警或产品规则。
+- `packages/llm-judge`：显式语义判断合同、provider adapter 与结构化判断结果；只消费证据，不能改写
+  确定性断言、cleanup 或最终执行事实。
 - `Sources/SurfaceLoomMacOS`：Swift + AX/AppKit/CGEvent 的 macOS 实现。
 - `native/windows-host`：C# + UI Automation/Win32 的 Windows 实现。
 - `projects/<product>`：产品路径、locator、文案、profile、fixture 和验收场景。
 
-依赖方向固定为：产品场景 → 产品适配器 → 组件 → Core → backend。共享层不得出现产品名；
-场景不得直接出现 `AXUIElement`、`ControlType`、键码、坐标或平台驱动对象。
+运行调用方向固定为：外部 Agent/MCP → service → executor/test kernel → 注入的 adapter/component →
+Core → backend；源码依赖中 kernel 只依赖公开接口，消费方注入 adapter，不能反向 import 产品实现。
+LLM Judge 只从 Case/evidence 侧接入，不反向控制 runner。共享层不得出现产品名；场景不得直接出现
+`AXUIElement`、`ControlType`、键码、坐标或平台驱动对象。
+
+Planner 负责发现、生成或维护 Case，并通过同一 service 提交任务；Runner 负责确定性执行和 verdict；
+LLM Judge 只处理 Case 明确声明的语义判断或失败诊断。三者不得合并成一个拥有任意 shell、业务预期
+修改和自动合入权限的“万能 Agent”。
 
 ## 组件规则
 
