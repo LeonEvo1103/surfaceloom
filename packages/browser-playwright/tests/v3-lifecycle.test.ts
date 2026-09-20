@@ -20,6 +20,12 @@ test("runner/controller closes an acquisition that arrives after setup deadline"
   const module = fakePlaywright();
   const browserType = module.chromium as FakeBrowserType;
   const launched = deferred<Awaited<ReturnType<FakeBrowserType["launch"]>>>();
+  const closed = deferred<void>();
+  const close = browserType.browser.close.bind(browserType.browser);
+  browserType.browser.close = async () => {
+    await close();
+    closed.resolve(undefined);
+  };
   browserType.launch = async () => launched.promise;
   const backend = createPlaywrightBrowserSurfaceBackend({ loader: async () => module });
 
@@ -30,7 +36,7 @@ test("runner/controller closes an acquisition that arrives after setup deadline"
   // Resolve only after the runner has observed the deadline. Fixed timer gaps
   // become ambiguous when a loaded CI event loop wakes both timers together.
   launched.resolve(browserType.browser);
-  await waitUntil(() => browserType.browser.closeCount === 1, 1_000);
+  await waitBounded(closed.promise, 5_000);
   assert.equal(browserType.browser.context.closeCount, 0);
   assert.equal(browserType.browser.closeCount, 1);
 });
@@ -229,14 +235,16 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function delay(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
-async function waitUntil(predicate: () => boolean, timeoutMs: number): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (!predicate()) {
-    if (Date.now() >= deadline) throw new Error("Timed out waiting for the expected lifecycle state.");
-    await delay(5);
+async function waitBounded(promise: Promise<void>, timeoutMs: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error("Timed out waiting for lifecycle completion.")), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
