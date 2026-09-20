@@ -20,7 +20,9 @@
 >
 > M1 Agent showcase revision：`38eee9ade11205694ae3db1d9a5e0b70ca8feb05`
 >
-> 审计日期：2026-09-18
+> Agent service / Judge foundation revision：`29eb24f8c7da704ed48eedad2bc786e671b48f09`
+>
+> 审计日期：2026-09-20
 
 本文记录基线审计及后续明确列出的验收 revision 中可由源码和测试证明的能力。SurfaceLoom 当前的
 框架职责是 Agent 行为验证与测试编排；Playwright、AX/UIA native host 和 trace adapter 是它调用的
@@ -67,7 +69,10 @@ TypeScript binding 或 TCC 下的 live AX。双平台 DesktopSession live 与 fl
 | execution kernel | [`execute.ts`](../../packages/test/src/execute.ts)、[`runner-v3.ts`](../../packages/test/src/runner-v3.ts) | [`execution-lifecycle.test.ts`](../../packages/test/tests/execution-lifecycle.test.ts)、reference-agent live E2E | `live-fixture-tested`（Agent 浏览器切片） | effect policy、deadline、resource receipt、fixture teardown 与 v3 evidence 已进入 live slice；仍不能强停任意 in-process JavaScript，native TS backend 尚未接入。 |
 | Agent observation assertions | [`agent-observation.ts`](../../packages/test/src/agent-observation.ts) | [`agent-observation.test.ts`](../../packages/test/tests/agent-observation.test.ts) | `contract-tested` | `toHaveRunState`、approval/tool-call/exactly-once/no-external-effect 均绑定显式 run/call/resource；exact/negative 结论要求完成 barrier。provider 的账本真实性仍是 adapter 信任边界。 |
 | `sl-test` CLI/report 接线 | [`cli`](../../packages/test/src/cli)、[`report`](../../packages/test/src/report) | [`cli`](../../packages/test/tests/cli)、[`report`](../../packages/test/tests/report) | `contract-tested` | v2 支持发现/过滤/顺序执行；v3 config 必须精确选择单 Case。M1 用公开 `runCaseV3` 四次串行编排并生成单一 v3 bundle；无通用 multi-Case v3 CLI、worker pool、sharding 或 watch。 |
+| Agent-callable service foundation | [`packages/service/src`](../../packages/service/src) | [`packages/service/tests`](../../packages/service/tests) | `contract-tested` | 已定义稳定 service `testId`、`operationId`/`runId`/Planner `taskId`、不可变 TestDefinition/catalog 以及 workspace/executor/result/artifact/cancel 合同；尚无真实 workspace provider、进程 executor、run store 或 MCP。 |
+| LLM Judge foundation | [`packages/llm-judge/src`](../../packages/llm-judge/src) | [`packages/llm-judge/tests`](../../packages/llm-judge/tests) | `contract-tested` | 已证明当前 run evidence binding、Fake provider、三态结果、facts/hypotheses、deadline/cancel 与有界输入；尚无真实模型 SDK、Reporter 集成或显式 API smoke，且 Judge 不得覆盖确定性 verdict。 |
 | reference-agent M1 fixture/ledger/showcase | [`examples/reference-agent`](../../examples/reference-agent) | [`approval.test.mjs`](../../examples/reference-agent/test/approval.test.mjs)、[`showcase unit`](../../examples/reference-agent/test/showcase-aggregate.test.mjs)、[`showcase live`](../../examples/reference-agent/tests/e2e/showcase.e2e.test.mjs) | `live-fixture-tested` | 一条命令串行执行 deny=green、approve=green、deny-but-execute=red、incomplete-ledger=red，真实 Chrome 0 skip，单一 v3 bundle 为 2 pass/2 fail/exit 1；infra/cleanup/publication failure 为 exit 2 且无 final complete。无真实模型、native surface 或外部 effect。 |
+| neutral login fixture | [`examples/login-testing/src`](../../examples/login-testing/src) | [`examples/login-testing/test`](../../examples/login-testing/test) | `contract-tested` | 本地 HTTP fixture 覆盖两个入口、全新/旧账号、attempt 隔离、本地邮箱/验证码/session 与故障/页面竞态；尚无 Playwright、Judge、MCP、Reporter 或真实邮箱集成。 |
 | native TS client / shared wire conformance | [`client`](../../packages/native/src/client) | [`client tests`](../../packages/native/tests/client) | `contract-tested` | 97 个 native package tests 覆盖 client、协议、process transport 与 DesktopSession contract；尚无 `TS → platform binding → UIA/AX` live conformance。 |
 | Node host-process transport | [`node-transport`](../../packages/native/src/node-transport) | [`node-transport tests`](../../packages/native/tests/node-transport) | `contract-tested` | 28 项专项覆盖真实 child spawn、fatal UTF-8、framing、write admission、bounded stderr、close/exit 分证据与对抗生命周期；不证明目标应用或后代进程已清理。 |
 | typed DesktopSession / kernel binding | [`desktop-session`](../../packages/native/src/desktop-session)、[`native-binding`](../../packages/test/src/native-binding) | [`desktop-session tests`](../../packages/native/tests/desktop-session)、[`native-binding tests`](../../packages/test/tests/native-binding) | `contract-tested` | AX/UIA 类型隔离、Windows v1 method/action mapping、per-call deadline/signal、late acquisition 与 identity-bound cleanup receipt 已覆盖；平台 codec/binding 和真实 UI 尚未接入。 |
