@@ -7,3 +7,5 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 npm --prefix "$ROOT/examples/reference-agent" ci --ignore-scripts
 npm --prefix "$ROOT/examples/reference-agent" test
 npm --prefix "$ROOT/examples/reference-agent" run test:e2e
+npm --prefix "$ROOT/examples/login-testing" ci --ignore-scripts
+npm --prefix "$ROOT/examples/login-testing" test

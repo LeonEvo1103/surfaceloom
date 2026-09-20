@@ -9,7 +9,7 @@ node "$ROOT/scripts/audit-publication.mjs"
 
 # browser-playwright/v3 consumes the public @surfaceloom/test declarations, so
 # build test before installing and compiling that optional adapter.
-for package in core component-catalog reporter agent-loop test browser-playwright native; do
+for package in core component-catalog reporter agent-loop test browser-playwright native service llm-judge; do
 	PACKAGE_DIR="$ROOT/packages/$package"
 	if [ ! -d "$PACKAGE_DIR/node_modules" ]; then
 		npm --prefix "$PACKAGE_DIR" ci
