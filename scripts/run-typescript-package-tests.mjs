@@ -20,10 +20,7 @@ if (files.length === 0) throw new Error("No TypeScript contract tests were disco
 
 const tsxCli = path.resolve("node_modules", "tsx", "dist", "cli.mjs");
 const exitCode = await new Promise((resolve, reject) => {
-  // Cross-file concurrency makes real process and deadline fixtures contend
-  // with unrelated suites. Concurrency contracts are exercised explicitly
-  // inside their owning test files, so keep package-level scheduling stable.
-  const child = spawn(process.execPath, [tsxCli, "--test", "--test-concurrency=1", ...files], {
+  const child = spawn(process.execPath, [tsxCli, "--test", ...files], {
     stdio: "inherit",
   });
   child.once("error", reject);

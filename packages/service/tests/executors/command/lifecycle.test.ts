@@ -257,6 +257,7 @@ test("cleanup-driven stdio closure cannot turn deadline or cancellation into suc
   const root = await workspaceRoot((cleanup) => t.after(cleanup));
   for (const trigger of ["deadline", "cancel"] as const) {
     const child = new FakeChild();
+    let logicalNow = 0;
     child.killBehavior = (signal) => {
       queueMicrotask(() => child.exit(null, signal));
       return true;
@@ -264,9 +265,11 @@ test("cleanup-driven stdio closure cannot turn deadline or cancellation into suc
     let spawned!: () => void;
     const spawnCalled = new Promise<void>((resolve) => { spawned = resolve; });
     const executor = new CommandExecutor("registered.node", options(
-      command([], { timeoutMs: trigger === "deadline" ? 2 : 5_000 }), {
+      command([], { timeoutMs: trigger === "deadline" ? 1 : 5_000 }), {
+        ...(trigger === "deadline" ? { monotonicNow: () => logicalNow } : {}),
         stdioCloseWaitMs: 50,
         spawn: () => {
+          if (trigger === "deadline") logicalNow = 1;
           spawned();
           queueMicrotask(() => child.spawn());
           return child.asCommandChild();
@@ -313,17 +316,26 @@ test("signal failures and a process that never exits end bounded as unconfirmed 
     if (attempts === 1) throw new Error("signal denied");
     return false;
   };
-  const executor = new CommandExecutor("registered.node", options(command([], { timeoutMs: 1 }), {
+  let signalSpawned!: () => void;
+  const spawned = new Promise<void>((resolve) => { signalSpawned = resolve; });
+  const executor = new CommandExecutor("registered.node", options(command([], { timeoutMs: 5_000 }), {
     terminateGraceMs: 2,
     forceKillWaitMs: 2,
     stdioCloseWaitMs: 2,
-    spawn: () => { queueMicrotask(() => child.spawn()); return child.asCommandChild(); },
+    spawn: () => {
+      queueMicrotask(() => { child.spawn(); signalSpawned(); });
+      return child.asCommandChild();
+    },
   }));
+  const stop = new AbortController();
   const started = Date.now();
-  const result = await executor.execute(request(root), new AbortController().signal);
+  const execution = executor.execute(request(root), stop.signal);
+  await spawned;
+  stop.abort(new Error("cancel non-terminating process"));
+  const result = await execution;
 
   assert.ok(Date.now() - started < 1_000);
-  assert.equal(result.executionStatus, "failed");
+  assert.equal(result.executionStatus, "cancelled");
   assert.equal(result.outcome, null);
   assert.equal(result.command.exit.status, "unconfirmed");
   assert.deepEqual(result.command.signals.map((item) => item.outcome), ["threw", "rejected"]);
