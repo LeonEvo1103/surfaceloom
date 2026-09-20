@@ -30,7 +30,7 @@ test("runner/controller closes an acquisition that arrives after setup deadline"
   // Resolve only after the runner has observed the deadline. Fixed timer gaps
   // become ambiguous when a loaded CI event loop wakes both timers together.
   launched.resolve(browserType.browser);
-  await delay(20);
+  await waitUntil(() => browserType.browser.closeCount === 1, 1_000);
   assert.equal(browserType.browser.context.closeCount, 0);
   assert.equal(browserType.browser.closeCount, 1);
 });
@@ -231,4 +231,12 @@ function deferred<T>() {
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function waitUntil(predicate: () => boolean, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error("Timed out waiting for the expected lifecycle state.");
+    await delay(5);
+  }
 }

@@ -28,7 +28,8 @@ test("prepares a detached immutable snapshot with resolved revision and metadata
 
     assert.equal(snapshot.resolvedRevision, fixture.revision);
     assert.notEqual(snapshot.rootPath, fixture.repository);
-    assert.equal(await readFile(path.join(snapshot.rootPath, "committed.txt"), "utf8"), "committed\n");
+    const committed = await readFile(path.join(snapshot.rootPath, "committed.txt"), "utf8");
+    assert.equal(committed.replaceAll("\r\n", "\n"), "committed\n");
     assert.deepEqual(snapshot.autMetadata, {
       sourceProvider: "local-git",
       sourceLocator: "fixture-repo",

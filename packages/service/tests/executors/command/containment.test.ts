@@ -4,7 +4,7 @@ import test from "node:test";
 import { CommandExecutor } from "../../../src/executors/command/index.js";
 import { command, FakeChild, options, request, workspaceRoot } from "./helpers.js";
 
-test("a surviving inherited-stdio descendant cannot yield passed or confirmed cleanup", async (t) => {
+test("missing process-tree proof cannot yield passed or confirmed cleanup", async (t) => {
   const root = await workspaceRoot((cleanup) => t.after(cleanup));
   const grandchild = `setTimeout(() => {}, 5000)`;
   const parent = [
@@ -33,7 +33,12 @@ test("a surviving inherited-stdio descendant cannot yield passed or confirmed cl
   assert.equal(result.cleanup.tainted, true);
   assert.equal(result.command.cleanup.processTree.status, "unconfirmed");
   assert.ok(Number.isInteger(pid) && pid > 0);
-  assert.doesNotThrow(() => process.kill(pid, 0), "the counterexample descendant must still be alive");
+  // POSIX runners retain this counterexample descendant. Windows CI may place
+  // the process in a job object that reaps it with the parent; either way the
+  // executor still lacks portable containment proof and must fail closed.
+  if (process.platform !== "win32") {
+    assert.doesNotThrow(() => process.kill(pid, 0), "the counterexample descendant must still be alive");
+  }
 });
 
 test("a process-tree adapter that never returns ends bounded and tainted", async (t) => {
