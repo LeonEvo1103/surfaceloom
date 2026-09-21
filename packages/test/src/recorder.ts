@@ -3,6 +3,9 @@ import type { TestErrorSummary, TestStepResult } from "@surfaceloom/reporter";
 import type { CaseStep } from "./contracts.js";
 import { assertIdentifier } from "./definition.js";
 import { errorDiagnostic, errorSummary } from "./errors.js";
+import {
+  mergeFailureOrigins, recordedFailureOrigin, type RunCaseV3FailureOrigin,
+} from "./failure-origin.js";
 
 export class ExecutionRecorder {
   readonly #steps: TestStepResult[] = [];
@@ -13,12 +16,14 @@ export class ExecutionRecorder {
   #sequence = 0;
   #open = true;
   #error: TestErrorSummary | undefined;
+  #failureOrigin: RunCaseV3FailureOrigin = null;
 
   constructor(spec: CaseSpec) {
     this.#criteria = new Map(spec.acceptanceCriteria.map(({ id, text }) => [id, text]));
   }
 
   get error(): TestErrorSummary | undefined { return this.#error; }
+  get failureOrigin(): RunCaseV3FailureOrigin { return this.#failureOrigin; }
 
   assertOpen(): void {
     if (!this.#open) throw new Error("Case execution is no longer accepting work.");
@@ -88,14 +93,16 @@ export class ExecutionRecorder {
       this.#steps[index] = Object.freeze({ ...step, status: "passed", durationMs: elapsed(started) });
       return value;
     } catch (error) {
-      this.capture(phase, error);
+      this.capture(phase, error, (step.criterionIds?.length ?? 0) > 0);
       this.#steps[index] = Object.freeze({ ...step, status: "failed", durationMs: elapsed(started),
         diagnostic: errorDiagnostic(phase, error) });
       throw error;
     }
   }
 
-  private capture(phase: string, error: unknown): void {
+  private capture(phase: string, error: unknown, criterionLinked = false): void {
+    this.#failureOrigin = mergeFailureOrigins(this.#failureOrigin,
+      recordedFailureOrigin(phase, error, criterionLinked));
     this.#error ??= errorSummary(phase, error);
     this.#seenFailures.add(error);
   }

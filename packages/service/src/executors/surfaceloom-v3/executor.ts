@@ -96,10 +96,12 @@ export class SurfaceLoomV3Executor implements Executor {
     let cleanup: ResourceCleanupResult | undefined;
     let kernelStarted = false;
     let removeWork = true;
+    let ownsRunRoot = false;
     try {
       await mkdir(this.#config.workRoot, { recursive: true, mode: 0o700 });
       await assertDisjointPhysicalRoots(this.#config.workRoot, request.workspace.rootPath);
       await mkdir(runRoot, { mode: 0o700 });
+      ownsRunRoot = true;
       if (signal.aborted) throw signal.reason;
       const resolved = await registration!.resolve({ request, signal });
       if (resolved.definition.spec.id !== registration!.caseSpecId) {
@@ -119,14 +121,16 @@ export class SurfaceLoomV3Executor implements Executor {
           maxArtifactBytes: this.#config.maxArtifactBytes });
       assertDeclaredArtifacts(request, artifacts);
       return completedV3Result(request, result.bundle.report, artifacts, cleanup,
-        signal.aborted, this.#config.now);
+        result.failureOrigin, signal.aborted, this.#config.now);
     } catch (error) {
       if (error instanceof RunCaseV3Error) cleanup = error.cleanup;
       removeWork = !kernelStarted || (cleanup?.status === "passed" && !cleanup.tainted);
       const artifacts = await this.#config.artifactStore.list(request.runId).catch(() => []);
       return failedV3Result(request, error, artifacts, cleanup, signal.aborted, this.#config.now);
     } finally {
-      if (removeWork) await rm(runRoot, { recursive: true, force: true }).catch(() => undefined);
+      if (ownsRunRoot && removeWork) {
+        await rm(runRoot, { recursive: true, force: true }).catch(() => undefined);
+      }
     }
   }
 

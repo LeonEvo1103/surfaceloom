@@ -6,6 +6,7 @@ export { executeCase } from "./execute.js";
 export { defineCaseV3 } from "./definition-v3.js";
 export { runCaseV3 } from "./runner-v3.js";
 export { RunCaseV3Error } from "./runner-v3-error.js";
+export type { RunCaseV3FailureOrigin } from "./failure-origin.js";
 export type {
   ExecutionGuiGate, WindowsExecutionGuiGateOptions, WindowsExecutionGuiGateQuarantineIdentity,
   WindowsExecutionGuiGateRecoveryProof,

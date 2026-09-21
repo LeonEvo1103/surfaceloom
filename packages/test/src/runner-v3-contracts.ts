@@ -9,6 +9,7 @@ import type {
 
 import type { CaseContext, ExecuteCaseOptions } from "./contracts.js";
 import type { ExecutionGuiGate } from "./execution-gate.js";
+import type { RunCaseV3FailureOrigin } from "./failure-origin.js";
 import type { EvidenceCompleteness } from "./evidence/content.js";
 import type { RequiredEvidenceRequirement } from "./evidence/required-policy.js";
 import type { ResourceCleanupResult } from "./resources-contracts.js";
@@ -104,6 +105,8 @@ export interface RunCaseV3Options {
 export interface RunCaseV3Result {
   readonly bundle: ReportBundleV3Result;
   readonly exitCode: 0 | 1;
+  /** Structured failure truth for service embeddings; null means no classified failure. */
+  readonly failureOrigin: RunCaseV3FailureOrigin;
   /** Terminal kernel cleanup truth retained for embedded service consumers. */
   readonly cleanup: ResourceCleanupResult;
 }

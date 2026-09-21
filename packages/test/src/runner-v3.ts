@@ -24,6 +24,7 @@ import {
   type SurfaceCleanup,
 } from "./evidence/index.js";
 import { executeCaseWithRunnerContext } from "./execute.js";
+import { mergeFailureOrigins, type RunCaseV3FailureOrigin } from "./failure-origin.js";
 import { mergeJudgeResultV3, runJudgeCriteriaV3 } from "./judge/integration.js";
 import type { CaseImageEvidenceSubmissionV3 } from "./judge/contracts.js";
 import { ImageEvidenceCollectorV3, materializeImageEvidenceV3 } from "./judge/image-evidence.js";
@@ -57,6 +58,7 @@ export interface PreparedCaseV3 {
   readonly requiredArtifacts: readonly RequiredReportArtifactReferenceV3[];
   readonly kernelReport: NormalizedCaseReportInput;
   readonly cleanup: ResourceCleanupResult;
+  readonly failureOrigin: RunCaseV3FailureOrigin;
 }
 
 interface AcquiredSurface {
@@ -94,6 +96,7 @@ export async function runCaseV3(definition: CaseDefinitionV3,
     const bundle = await publishPreparedCaseV3(prepared, snapshot.outputDirectory,
       snapshot.evidencePolicy);
     return Object.freeze({ bundle, exitCode: bundle.report.status === "passed" ? 0 : 1,
+      failureOrigin: prepared.failureOrigin,
       cleanup: prepared.cleanup });
   } catch (error) {
     throw new RunCaseV3Error(prepared.kernelReport, "publication", error, prepared.cleanup);
@@ -208,6 +211,7 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
     throw new RunCaseV3Error(execution.report, "materialization", error, execution.cleanup);
   }
   let result = stripJudgePendingSteps(execution.report.result, judgeCriteria.map((item) => item.id));
+  let failureOrigin = execution.failureOrigin;
   result = Object.freeze({ ...result,
     artifacts: Object.freeze([...(result.artifacts ?? []), ...materializedImages.artifacts]) });
   let judgeRequiredArtifacts: readonly RequiredReportArtifactReferenceV3[] = Object.freeze([]);
@@ -225,6 +229,7 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
         materializedImages,
         stagingDirectory: options.stagingDirectory });
       result = mergeJudgeResultV3(result, judged);
+      failureOrigin = mergeFailureOrigins(failureOrigin, judged.failureOrigin);
       judgeRequiredArtifacts = judged.requiredArtifacts;
     } catch (error) {
       throw new RunCaseV3Error(execution.report, "evidence", error, execution.cleanup);
@@ -253,9 +258,16 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
     requiredReportArtifactsV3(definition.spec.id, requiredPolicy, materialized, evidenceSnapshot),
     judgeRequiredArtifacts);
   const prepared = Object.freeze({ input, requiredArtifacts, kernelReport: execution.report,
-    cleanup: execution.cleanup });
+    cleanup: execution.cleanup, failureOrigin: normalizeFailureOrigin(result.status, failureOrigin) });
   preparedClaims.set(prepared, Object.freeze({ claim, gate }));
   return prepared;
+}
+
+function normalizeFailureOrigin(status: NormalizedCaseReportInput["result"]["status"],
+  origin: RunCaseV3FailureOrigin): RunCaseV3FailureOrigin {
+  if (status === "passed" || status === "skipped" || status === "unsupported") return null;
+  if (status === "timedOut") return "infrastructure";
+  return origin ?? "infrastructure";
 }
 
 function judgePendingStepId(id: string): string { return `surfaceloom.judge.pending.${id}`; }

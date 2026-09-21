@@ -13,6 +13,7 @@ export const v3CaseId = "reference.v3.browser";
 export interface V3FixtureBehavior {
   readonly failCase?: boolean;
   readonly failCleanup?: boolean;
+  readonly failInvoke?: boolean;
   readonly waitForCancellation?: boolean;
   readonly onRunStarted?: () => void;
 }
@@ -95,7 +96,11 @@ function browserBackend(behavior: V3FixtureBehavior): BrowserSurfaceBackendPort 
     launch: async (_requirement, call) => {
       call.beforeSubmit();
       return { identity: { hostId: "browser-host", sessionId: "browser-session" },
-        invoke: async (_action, operation) => { operation.beforeSubmit(); return "ready"; },
+        invoke: async (_action, operation) => {
+          operation.beforeSubmit();
+          if (behavior.failInvoke) throw new Error("Browser transport disconnected before assertion.");
+          return "ready";
+        },
         close: async () => {
           if (behavior.failCleanup) throw new Error("Browser close proof missing.");
           return { kind: "browserSessionClosed", hostId: "browser-host",

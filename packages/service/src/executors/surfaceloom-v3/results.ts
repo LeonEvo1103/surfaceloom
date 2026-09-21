@@ -1,4 +1,6 @@
-import type { ResourceCleanupResult, RunCaseV3Result } from "@surfaceloom/test";
+import type {
+  ResourceCleanupResult, RunCaseV3FailureOrigin, RunCaseV3Result,
+} from "@surfaceloom/test";
 
 import type { Artifact, ExecuteRequest, RunResult } from "../../execution.js";
 import { deepFreeze } from "../../safe-data.js";
@@ -7,7 +9,8 @@ import type { CleanupReceipt } from "../../workspace.js";
 type TestRunReportV3 = RunCaseV3Result["bundle"]["report"];
 
 export function completedV3Result(request: Readonly<ExecuteRequest>, report: TestRunReportV3,
-  artifacts: readonly Artifact[], cleanup: ResourceCleanupResult, cancelled: boolean,
+  artifacts: readonly Artifact[], cleanup: ResourceCleanupResult,
+  failureOrigin: RunCaseV3FailureOrigin, cancelled: boolean,
   now: () => Date): RunResult {
   const receipt = cleanupReceipt(request, cleanup, now().toISOString());
   const base = resultBase(request, report.run.startedAt, report.run.finishedAt, artifacts, receipt);
@@ -16,16 +19,28 @@ export function completedV3Result(request: Readonly<ExecuteRequest>, report: Tes
       retryable: false } });
   const final = finalCaseResult(report, request.definition.caseSpecs[0]!.id);
   if (final.status === "passed") {
+    if (failureOrigin !== null) return incompleteKernelResult(base,
+      "v3_failure_origin_mismatch", "A passing v3 Case retained a failure origin.");
     return deepFreeze({ ...base, executionStatus: "completed", outcome: "passed" });
   }
-  if (final.status === "failed") return deepFreeze({ ...base, executionStatus: "completed",
-    outcome: "failed", reason: final.error?.message ?? "SurfaceLoom v3 Case failed." });
+  if (final.status === "failed" && failureOrigin === "business") {
+    return deepFreeze({ ...base, executionStatus: "completed", outcome: "failed",
+      reason: final.error?.message ?? "SurfaceLoom v3 Case failed." });
+  }
+  if (final.status === "failed" && failureOrigin === "insufficient") {
+    return deepFreeze({ ...base, executionStatus: "completed", outcome: "unknown",
+      reason: final.error?.message ?? "SurfaceLoom v3 evidence was insufficient." });
+  }
+  if (final.status === "failed") return incompleteKernelResult(base,
+    "v3_kernel_failed", final.error?.message ?? "SurfaceLoom v3 execution failed.");
+  if (final.status === "timedOut") return incompleteKernelResult(base,
+    "v3_deadline_exceeded", "SurfaceLoom v3 Case exceeded its execution deadline.");
   if (final.status === "skipped" || final.status === "unsupported") {
     return deepFreeze({ ...base, executionStatus: "completed", outcome: final.status,
       reason: final.reason ?? `SurfaceLoom v3 Case was ${final.status}.` });
   }
-  return deepFreeze({ ...base, executionStatus: "completed", outcome: "unknown",
-    reason: "SurfaceLoom v3 Case timed out before a business verdict." });
+  return incompleteKernelResult(base, "v3_result_unclassified",
+    "SurfaceLoom v3 returned an unclassified result.");
 }
 
 export function failedV3Result(request: Readonly<ExecuteRequest>, cause: unknown,
@@ -77,6 +92,12 @@ function unconfirmed(request: Readonly<ExecuteRequest>, attemptedAt: string,
   detail: string): CleanupReceipt {
   return { runId: request.runId, snapshotId: request.snapshot.snapshotId,
     status: "unconfirmed", tainted: true, attemptedAt, detail };
+}
+
+function incompleteKernelResult(base: ReturnType<typeof resultBase>, code: string,
+  message: string): RunResult {
+  return deepFreeze({ ...base, executionStatus: "failed", outcome: null,
+    error: { code, message, retryable: false } });
 }
 
 function resultBase(request: Readonly<ExecuteRequest>, startedAt: string, finishedAt: string,

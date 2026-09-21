@@ -9,6 +9,7 @@ import {
 import { ExecutionDispatchDrain } from "./execution-dispatch.js";
 import { prepareExecution } from "./execution-options.js";
 import type { EffectDescriptor } from "./effects.js";
+import type { RunCaseV3FailureOrigin } from "./failure-origin.js";
 import { elapsed, ExecutionRecorder } from "./recorder.js";
 import { ResourceScope } from "./resources.js";
 import type { ResourceCleanupResult } from "./resources-contracts.js";
@@ -33,6 +34,7 @@ export interface RunnerCaseExecutionResult {
   readonly report: NormalizedCaseReportInput;
   readonly cleanup: ResourceCleanupResult | RunnerCleanupNotStarted;
   readonly worker: WorkerStopSnapshot;
+  readonly failureOrigin: RunCaseV3FailureOrigin;
   /** True only after the producer settled and cleanup reached a terminal snapshot. */
   readonly publicationReady: boolean;
 }
@@ -54,6 +56,7 @@ export async function executeCaseWithRunnerContext(
   const producerSettled = result.worker.state === "settled"
     || result.worker.state === "cooperativeStopped";
   return Object.freeze({ report: result.report, cleanup, worker: result.worker,
+    failureOrigin: result.failureOrigin,
     publicationReady: producerSettled && cleanup.state === "closed" });
 }
 
@@ -61,6 +64,7 @@ interface KernelExecutionResult {
   readonly report: NormalizedCaseReportInput;
   readonly cleanup?: ResourceCleanupResult;
   readonly worker: WorkerStopSnapshot;
+  readonly failureOrigin: RunCaseV3FailureOrigin;
 }
 
 async function executeCaseKernel(
@@ -171,7 +175,8 @@ async function executeCaseKernel(
       ...(recorder.error === undefined ? {} : { error: recorder.error }) }),
   });
   validateCaseReport(report, execution.platform);
-  return Object.freeze({ report, ...(cleanupSnapshot === undefined ? {} : {
+  return Object.freeze({ report, failureOrigin: recorder.failureOrigin,
+    ...(cleanupSnapshot === undefined ? {} : {
     cleanup: cleanupSnapshot,
   }), worker });
 }
