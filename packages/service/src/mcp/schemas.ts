@@ -45,6 +45,14 @@ export const artifactSchema = z.object({
   sizeBytes: z.number().int().nonnegative(), sha256: z.string().regex(/^[0-9a-f]{64}$/u),
 });
 
+const executionLinksSchema = z.object({
+  caseSpecs: z.array(z.object({ namespace: z.literal("case-spec"), caseSpecId: identity })),
+  agentRuns: z.array(z.object({ namespace: z.literal("agent"), agentRunId: identity,
+    agentCallIds: z.array(identity) })),
+  nativeOperations: z.array(z.object({ namespace: z.literal("native"),
+    nativeOperationId: identity })),
+});
+
 export const runSummarySchema = z.object({
   runId: identity,
   requestId: z.string(),
@@ -52,6 +60,7 @@ export const runSummarySchema = z.object({
   snapshot: z.object({ snapshotId: identity, resolvedRevision: z.string() }),
   parameters: parametersSchema,
   taskId: identity.optional(),
+  executionLinks: executionLinksSchema.optional(),
   status: z.enum(["queued", "preparing", "running", "cancelling", "completed", "failed",
     "cancelled", "interrupted"]),
   outcome: z.enum(["passed", "failed", "skipped", "unsupported", "unknown"]).nullable(),

@@ -42,6 +42,7 @@ import type {
   RunCaseV3Result,
   RunnerSurfaceV3,
 } from "./runner-v3-contracts.js";
+import type { ResourceCleanupResult } from "./resources-contracts.js";
 import { snapshotCaseEvidenceSubmissionV3 } from "./runner-v3-evidence.js";
 import { RunCaseV3Error } from "./runner-v3-error.js";
 import { RunnerV3GateBarrier } from "./runner-v3-gate.js";
@@ -55,6 +56,7 @@ export interface PreparedCaseV3 {
   readonly input: ReportBundleV3Input;
   readonly requiredArtifacts: readonly RequiredReportArtifactReferenceV3[];
   readonly kernelReport: NormalizedCaseReportInput;
+  readonly cleanup: ResourceCleanupResult;
 }
 
 interface AcquiredSurface {
@@ -91,9 +93,10 @@ export async function runCaseV3(definition: CaseDefinitionV3,
   try {
     const bundle = await publishPreparedCaseV3(prepared, snapshot.outputDirectory,
       snapshot.evidencePolicy);
-    return Object.freeze({ bundle, exitCode: bundle.report.status === "passed" ? 0 : 1 });
+    return Object.freeze({ bundle, exitCode: bundle.report.status === "passed" ? 0 : 1,
+      cleanup: prepared.cleanup });
   } catch (error) {
-    throw new RunCaseV3Error(prepared.kernelReport, "publication", error);
+    throw new RunCaseV3Error(prepared.kernelReport, "publication", error, prepared.cleanup);
   }
 }
 
@@ -173,11 +176,16 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
   if (!execution.publicationReady) {
     if (execution.worker.state !== "notStarted") stickyClaims.add(claim);
     throw new RunCaseV3Error(execution.report, "kernelStop",
-      new Error("Execution producer or cleanup did not reach a publishable terminal state."));
+      new Error("Execution producer or cleanup did not reach a publishable terminal state."),
+      execution.cleanup.state === "notStarted" ? undefined : execution.cleanup);
+  }
+  if (execution.cleanup.state !== "closed") {
+    throw new RunCaseV3Error(execution.report, "kernelStop",
+      new Error("Execution cleanup did not reach its closed terminal state."));
   }
   if (acquired.length === 0) {
     throw new RunCaseV3Error(execution.report, "surfaceAcquisition",
-      new Error("No v3 surface was actually acquired."));
+      new Error("No v3 surface was actually acquired."), execution.cleanup);
   }
   let surfaces: ReturnType<SurfaceAcquisitionRegistry["seal"]>;
   let evidenceSnapshot: ReturnType<EvidenceSubmissionCollector["seal"]>;
@@ -188,7 +196,7 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
     evidenceSnapshot = evidence.seal({ capturedAt: new Date().toISOString() });
     imageSnapshot = imageEvidence.seal();
   } catch (error) {
-    throw new RunCaseV3Error(execution.report, "evidence", error);
+    throw new RunCaseV3Error(execution.report, "evidence", error, execution.cleanup);
   }
   let materialized: Awaited<ReturnType<typeof materializeEvidenceV3>>;
   let materializedImages: Awaited<ReturnType<typeof materializeImageEvidenceV3>>;
@@ -196,7 +204,9 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
     materialized = await materializeEvidenceV3(evidenceSnapshot, options.stagingDirectory);
     materializedImages = await materializeImageEvidenceV3(imageSnapshot, options.stagingDirectory);
   }
-  catch (error) { throw new RunCaseV3Error(execution.report, "materialization", error); }
+  catch (error) {
+    throw new RunCaseV3Error(execution.report, "materialization", error, execution.cleanup);
+  }
   let result = stripJudgePendingSteps(execution.report.result, judgeCriteria.map((item) => item.id));
   result = Object.freeze({ ...result,
     artifacts: Object.freeze([...(result.artifacts ?? []), ...materializedImages.artifacts]) });
@@ -216,7 +226,9 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
         stagingDirectory: options.stagingDirectory });
       result = mergeJudgeResultV3(result, judged);
       judgeRequiredArtifacts = judged.requiredArtifacts;
-    } catch (error) { throw new RunCaseV3Error(execution.report, "evidence", error); }
+    } catch (error) {
+      throw new RunCaseV3Error(execution.report, "evidence", error, execution.cleanup);
+    }
   }
   let reportCase: CaseReportV3Input;
   try {
@@ -225,7 +237,9 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
       evidencePolicy, result });
     const finalAttempt = authority.finalize(scope.caseExecutionId, scope.attemptId);
     reportCase = createCaseReportV3({ spec: definition.spec, attempts: [adapted], finalAttempt });
-  } catch (error) { throw new RunCaseV3Error(execution.report, "adaptation", error); }
+  } catch (error) {
+    throw new RunCaseV3Error(execution.report, "adaptation", error, execution.cleanup);
+  }
   const runFinishedAt = finishTimestamp(result.startedAt, result.durationMs);
   const run: ReportRunV3 = Object.freeze({ id: options.run.id, title: options.run.title,
     startedAt: earlier(runStartedAt, execution.report.result.startedAt), finishedAt: runFinishedAt,
@@ -238,7 +252,8 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
   const requiredArtifacts = mergeRequiredArtifacts(
     requiredReportArtifactsV3(definition.spec.id, requiredPolicy, materialized, evidenceSnapshot),
     judgeRequiredArtifacts);
-  const prepared = Object.freeze({ input, requiredArtifacts, kernelReport: execution.report });
+  const prepared = Object.freeze({ input, requiredArtifacts, kernelReport: execution.report,
+    cleanup: execution.cleanup });
   preparedClaims.set(prepared, Object.freeze({ claim, gate }));
   return prepared;
 }
