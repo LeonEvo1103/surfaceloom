@@ -1,7 +1,10 @@
+export * from "./agent-service.js";
 export * from "./catalog.js";
 export * from "./executors/command/index.js";
 export * from "./execution.js";
 export * from "./ids.js";
+export * from "./mcp/index.js";
+export * from "./parameter-normalization.js";
 export * from "./persistent-service.js";
 export { SafeDataError, safeDataLimits, type SafeDataErrorCode } from "./safe-data.js";
 export * from "./stores/index.js";

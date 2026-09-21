@@ -9,6 +9,12 @@ const trustedProjectLicenses = Object.freeze([
 const trustedDependencyLicenses = new Map([
   ["playwright-core@1.63.0", Object.freeze({ license: "Apache-2.0", byteLength: 11601,
     digest: "45873d00a0dd243596deb4aa23b2493b3d1f0671921bf2538ea431d7380220eb" })],
+  ["@modelcontextprotocol/node@2.0.0", Object.freeze({ license: "MIT", byteLength: 12227,
+    digest: "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a" })],
+  ["@modelcontextprotocol/server@2.0.0", Object.freeze({ license: "MIT", byteLength: 12227,
+    digest: "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a" })],
+  ["zod@4.6.5", Object.freeze({ license: "MIT", byteLength: 1072,
+    digest: "3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8" })],
 ]);
 
 export function validateLicenseEvidence(licenseBytes, noticeBytes, context) {

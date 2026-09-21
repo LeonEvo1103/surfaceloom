@@ -10,6 +10,15 @@ import {
 } from "../../../release/constants.mjs";
 import { zip } from "./archive-builder.mjs";
 
+const dependencyRoots = new Map([
+  ["playwright-core", ["packages", "browser-playwright", "node_modules", "playwright-core"]],
+  ["@modelcontextprotocol/node", ["packages", "service", "node_modules",
+    "@modelcontextprotocol", "node"]],
+  ["@modelcontextprotocol/server", ["packages", "service", "node_modules",
+    "@modelcontextprotocol", "server"]],
+  ["zod", ["packages", "service", "node_modules", "zod"]],
+]);
+
 export function loadPackageManifests(root = process.cwd()) {
   const discovered = discoverPackageManifests(root);
   assertCurrentPackageProfile(discovered);
@@ -114,17 +123,15 @@ export function releaseFixture({ schemaVersion = manifestSchemaVersion } = {}) {
     }],
   }, { schemaVersion: planVersion });
   const licenseBytes = readFileSync(path.join(process.cwd(), "LICENSE"));
-  const dependencyLicenseBytes = readFileSync(path.join(process.cwd(),
-    "packages", "browser-playwright", "node_modules", "playwright-core", "LICENSE"));
-  const dependencyLicenseText = dependencyLicenseBytes.toString("utf8");
+  const dependencies = thirdPartyDependencies(manifests);
   const noticeBytes = Buffer.from(JSON.stringify({
     schemaVersion: "surfaceloom.third-party-notices/1",
-    components: [{
-      name: "playwright-core", version: "1.63.0", license: "Apache-2.0",
-      licenseText: dependencyLicenseText,
-      licenseTextByteLength: dependencyLicenseBytes.length,
-      licenseTextDigest: digestRecord(dependencyLicenseBytes),
-    }],
+    components: dependencies.map((item) => ({
+      name: item.name, version: item.version, license: item.license,
+      licenseText: item.licenseBytes.toString("utf8"),
+      licenseTextByteLength: item.licenseBytes.length,
+      licenseTextDigest: digestRecord(item.licenseBytes),
+    })),
   }));
   const provenanceBytes = Buffer.from(JSON.stringify({ subject: [{
     name: "release/surfaceloom.zip", digest: { sha256: receipt.artifactDigest.value },
@@ -148,8 +155,8 @@ export function releaseFixture({ schemaVersion = manifestSchemaVersion } = {}) {
     components: [
       ...packages.map((item) => ({ type: "library", name: item.name, version: item.version,
         licenses: [{ license: { id: item.license } }] })),
-      { type: "library", name: "playwright-core", version: "1.63.0",
-        licenses: [{ license: { id: "Apache-2.0" } }] },
+      ...dependencies.map((item) => ({ type: "library", name: item.name, version: item.version,
+        licenses: [{ license: { id: item.license } }] })),
       { type: "file", name: artifact.path,
         hashes: [{ alg: "SHA-256", content: artifact.digest.value }] },
       ...artifact.inventory.map((entry) => ({ type: "file", name: `${artifact.path}!/${entry.path}`,
@@ -175,7 +182,7 @@ export function releaseFixture({ schemaVersion = manifestSchemaVersion } = {}) {
       licenseFiles: [aux("evidence/LICENSE", licenseBytes)],
       noticeFiles: [aux("evidence/THIRD_PARTY_NOTICES", noticeBytes)],
       thirdParty: { status: "complete", coveredPackageNames: packages.map((item) => item.name),
-        coveredDependencyNames: ["playwright-core"] },
+        coveredDependencyNames: dependencies.map((item) => item.name) },
     },
     provenance: [{ id: "provenance", ...aux("evidence/provenance.json", provenanceBytes),
       artifactId: artifact.id, subject: { name: artifact.path, digest: artifact.digest } }],
@@ -196,6 +203,24 @@ export function releaseFixture({ schemaVersion = manifestSchemaVersion } = {}) {
 
 export function releaseFixtureV1() {
   return releaseFixture({ schemaVersion: manifestSchemaVersionV1 });
+}
+
+function thirdPartyDependencies(manifests) {
+  const internal = new Set(manifests.map((item) => item.name));
+  const names = new Set();
+  for (const manifest of manifests) {
+    for (const field of ["dependencies", "peerDependencies", "optionalDependencies"]) {
+      for (const name of Object.keys(manifest[field] ?? {})) if (!internal.has(name)) names.add(name);
+    }
+  }
+  return [...names].sort().map((name) => {
+    const segments = dependencyRoots.get(name);
+    if (segments === undefined) throw new Error(`No release license fixture is registered for ${name}.`);
+    const root = path.join(process.cwd(), ...segments);
+    const metadata = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
+    return { name, version: metadata.version, license: metadata.license,
+      licenseBytes: readFileSync(path.join(root, "LICENSE")) };
+  });
 }
 
 function aux(path, bytes) {
