@@ -117,7 +117,26 @@ This implementation is intentionally local and small:
 - credentials must not be placed in Case parameters, artifacts, or catalog metadata;
 - remote authentication, retention policy, and deployment isolation belong to the embedding service;
 - each v3 service test currently maps to exactly one registered Case; it is not a suite scheduler;
-- the package remains private until the repository's packed-consumer and release gates are complete.
+- the package remains private until the release gates remove internal `file:` dependencies and verify
+  the final registry-ready package graph.
 
 The package test suite includes official MCP client reconnect, response-loss retry, explicit cancel,
 artifact retrieval, a real registered Node command, and an MCP-to-v3-kernel-to-Reporter round trip.
+
+## Packed-consumer conformance
+
+Run `node scripts/service-packed-consumer/run.mjs` from the repository root to build candidate
+archives, install them into a temporary project outside the source tree, and exercise only the
+installed public exports. The conformance covers:
+
+- immutable Git prepare, registered CLI execution, post-dispatch response loss, reconnect, and
+  exactly-once `requestId` replay;
+- one registered v3 Case with Reporter bundle retrieval through MCP;
+- explicit cancellation with confirmed cleanup;
+- injected unconfirmed cleanup followed by rejection of the quarantined workspace;
+- a real service-process crash while its child remains alive, followed by restart recovery without
+  replay and rejection of a second run on the crash-tainted workspace.
+
+The crash fixture removes its surviving child after the assertions. This gate deliberately does not
+claim registry installation yet: the current candidate requires all five internal archives to be
+installed together while the P4 release tasks remove `private` and `file:` metadata.
