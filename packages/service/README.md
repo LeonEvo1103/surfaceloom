@@ -101,6 +101,11 @@ The matching `TestDefinition` must use `runtime.kind: "surfaceloom-v3"` and refe
 one `CaseSpec`. `get_result` then exposes the CaseSpec correlation, while `get_artifact` returns the
 bounded `report.json`, `index.html`, `ai-review.md`, `complete.json`, and evidence files.
 
+The v3 kernel also returns a structured `failureOrigin`. Only an explicit criterion failure or a
+valid non-passing Judge label becomes `completed/failed`. Insufficient Judge evidence becomes an
+`unknown` business outcome; transport, lifecycle, deadline, cleanup, and Judge-provider failures
+remain execution failures and never appear as product verdicts.
+
 ## Current boundary
 
 This implementation is intentionally local and small:
