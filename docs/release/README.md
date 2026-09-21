@@ -6,7 +6,7 @@
 
 `ReleasePlan` 与 `ReleaseManifest` 的 v1 合同永久固定原始七包及其迭代顺序：core、component-catalog、reporter、agent-loop、native、browser-playwright、test。原 `release-plan.schema.json` 与 `release-manifest.schema.json` 仍是 v1 schema，validator 继续接受旧七包计划、清单和证据；v1 必须拒绝九包，不能把旧证据解释成新 profile。即使某份历史快照没有 native/browser→test 的 optional peer 边，无约束拓扑的稳定 tie-break 也保持该 v1 顺序。
 
-v2 使用 `surfaceloom.release-plan/2`、`surfaceloom.release-manifest/2` 以及显式的 `release-plan-v2.schema.json`、`release-manifest-v2.schema.json`，固定当前九包，在 v1 七包基础上加入 llm-judge 与 service；test 对 llm-judge 的依赖必须进入无环构建顺序。当前 generator 默认生成 v2，调用方只有显式指定 v1 才能生成旧 profile。两个版本都精确拒绝漏包、额外包或跨 profile 包集合，不进行猜测或隐式升级。
+v2 使用 `surfaceloom.release-plan/2`、`surfaceloom.release-manifest/2` 以及显式的 `release-plan-v2.schema.json`、`release-manifest-v2.schema.json`，固定当前九包，在 v1 七包基础上加入 llm-judge 与 service；`llm-judge → test → service` 的内部依赖必须进入无环构建顺序。当前 generator 默认生成 v2，调用方只有显式指定 v1 才能生成旧 profile。两个版本都精确拒绝漏包、额外包或跨 profile 包集合，不进行猜测或隐式升级。
 
 计划可以显式保存 `pending` source revision、snapshot digest 和 lock digest。当前 manifest 的 `private: true` 与 `file:` 依赖会成为 readiness blockers，不会被生成器悄悄改写。计划同时声明 host OS、architecture、RID、runtime、deployment、minimum OS、universal slices、预期 artifact/inventory 和签名策略。
 

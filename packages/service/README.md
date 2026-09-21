@@ -8,6 +8,8 @@ Git revision, disconnect, and retrieve the durable result later.
 - `TestCatalog` publishes bounded, immutable test definitions and parameter schemas.
 - `LocalGitWorkspaceProvider` prepares detached, read-only snapshots from preconfigured local sources.
 - `CommandExecutor` runs only registered executable/argv combinations with `shell: false`.
+- `SurfaceLoomV3Executor` runs one exactly registered Case through the public `runCaseV3` kernel and
+  persists the complete Reporter v3 bundle without creating a second runner.
 - `FileRunStore` and `FileArtifactStore` persist run identity, state, cleanup receipts, and verified
   artifact bytes for one local service process.
 - `AgentTestService` joins catalog, workspace, executor, and persistence without creating another test
@@ -73,6 +75,32 @@ the MCP client does not cancel submitted work. Reconnect and query `status` by `
 Tests with `externalEffect` or `securitySensitive` effect levels require an exact
 `acknowledgedEffect` value on `run`.
 
+## Registering a v3 Case
+
+The host registers trusted Case definitions and backend options. The executor supplies the service
+`runId`, cancellation signal, and private staging/report paths, so MCP callers cannot replace those
+identities or paths.
+
+```ts
+import path from "node:path";
+import { FileArtifactStore, SurfaceLoomV3Executor } from "@surfaceloom/service";
+
+const artifactStore = await FileArtifactStore.open(".surfaceloom/artifacts");
+const executor = new SurfaceLoomV3Executor("surfaceloom.v3", {
+  artifactStore,
+  workRoot: path.resolve(".surfaceloom/v3-work"),
+  registrations: [{
+    testId: "service-test:login/smoke",
+    caseSpecId: loginCase.spec.id,
+    resolve: () => ({ definition: loginCase, options: trustedRunnerOptions }),
+  }],
+});
+```
+
+The matching `TestDefinition` must use `runtime.kind: "surfaceloom-v3"` and reference exactly that
+one `CaseSpec`. `get_result` then exposes the CaseSpec correlation, while `get_artifact` returns the
+bounded `report.json`, `index.html`, `ai-review.md`, `complete.json`, and evidence files.
+
 ## Current boundary
 
 This implementation is intentionally local and small:
@@ -83,8 +111,8 @@ This implementation is intentionally local and small:
 - unfinished runs found after restart become `interrupted` and tainted instead of being executed again;
 - credentials must not be placed in Case parameters, artifacts, or catalog metadata;
 - remote authentication, retention policy, and deployment isolation belong to the embedding service;
-- the registered command executor is live, but the SurfaceLoom v3 executor is still a follow-up task;
+- each v3 service test currently maps to exactly one registered Case; it is not a suite scheduler;
 - the package remains private until the repository's packed-consumer and release gates are complete.
 
 The package test suite includes official MCP client reconnect, response-loss retry, explicit cancel,
-artifact retrieval, and a real registered Node command executed inside an immutable Git snapshot.
+artifact retrieval, a real registered Node command, and an MCP-to-v3-kernel-to-Reporter round trip.
