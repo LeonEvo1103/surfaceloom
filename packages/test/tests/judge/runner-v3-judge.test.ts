@@ -22,6 +22,8 @@ const passOutcome = () => ({ status: "classified", label: "sign-in", confidence:
     evidenceRefs: ["judge.route.evidence.1"] }], hypotheses: [],
   providerMetadata: { provider: "forged", model: "forged" } });
 
+const nonPassOutcome = () => ({ ...passOutcome(), label: "sign-up" });
+
 test("explicit Judge criterion binds only current materialized evidence and publishes correlation",
   async (context) => {
     const root = await temporary(context);
@@ -29,6 +31,7 @@ test("explicit Judge criterion binds only current materialized evidence and publ
     const fixture = judgeFixture(root, provider);
     const result = await runCaseV3(fixture.definition, fixture.options);
     assert.equal(result.exitCode, 0);
+    assert.equal(result.failureOrigin, null);
     assert.equal(provider.calls.length, 1);
     assert.equal(provider.calls[0]!.serviceRunId, "report-run-1");
     assert.deepEqual(provider.calls[0]!.evidence.map((item) => [item.evidenceId,
@@ -57,12 +60,23 @@ test("a passing Judge never overwrites a deterministic failure", async (context)
   const fixture = judgeFixture(root, provider, { deterministicFailure: true });
   const result = await runCaseV3(fixture.definition, fixture.options);
   assert.equal(result.exitCode, 1);
+  assert.equal(result.failureOrigin, "business");
   const attempts = result.bundle.report.tests[0]!.attempts;
   if (attempts.state !== "known") throw new Error("Expected known attempt.");
   assert.equal(attempts.items[0]!.result.status, "failed");
   assert.notEqual(attempts.items[0]!.result.error?.category, "judge");
   assert.match(attempts.items[0]!.result.error?.message ?? "", /deterministic/u);
   assert.equal(provider.calls.length, 1);
+});
+
+test("a valid non-passing Judge label is an explicit business failure", async (context) => {
+  const root = await temporary(context);
+  const provider = new FakeJudgeProvider([{ kind: "return", output: nonPassOutcome() }]);
+  const fixture = judgeFixture(root, provider);
+  const result = await runCaseV3(fixture.definition, fixture.options);
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.failureOrigin, "business");
 });
 
 test("insufficient, provider failure, missing provider, deadline, and abort fail conservatively",
@@ -88,6 +102,8 @@ test("insufficient, provider failure, missing provider, deadline, and abort fail
         aborted: scenario.aborted });
       const result = await runCaseV3(fixture.definition, fixture.options);
       assert.equal(result.exitCode, 1, scenario.name);
+      assert.equal(result.failureOrigin,
+        scenario.name === "insufficient" ? "insufficient" : "infrastructure", scenario.name);
       const attempts = result.bundle.report.tests[0]!.attempts;
       if (attempts.state !== "known") throw new Error("Expected known attempt.");
       assert.equal(attempts.items[0]!.result.error?.category, "judge", scenario.name);
@@ -103,6 +119,7 @@ test("provider output cannot forge artifact, correlation, or execution identity"
   const fixture = judgeFixture(root, provider);
   const result = await runCaseV3(fixture.definition, fixture.options);
   assert.equal(result.exitCode, 1);
+  assert.equal(result.failureOrigin, "infrastructure");
   const attempts = result.bundle.report.tests[0]!.attempts;
   if (attempts.state !== "known") throw new Error("Expected known attempt.");
   const artifact = attempts.items[0]!.result.artifacts.find((item) =>
@@ -173,6 +190,7 @@ test("incomplete selected evidence skips the provider and fails as insufficient"
   const fixture = judgeFixture(root, provider, { incomplete: true });
   const result = await runCaseV3(fixture.definition, fixture.options);
   assert.equal(result.exitCode, 1);
+  assert.equal(result.failureOrigin, "insufficient");
   assert.equal(provider.calls.length, 0);
   const attempts = result.bundle.report.tests[0]!.attempts;
   if (attempts.state !== "known") throw new Error("Expected known attempt.");

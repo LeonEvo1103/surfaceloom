@@ -1,6 +1,7 @@
 import type { NormalizedCaseReportInput, TestErrorSummary } from "@surfaceloom/reporter";
 
 import { errorSummary } from "./errors.js";
+import type { ResourceCleanupResult } from "./resources-contracts.js";
 
 export type RunCaseV3FailurePhase = "kernelStop" | "surfaceAcquisition" | "evidence"
   | "materialization" | "adaptation" | "publication";
@@ -16,8 +17,10 @@ export class RunCaseV3Error extends Error {
   readonly report: NormalizedCaseReportInput;
   readonly primaryCause: TestErrorSummary | undefined;
   readonly additionalFailure: RunCaseV3AdditionalFailure;
+  readonly cleanup: ResourceCleanupResult | undefined;
 
-  constructor(report: NormalizedCaseReportInput, phase: RunCaseV3FailurePhase, cause: unknown) {
+  constructor(report: NormalizedCaseReportInput, phase: RunCaseV3FailurePhase, cause: unknown,
+    cleanup?: ResourceCleanupResult) {
     const additional = errorSummary(`runnerV3.${phase}`, cause);
     super(additional.message);
     this.name = "RunCaseV3Error";
@@ -25,6 +28,7 @@ export class RunCaseV3Error extends Error {
     this.primaryCause = report.result.error;
     this.additionalFailure = Object.freeze({ phase, category: additional.category,
       message: additional.message });
+    this.cleanup = cleanup;
     Object.freeze(this);
   }
 }

@@ -40,6 +40,9 @@ test("runner-owned v3 path acquires two real surfaces, seals evidence, cleans up
     const result = await runCaseV3(fixture.definition, fixture.options);
 
     assert.equal(result.exitCode, 0);
+    assert.equal(result.failureOrigin, null);
+    assert.equal(result.cleanup.state, "closed");
+    assert.equal(result.cleanup.status, "passed");
     assert.equal(result.bundle.report.schemaVersion, "surfaceloom.report/v3");
     assert.equal(result.bundle.report.run.provenance.kind, "native");
     assert.equal(result.bundle.report.run.hosts.state, "known");

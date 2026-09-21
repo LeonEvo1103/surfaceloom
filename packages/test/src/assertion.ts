@@ -7,6 +7,8 @@ import type { AssertionFailure, ObservationAssertionOptions, ObservationAssertio
 import type { ObservationAttempt, ObservationReader, ObservationSnapshot } from "./observation.js";
 import { evidenceIds, snapshotObservation } from "./observation-values.js";
 
+const observationAssertionResult = Symbol.for("@surfaceloom/test/observation-assertion-result/v1");
+
 /**
  * Polls a reader, never an action or a cached snapshot. Invalid configuration rejects
  * before reading. Execution failures return structured results; read failures are retried.
@@ -114,8 +116,19 @@ export class ObservationAssertionError<T extends TraceValue = TraceValue> extend
   constructor(readonly result: ObservationAssertionResult<T>) {
     super(`Observation assertion ${result.status} after ${result.attempts} attempts: ${result.failure?.message ?? "Unknown failure."}`);
     this.name = "ObservationAssertionError";
+    Object.defineProperty(this, observationAssertionResult, { value: result });
     attachErrorDiagnostic(this, "observationAssertion", result);
   }
+}
+
+export function recordedObservationAssertionResult(error: unknown):
+  ObservationAssertionResult<TraceValue> | undefined {
+  if ((typeof error !== "object" && typeof error !== "function") || error === null) return undefined;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(error, observationAssertionResult);
+    return descriptor !== undefined && "value" in descriptor
+      ? descriptor.value as ObservationAssertionResult<TraceValue> : undefined;
+  } catch { return undefined; }
 }
 
 /** Await inside context.criterion() to let the existing execution kernel record failure. */

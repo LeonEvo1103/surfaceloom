@@ -56,6 +56,7 @@ test("MCP runs a registered Node command in an immutable Git snapshot", async (t
     value => value.ready === true);
   assert.equal(result.run.status, "completed");
   assert.equal(result.run.outcome, "passed");
+  assert.equal(result.run.executionLinks, undefined);
   assert.equal(result.run.cleanup.status, "confirmed");
   assert.equal(result.run.workspaceRelease.status, "confirmed");
 });

@@ -1,6 +1,7 @@
 export * from "./agent-service.js";
 export * from "./catalog.js";
 export * from "./executors/command/index.js";
+export * from "./executors/surfaceloom-v3/index.js";
 export * from "./execution.js";
 export * from "./ids.js";
 export * from "./mcp/index.js";

@@ -65,14 +65,17 @@ test("v2 plan is generated from every real release package manifest", () => {
   assert.deepEqual(plan.packages.map((item) => item.name), releasePackageNames);
   assert.deepEqual(plan.packageBuildOrder, [
     "@surfaceloom/core", "@surfaceloom/component-catalog", "@surfaceloom/reporter",
-    "@surfaceloom/agent-loop", "@surfaceloom/llm-judge", "@surfaceloom/service",
-    "@surfaceloom/test", "@surfaceloom/native", "@surfaceloom/browser-playwright",
+    "@surfaceloom/agent-loop", "@surfaceloom/llm-judge", "@surfaceloom/test",
+    "@surfaceloom/service", "@surfaceloom/native", "@surfaceloom/browser-playwright",
   ]);
   const testPackage = plan.packages.find((item) => item.name === "@surfaceloom/test");
   assert.equal(testPackage.dependencies["@surfaceloom/llm-judge"], "file:../llm-judge");
   assert.ok(plan.packageBuildOrder.indexOf("@surfaceloom/llm-judge")
     < plan.packageBuildOrder.indexOf("@surfaceloom/test"));
-  assert.ok(plan.packages.some((item) => item.name === "@surfaceloom/service"));
+  const servicePackage = plan.packages.find((item) => item.name === "@surfaceloom/service");
+  assert.equal(servicePackage.dependencies["@surfaceloom/test"], "file:../test");
+  assert.ok(plan.packageBuildOrder.indexOf("@surfaceloom/test")
+    < plan.packageBuildOrder.indexOf("@surfaceloom/service"));
   assert.doesNotThrow(() => validateReleasePlan(plan));
 });
 

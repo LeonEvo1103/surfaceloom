@@ -13,6 +13,7 @@ import { identifier } from "../evidence/execution-scope.js";
 import type { MaterializedEvidenceV3 } from "../report/v3/contracts.js";
 import { assertMaterializedEvidenceV3, materializedEvidenceIntegrity } from "../report/v3/materialize.js";
 import type { RequiredReportArtifactReferenceV3 } from "../report/v3/required-artifacts.js";
+import { mergeFailureOrigins, type RunCaseV3FailureOrigin } from "../failure-origin.js";
 import type { JudgeCriterionV3, JudgeIntegrationV3Result, JudgeRunnerBindingV3 } from "./contracts.js";
 import {
   assertMaterializedImageEvidenceV3,
@@ -73,6 +74,7 @@ export async function runJudgeCriteriaV3(
   const artifacts: JudgeIntegrationV3Result["artifacts"][number][] = [];
   const required = new Map<string, RequiredReportArtifactReferenceV3>();
   let failed = false;
+  let failureOrigin: RunCaseV3FailureOrigin = null;
   let failureMessage: string | undefined;
 
   for (const criterion of input.criteria) {
@@ -101,6 +103,7 @@ export async function runJudgeCriteriaV3(
     }
     const decision = decide(criterion, outcome);
     failed ||= decision.status === "failed";
+    failureOrigin = mergeFailureOrigins(failureOrigin, judgeFailureOrigin(criterion, outcome));
     failureMessage ??= decision.status === "failed" ? decision.reason : undefined;
     const correlationId = `judge.${input.scope.caseExecutionId}.${input.scope.attemptId}.${criterion.id}`;
     const sourcePath = path.join(path.resolve(input.stagingDirectory), `${artifactId}.json`);
@@ -123,7 +126,7 @@ export async function runJudgeCriteriaV3(
       assertion: decision.reason, criterionIds: Object.freeze([criterion.criterionId]) }));
   }
   return Object.freeze({ steps: Object.freeze(steps), artifacts: Object.freeze(artifacts),
-    requiredArtifacts: Object.freeze([...required.values()]), failed,
+    requiredArtifacts: Object.freeze([...required.values()]), failed, failureOrigin,
     ...(failureMessage === undefined ? {} : { failureMessage }) });
 }
 
@@ -204,6 +207,14 @@ function selectEvidence(input: RunJudgeCriteriaV3Input, caseId: string, reportRu
     },
     required: Object.freeze({ caseId, attemptId: input.scope.attemptId, artifactId,
       expectedSizeBytes: integrity.sizeBytes, expectedSha256: integrity.sha256 }) });
+}
+
+function judgeFailureOrigin(criterion: JudgeCriterionV3,
+  outcome: JudgeOutcome): RunCaseV3FailureOrigin {
+  if (outcome.status === "providerFailure") return "infrastructure";
+  if (outcome.status === "insufficient") return "insufficient";
+  if (!criterion.allowedLabels.includes(outcome.label)) return "infrastructure";
+  return criterion.passLabels.includes(outcome.label) ? null : "business";
 }
 
 function decide(criterion: JudgeCriterionV3, outcome: JudgeOutcome): {

@@ -110,6 +110,9 @@ export class AgentTestService {
     if (definition.runtime.executorId !== this.#runs.executorId) {
       throw new TypeError(`No executor is registered for ${definition.runtime.executorId}.`);
     }
+    if (definition.runtime.kind === "surfaceloom-v3" && definition.caseSpecs.length !== 1) {
+      throw new TypeError("A SurfaceLoom v3 service test must reference exactly one CaseSpec.");
+    }
     if (!definition.requirements.platforms.includes(this.#platform)) {
       throw new TypeError(`Test ${definition.testId} does not support ${this.#platform}.`);
     }
@@ -122,10 +125,15 @@ export class AgentTestService {
     }
     this.#snapshotOwners.set(snapshotId, request.requestId);
     try {
+      const executionLinks = definition.runtime.kind === "surfaceloom-v3"
+        ? { caseSpecs: [{ namespace: "case-spec" as const,
+          caseSpecId: definition.caseSpecs[0]!.id }], agentRuns: [], nativeOperations: [] }
+        : undefined;
       return await this.#runs.start({ requestId: request.requestId,
         snapshot: { snapshotId: snapshot.snapshotId, resolvedRevision: snapshot.resolvedRevision },
         testId: definition.testId, parameters, definition, workspace: snapshot,
-        ...(taskId === undefined ? {} : { taskId }) });
+        ...(taskId === undefined ? {} : { taskId }),
+        ...(executionLinks === undefined ? {} : { executionLinks }) });
     } catch (error) {
       if (owner === undefined) this.#snapshotOwners.delete(snapshotId);
       throw error;

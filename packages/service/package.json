@@ -25,7 +25,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "node ../../scripts/clean-package-dist.mjs && tsc -p tsconfig.json && node ../../scripts/copy-package-license.mjs",
+    "build:kernel": "npm --prefix ../core run build && npm --prefix ../llm-judge run build && npm --prefix ../reporter run build && npm --prefix ../test run build",
+    "build": "npm run build:kernel && node ../../scripts/clean-package-dist.mjs && tsc -p tsconfig.json && node ../../scripts/copy-package-license.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node ../../scripts/run-typescript-package-tests.mjs"
   },
@@ -41,6 +42,7 @@
   "dependencies": {
     "@modelcontextprotocol/node": "2.0.0",
     "@modelcontextprotocol/server": "2.0.0",
+    "@surfaceloom/test": "file:../test",
     "zod": "4.6.5"
   }
 }

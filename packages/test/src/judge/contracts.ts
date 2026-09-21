@@ -1,6 +1,7 @@
 import type { SourceArtifact } from "@surfaceloom/reporter";
 import type { JudgeProvider } from "@surfaceloom/llm-judge";
 import type { RequiredReportArtifactReferenceV3 } from "../report/v3/required-artifacts.js";
+import type { RunCaseV3FailureOrigin } from "../failure-origin.js";
 
 export interface JudgeCriterionV3 {
   readonly id: string;
@@ -40,5 +41,6 @@ export interface JudgeIntegrationV3Result {
   readonly artifacts: readonly SourceArtifact[];
   readonly requiredArtifacts: readonly RequiredReportArtifactReferenceV3[];
   readonly failed: boolean;
+  readonly failureOrigin: RunCaseV3FailureOrigin;
   readonly failureMessage?: string;
 }

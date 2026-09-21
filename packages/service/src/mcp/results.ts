@@ -22,6 +22,7 @@ export function summarizeRun(record: StoredRunRecord): Record<string, unknown> {
     runId: record.runId, requestId: record.requestId, testId: record.testId,
     snapshot: record.snapshot, parameters: record.parameters,
     ...(record.taskId === undefined ? {} : { taskId: record.taskId }),
+    ...(record.executionLinks === undefined ? {} : { executionLinks: record.executionLinks }),
     status: record.status, outcome: record.outcome,
     ...(reason === undefined ? {} : { businessReason: reason }),
     artifacts: record.artifacts, createdAt: record.createdAt, updatedAt: record.updatedAt,
