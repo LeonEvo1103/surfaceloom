@@ -83,7 +83,7 @@ replacement for those platform engines.
 | Browser | Optional Playwright Core backend; semantic DOM locators; strict single-target actions; screenshots and traces. The M1 Agent approval slice is live-fixture-tested in owned Chrome/Chromium |
 | Agent loop | Extensible `TraceAdapter`; unified event schema; Codex, native, and third-party imports; cross-clock merge; explicit evidence correlation; static HTML timeline |
 | Execution kernel | Fixtures/resources, criteria, observation polling, effect policy, deadlines, cleanup receipts, Reporter v3 evidence, and an explicit single-Case v3 CLI path |
-| Agent-callable service foundation | Contract-tested service identities/catalog, immutable local Git snapshots, registered command and SurfaceLoom v3 executors, durable local run/artifact stores, and an official-SDK MCP v2 endpoint with catalog/prepare/status/run/result/artifact/cancel tools. A registered single Case runs through the existing v3 kernel; structured failure origin keeps product failures, insufficient evidence, and infrastructure failures distinct while preserving Reporter and cleanup truth |
+| Agent-callable service foundation | Contract-tested service identities/catalog, immutable local Git snapshots, registered command and SurfaceLoom v3 executors, durable local run/artifact stores, and an official-SDK MCP v2 endpoint with catalog/prepare/status/run/result/artifact/cancel tools. A repository-external consumer installs only packed artifacts and verifies CLI/v3 execution, reconnect, response-loss replay, cancellation, report retrieval, crash recovery, and tainted-workspace rejection. Structured failure origin keeps product failures, insufficient evidence, and infrastructure failures distinct |
 | LLM Judge foundation | Contract-tested evidence-bound semantic judgment interface, deterministic Fake provider, explicit outcomes, Case deadline/cancellation inheritance, and Reporter v3 evidence/correlation. No real model provider or API smoke yet |
 | M1 Agent showcase | Four real Playwright v3 Cases run serially against a deterministic reference Agent and produce one Reporter v3 bundle: two expected passes and two honest product failures |
 | Neutral login fixture | Browser-ready local HTTP fixture with two entry points, new/existing accounts, attempt-scoped mailbox/CAPTCHA/session state, deterministic fault injection, and reset/cleanup contracts. It is contract-tested, not yet Playwright-live |
@@ -178,6 +178,19 @@ Run the wider framework and reference-Agent acceptance suite with:
 ```bash
 ./scripts/run-framework-p1-tests.sh
 ```
+
+The wider suite includes a packed-consumer conformance gate. It creates a
+temporary project outside this repository, installs the candidate `.tgz`
+artifacts, and runs the public service/MCP flows without importing repository
+source files. To run only that gate:
+
+```bash
+node scripts/service-packed-consumer/run.mjs
+```
+
+This is release-candidate evidence, not an npm publication claim. Until the P4
+release work removes `private` and internal `file:` dependencies, the gate
+installs the complete internal package closure together.
 
 Generate deterministic report fixtures:
 
