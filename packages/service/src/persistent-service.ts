@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type {
-  CancelResult, ExecuteRequest, ExecutionError, Executor,
+  CancelResult, ExecuteRequest, ExecutionError, Executor, RunResult,
 } from "./execution.js";
 import { createRunId, type RunId } from "./ids.js";
 import { cloneSafeData } from "./safe-data.js";
@@ -9,6 +9,8 @@ import type {
   ArtifactStore, PutArtifactRequest, RunStore, StoredArtifact, StoredRunRecord,
 } from "./stores/contracts.js";
 import { snapshotExecuteRequest } from "./executors/command/request-snapshot.js";
+import type { CleanupReceipt, WorkspaceSnapshot } from "./workspace.js";
+import type { WorkspaceLease } from "./workspaces/contracts.js";
 
 export type StartRunRequest = Omit<ExecuteRequest, "runId"> & { readonly requestId: string };
 
@@ -22,9 +24,16 @@ export interface PersistentRunServiceOptions {
   readonly runStore: RunStore;
   readonly artifactStore: ArtifactStore;
   readonly executor: Executor;
+  readonly workspaceLifecycle?: PersistentWorkspaceLifecycle;
   readonly cancelTimeoutMs?: number;
   readonly now?: () => Date;
   readonly createRunId?: () => RunId;
+}
+
+export interface PersistentWorkspaceLifecycle {
+  acquireLease(snapshot: WorkspaceSnapshot, runId: RunId): WorkspaceLease;
+  completeLease(lease: WorkspaceLease, cleanup: CleanupReceipt): void;
+  release(snapshot: WorkspaceSnapshot, signal: AbortSignal): Promise<CleanupReceipt>;
 }
 
 interface ActiveRun {
@@ -37,6 +46,7 @@ export class PersistentRunService {
   readonly #runs: RunStore;
   readonly #artifacts: ArtifactStore;
   readonly #executor: Executor;
+  readonly #workspaceLifecycle: PersistentWorkspaceLifecycle | undefined;
   readonly #cancelTimeoutMs: number;
   readonly #now: () => Date;
   readonly #createRunId: () => RunId;
@@ -46,6 +56,7 @@ export class PersistentRunService {
     this.#runs = options.runStore;
     this.#artifacts = options.artifactStore;
     this.#executor = options.executor;
+    this.#workspaceLifecycle = options.workspaceLifecycle;
     this.#cancelTimeoutMs = options.cancelTimeoutMs ?? 5_000;
     this.#now = options.now ?? (() => new Date());
     this.#createRunId = options.createRunId ?? createRunId;
@@ -123,16 +134,39 @@ export class PersistentRunService {
   async close(): Promise<void> { await this.#runs.close(); }
 
   async #dispatch(request: Readonly<ExecuteRequest>, signal: AbortSignal): Promise<void> {
+    let lease: WorkspaceLease | undefined;
     try {
+      lease = this.#workspaceLifecycle?.acquireLease(request.workspace, request.runId);
       await this.#runs.markRunning(request.runId, this.#timestamp());
-      const result = await this.#executor.execute(request, signal);
+      let result = await this.#executor.execute(request, signal);
       const current = await this.#runs.get(request.runId);
-      if (current !== undefined && !isTerminal(current.status)) {
-        await this.#runs.finish(request.runId, result);
+      if (current === undefined) return;
+      if (isTerminal(current.status)) {
+        if (lease !== undefined && current.cleanup !== undefined) {
+          this.#workspaceLifecycle?.completeLease(lease, current.cleanup);
+        }
+        return;
       }
+      result = failClosedCleanup(result);
+      let workspaceRelease: CleanupReceipt | undefined;
+      if (lease !== undefined) {
+        this.#workspaceLifecycle?.completeLease(lease, result.cleanup);
+        if (result.cleanup.status === "confirmed" && !result.cleanup.tainted) {
+          workspaceRelease = await this.#workspaceLifecycle?.release(request.workspace, signal);
+          if (workspaceRelease !== undefined &&
+            (workspaceRelease.status !== "confirmed" || workspaceRelease.tainted)) {
+            result = workspaceReleaseFailure(result, workspaceRelease);
+          }
+        }
+      }
+      await this.#runs.finish(request.runId, result, workspaceRelease);
     } catch (cause) {
       await this.#interrupt(request.runId, "executor_failed",
         cause instanceof Error ? cause.message : "Executor failed without a structured result.");
+      if (lease !== undefined) {
+        const current = await this.#runs.get(request.runId);
+        if (current?.cleanup !== undefined) this.#workspaceLifecycle?.completeLease(lease, current.cleanup);
+      }
     }
   }
 
@@ -171,4 +205,18 @@ async function waitBounded(promise: Promise<unknown>, milliseconds: number): Pro
     return await Promise.race([promise.then(() => true),
       new Promise<false>(resolve => { timer = setTimeout(() => resolve(false), milliseconds); })]);
   } finally { if (timer !== undefined) clearTimeout(timer); }
+}
+
+function failClosedCleanup(result: RunResult): RunResult {
+  if (result.cleanup.status !== "unconfirmed" && !result.cleanup.tainted) return result;
+  if (result.executionStatus !== "completed") return result;
+  return { ...result, executionStatus: "failed", outcome: null,
+    error: { code: "cleanup_unconfirmed", message: "Executor cleanup was not confirmed.", retryable: false } };
+}
+
+function workspaceReleaseFailure(result: RunResult, cleanup: CleanupReceipt): RunResult {
+  return { ...result, finishedAt: cleanup.attemptedAt, cleanup,
+    executionStatus: "failed", outcome: null,
+    error: { code: "workspace_release_unconfirmed",
+      message: "Workspace release was not confirmed.", retryable: false } };
 }

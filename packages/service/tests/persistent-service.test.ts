@@ -77,6 +77,66 @@ test("service attaches and reads immutable artifact bytes by run", async (t) => 
   assert.equal(Buffer.from((await service.getArtifact(artifact.artifactId))!.data).toString(), "image");
 });
 
+test("confirmed cleanup releases its workspace only after the lease is completed", async (t) => {
+  const fixture = await stores(t);
+  let completed = 0;
+  let released = 0;
+  const lifecycle = {
+    acquireLease(snapshot: ExecuteRequest["workspace"], runId: ExecuteRequest["runId"]) {
+      return { snapshotId: snapshot.snapshotId, runId, generation: 1,
+        acquiredAt: "2026-09-21T00:00:00.000Z" };
+    },
+    completeLease() { completed += 1; },
+    async release(snapshot: ExecuteRequest["workspace"]) {
+      released += 1;
+      return { snapshotId: snapshot.snapshotId, status: "confirmed" as const, tainted: false,
+        attemptedAt: "2026-09-21T00:00:03.000Z" };
+    },
+  };
+  const executor: Executor = { id: "registered.node", execute: async request => passed(request),
+    async cancel(request) { return { runId: request.runId, disposition: "already-terminal" }; },
+    async cleanup(request) { return cleanup(request.runId, request.snapshot.snapshotId, "confirmed"); } };
+  const service = await PersistentRunService.create({ ...fixture, executor,
+    workspaceLifecycle: lifecycle });
+  const started = await service.start(submission("release-request"));
+  const result = await service.wait(started.runId);
+  assert.equal(result?.status, "completed");
+  assert.equal(result?.workspaceRelease?.status, "confirmed");
+  assert.equal(completed, 1);
+  assert.equal(released, 1);
+});
+
+test("unconfirmed executor cleanup quarantines the lease and never releases the workspace", async (t) => {
+  const fixture = await stores(t);
+  let completedStatus = "";
+  let released = 0;
+  const lifecycle = {
+    acquireLease(snapshot: ExecuteRequest["workspace"], runId: ExecuteRequest["runId"]) {
+      return { snapshotId: snapshot.snapshotId, runId, generation: 1,
+        acquiredAt: "2026-09-21T00:00:00.000Z" };
+    },
+    completeLease(_lease: unknown, receipt: { status: string }) { completedStatus = receipt.status; },
+    async release(snapshot: ExecuteRequest["workspace"]) {
+      released += 1;
+      return { snapshotId: snapshot.snapshotId, status: "confirmed" as const, tainted: false,
+        attemptedAt: "2026-09-21T00:00:03.000Z" };
+    },
+  };
+  const executor: Executor = { id: "registered.node",
+    async execute(request) { return { ...passed(request),
+      cleanup: cleanup(request.runId, request.snapshot.snapshotId, "unconfirmed") }; },
+    async cancel(request) { return { runId: request.runId, disposition: "already-terminal" }; },
+    async cleanup(request) { return cleanup(request.runId, request.snapshot.snapshotId, "unconfirmed"); } };
+  const service = await PersistentRunService.create({ ...fixture, executor,
+    workspaceLifecycle: lifecycle });
+  const started = await service.start(submission("quarantine-request"));
+  const result = await service.wait(started.runId);
+  assert.equal(result?.status, "failed");
+  assert.equal(result?.error?.code, "cleanup_unconfirmed");
+  assert.equal(completedStatus, "unconfirmed");
+  assert.equal(released, 0);
+});
+
 function submission(requestId: string) {
   const definition = validateTestDefinition(validDefinition());
   return { requestId, snapshot: { snapshotId: "snapshot-fixture", resolvedRevision: "abc123" },
