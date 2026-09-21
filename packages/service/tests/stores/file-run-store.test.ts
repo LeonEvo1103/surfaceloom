@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -55,6 +55,72 @@ test("run store serializes concurrent artifact updates without losing either rec
   }, "2026-09-21T00:00:01.000Z")));
   assert.deepEqual((await store.get(runId))?.artifacts.map(item => item.name).sort(),
     ["one.txt", "two.txt"]);
+});
+
+test("failed persistence rolls back request and run indexes before retry", async (t) => {
+  const parent = await temporary(t);
+  const root = path.join(parent, "runs");
+  const displaced = path.join(parent, "runs-away");
+  const store = await FileRunStore.open(root);
+  const input = reservation(createRunId(), "request-rollback");
+  await rename(root, displaced);
+  await assert.rejects(store.reserve(input), { code: "ENOENT" });
+  await rename(displaced, root);
+
+  const retried = await store.reserve(input);
+  assert.equal(retried.created, true);
+  assert.equal(retried.record.status, "queued");
+  await store.close();
+  const reopened = await FileRunStore.open(root);
+  assert.equal((await reopened.getByRequestId(input.requestId))?.runId, input.proposedRunId);
+});
+
+test("failed transition persistence restores the last durable state", async (t) => {
+  const parent = await temporary(t);
+  const root = path.join(parent, "runs");
+  const displaced = path.join(parent, "runs-away");
+  const store = await FileRunStore.open(root);
+  const runId = createRunId();
+  await store.reserve(reservation(runId, "request-transition-rollback"));
+  await rename(root, displaced);
+  await assert.rejects(store.markRunning(runId, "2026-09-21T00:00:01.000Z"), { code: "ENOENT" });
+  await rename(displaced, root);
+
+  assert.equal((await store.get(runId))?.status, "queued");
+  const reopened = await FileRunStore.open(root);
+  assert.equal((await reopened.get(runId))?.status, "queued");
+});
+
+test("cancelling transition is idempotent", async (t) => {
+  const store = await FileRunStore.open(await temporary(t));
+  const runId = createRunId();
+  await store.reserve(reservation(runId, "request-cancel-idempotent"));
+  await store.markRunning(runId, "2026-09-21T00:00:01.000Z");
+  const first = await store.markCancelling(runId, "2026-09-21T00:00:02.000Z");
+  const second = await store.markCancelling(runId, "2026-09-21T00:00:03.000Z");
+  assert.equal(second.status, "cancelling");
+  assert.equal(second.revision, first.revision);
+});
+
+test("store rejects an over-budget mutation without making prior runs unreadable", async (t) => {
+  const root = await temporary(t);
+  const options = { maxStoreBytes: 1_600 };
+  const store = await FileRunStore.open(root, options);
+  let accepted = 0;
+  for (let index = 0; index < 20; index += 1) {
+    try {
+      await store.reserve(reservation(createRunId(), `budget-${index}`));
+      accepted += 1;
+    } catch (error) {
+      assert.ok(error instanceof StoreConflictError);
+      break;
+    }
+  }
+  assert.ok(accepted > 0 && accepted < 20);
+  assert.equal((await store.list()).length, accepted);
+  await store.close();
+  const reopened = await FileRunStore.open(root, options);
+  assert.equal((await reopened.list()).length, accepted);
 });
 
 function reservation(runId: ReturnType<typeof createRunId>, requestId: string) {

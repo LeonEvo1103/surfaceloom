@@ -1,5 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
 import type { Artifact, ExecutionError, RunResult } from "../execution.js";
@@ -10,26 +9,33 @@ import type {
   ReserveRunResult, RunReservation, RunStore, StoredRunRecord,
 } from "./contracts.js";
 import { StoreConflictError, StoreCorruptionError } from "./contracts.js";
+import { readRunStoreFile, writeRunStoreFile } from "./run-store-file.js";
 import { parseArtifact, parseCleanup, parseStoredRun } from "./validation.js";
 
-interface StoreFile { readonly schemaVersion: "surfaceloom.run-store/v1"; readonly runs: unknown[] }
-
 const terminal = new Set(["completed", "failed", "cancelled", "interrupted"]);
+const defaultMaxStoreBytes = 16 * 1024 * 1024;
+
+export interface FileRunStoreOptions { readonly maxStoreBytes?: number }
 
 export class FileRunStore implements RunStore {
   readonly #root: string;
   readonly #file: string;
   readonly #byRun = new Map<RunId, StoredRunRecord>();
   readonly #byRequest = new Map<string, RunId>();
+  readonly #maxStoreBytes: number;
   #tail: Promise<void> = Promise.resolve();
 
-  private constructor(root: string) {
+  private constructor(root: string, options: FileRunStoreOptions) {
     this.#root = path.resolve(root);
     this.#file = path.join(this.#root, "runs.json");
+    this.#maxStoreBytes = options.maxStoreBytes ?? defaultMaxStoreBytes;
+    if (!Number.isSafeInteger(this.#maxStoreBytes) || this.#maxStoreBytes <= 0) {
+      throw new TypeError("maxStoreBytes must be a positive integer.");
+    }
   }
 
-  static async open(root: string): Promise<FileRunStore> {
-    const store = new FileRunStore(root);
+  static async open(root: string, options: FileRunStoreOptions = {}): Promise<FileRunStore> {
+    const store = new FileRunStore(root, options);
     await mkdir(store.#root, { recursive: true, mode: 0o700 });
     await store.#load();
     return store;
@@ -88,6 +94,7 @@ export class FileRunStore implements RunStore {
   markCancelling(runId: RunId, updatedAt: string): Promise<StoredRunRecord> {
     return this.#update(runId, (current) => {
       if (terminal.has(current.status)) return current;
+      if (current.status === "cancelling") return current;
       if (current.status !== "running" && current.status !== "queued") {
         throw transition(current, "cancelling");
       }
@@ -176,33 +183,36 @@ export class FileRunStore implements RunStore {
 
   #mutate<T>(operation: () => Promise<T>, changed: (value: T) => boolean = () => true): Promise<T> {
     const next = this.#tail.then(async () => {
-      const value = await operation();
-      if (changed(value)) await this.#persist();
-      return value;
+      const previousByRun = new Map(this.#byRun);
+      const previousByRequest = new Map(this.#byRequest);
+      try {
+        const value = await operation();
+        if (changed(value)) await this.#persist();
+        return value;
+      } catch (error) {
+        this.#restore(previousByRun, previousByRequest);
+        throw error;
+      }
     });
     this.#tail = next.then(() => undefined, () => undefined);
     return next;
   }
 
   async #load(): Promise<void> {
-    let input: string;
-    try { input = await readFile(this.#file, "utf8"); } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-      throw error;
+    for (const item of await readRunStoreFile(this.#file, this.#maxStoreBytes)) {
+      this.#set(parseStoredRun(item));
     }
-    if (Buffer.byteLength(input, "utf8") > 16 * 1024 * 1024) throw new StoreCorruptionError("Run store is too large.");
-    const value = JSON.parse(input) as StoreFile;
-    if (value.schemaVersion !== "surfaceloom.run-store/v1" || !Array.isArray(value.runs)) {
-      throw new StoreCorruptionError("Run store header is invalid.");
-    }
-    for (const item of value.runs) this.#set(parseStoredRun(item));
   }
 
   async #persist(): Promise<void> {
-    const temporary = path.join(this.#root, `.runs.${randomUUID()}.tmp`);
-    await writeFile(temporary, `${JSON.stringify({ schemaVersion: "surfaceloom.run-store/v1",
-      runs: [...this.#byRun.values()] })}\n`, { encoding: "utf8", mode: 0o600, flag: "wx" });
-    await rename(temporary, this.#file);
+    await writeRunStoreFile(this.#file, [...this.#byRun.values()], this.#maxStoreBytes);
+  }
+
+  #restore(byRun: Map<RunId, StoredRunRecord>, byRequest: Map<string, RunId>): void {
+    this.#byRun.clear();
+    this.#byRequest.clear();
+    for (const [runId, record] of byRun) this.#byRun.set(runId, record);
+    for (const [requestId, runId] of byRequest) this.#byRequest.set(requestId, runId);
   }
 
   #set(record: StoredRunRecord): void {

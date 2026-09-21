@@ -1,10 +1,12 @@
-import { createHash } from "node:crypto";
-
 import type {
-  CancelResult, ExecuteRequest, ExecutionError, Executor, RunResult,
+  CancelResult, ExecuteRequest, ExecutionError, Executor,
 } from "./execution.js";
 import { createRunId, type RunId } from "./ids.js";
-import { cloneSafeData } from "./safe-data.js";
+import { fingerprintExecuteRequest } from "./request-fingerprint.js";
+import {
+  cleanupIsSafe, failClosedCleanup, interruptionCleanup, isTerminal, waitBounded,
+  workspaceReleaseFailure,
+} from "./run-lifecycle.js";
 import type {
   ArtifactStore, PutArtifactRequest, RunStore, StoredArtifact, StoredRunRecord,
 } from "./stores/contracts.js";
@@ -39,6 +41,7 @@ export interface PersistentWorkspaceLifecycle {
 interface ActiveRun {
   readonly abort: AbortController;
   readonly promise: Promise<void>;
+  cancelPromise?: Promise<CancelResult>;
 }
 
 /** Minimal durable coordinator used by transports such as the later MCP adapter. */
@@ -76,7 +79,7 @@ export class PersistentRunService {
     const { requestId, ...execution } = input;
     const request = snapshotExecuteRequest({ ...execution, runId: proposedRunId });
     const reservation = await this.#runs.reserve({ requestId,
-      fingerprint: fingerprint(request), proposedRunId, snapshot: request.snapshot,
+      fingerprint: fingerprintExecuteRequest(request), proposedRunId, snapshot: request.snapshot,
       testId: request.testId, parameters: request.parameters,
       ...(request.taskId === undefined ? {} : { taskId: request.taskId }),
       ...(request.executionLinks === undefined ? {} : { executionLinks: request.executionLinks }),
@@ -95,6 +98,12 @@ export class PersistentRunService {
 
   get(runId: RunId): Promise<StoredRunRecord | undefined> { return this.#runs.get(runId); }
 
+  getByRequestId(requestId: string): Promise<StoredRunRecord | undefined> {
+    return this.#runs.getByRequestId(requestId);
+  }
+
+  get executorId(): string { return this.#executor.id; }
+
   async wait(runId: RunId): Promise<StoredRunRecord | undefined> {
     const active = this.#active.get(runId);
     if (active !== undefined) await active.promise;
@@ -110,6 +119,17 @@ export class PersistentRunService {
       await this.#interrupt(runId, "executor_lost", "No live executor owns the persisted run.");
       return Object.freeze({ runId, disposition: "accepted" });
     }
+    if (active.cancelPromise === undefined) {
+      const cancellation = this.#cancelActive(runId, reason, active);
+      active.cancelPromise = cancellation;
+      void cancellation.catch(() => {
+        if (active.cancelPromise === cancellation) delete active.cancelPromise;
+      });
+    }
+    return active.cancelPromise;
+  }
+
+  async #cancelActive(runId: RunId, reason: string, active: ActiveRun): Promise<CancelResult> {
     await this.#runs.markCancelling(runId, this.#timestamp());
     active.abort.abort(reason);
     const cancelAbort = new AbortController();
@@ -135,6 +155,7 @@ export class PersistentRunService {
 
   async #dispatch(request: Readonly<ExecuteRequest>, signal: AbortSignal): Promise<void> {
     let lease: WorkspaceLease | undefined;
+    let leaseCompleted = false;
     try {
       lease = this.#workspaceLifecycle?.acquireLease(request.workspace, request.runId);
       await this.#runs.markRunning(request.runId, this.#timestamp());
@@ -151,72 +172,65 @@ export class PersistentRunService {
       let workspaceRelease: CleanupReceipt | undefined;
       if (lease !== undefined) {
         this.#workspaceLifecycle?.completeLease(lease, result.cleanup);
-        if (result.cleanup.status === "confirmed" && !result.cleanup.tainted) {
-          workspaceRelease = await this.#workspaceLifecycle?.release(request.workspace, signal);
+        leaseCompleted = true;
+        if (cleanupIsSafe(result.cleanup)) {
+          workspaceRelease = await this.#releaseWorkspace(request.workspace, request.runId);
           if (workspaceRelease !== undefined &&
-            (workspaceRelease.status !== "confirmed" || workspaceRelease.tainted)) {
+            !cleanupIsSafe(workspaceRelease)) {
             result = workspaceReleaseFailure(result, workspaceRelease);
           }
         }
       }
       await this.#runs.finish(request.runId, result, workspaceRelease);
     } catch (cause) {
-      await this.#interrupt(request.runId, "executor_failed",
-        cause instanceof Error ? cause.message : "Executor failed without a structured result.");
-      if (lease !== undefined) {
-        const current = await this.#runs.get(request.runId);
-        if (current?.cleanup !== undefined) this.#workspaceLifecycle?.completeLease(lease, current.cleanup);
+      const cleanup = interruptionCleanup(request.runId, request.snapshot.snapshotId,
+        this.#timestamp());
+      try {
+        await this.#interrupt(request.runId, "executor_failed",
+          cause instanceof Error ? cause.message : "Executor failed without a structured result.",
+          cleanup);
+      } finally {
+        if (lease !== undefined && !leaseCompleted) {
+          this.#workspaceLifecycle?.completeLease(lease, cleanup);
+        }
       }
     }
   }
 
-  async #interrupt(runId: RunId, code: string, message: string): Promise<void> {
+  async #releaseWorkspace(snapshot: WorkspaceSnapshot, runId: RunId): Promise<CleanupReceipt | undefined> {
+    const lifecycle = this.#workspaceLifecycle;
+    if (lifecycle === undefined) return undefined;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<{ readonly timedOut: true }>((resolve) => {
+      timer = setTimeout(() => {
+        controller.abort("Workspace release deadline elapsed.");
+        resolve({ timedOut: true });
+      }, this.#cancelTimeoutMs);
+    });
+    const release = lifecycle.release(snapshot, controller.signal).then(
+      value => ({ value }),
+      error => ({ error }),
+    );
+    const settled = await Promise.race([release, timeout]);
+    if (timer !== undefined) clearTimeout(timer);
+    if ("timedOut" in settled) {
+      return Object.freeze({ runId, snapshotId: snapshot.snapshotId,
+        status: "unconfirmed", tainted: true, attemptedAt: this.#timestamp(),
+        detail: "Workspace release did not settle before its deadline." });
+    }
+    if ("error" in settled) throw settled.error;
+    return settled.value;
+  }
+
+  async #interrupt(runId: RunId, code: string, message: string,
+    cleanup?: CleanupReceipt): Promise<void> {
     const record = await this.#runs.get(runId);
     if (record === undefined || isTerminal(record.status)) return;
     const error: ExecutionError = Object.freeze({ code, message, retryable: true });
-    await this.#runs.interrupt(runId, error, Object.freeze({ runId,
-      snapshotId: record.snapshot.snapshotId, status: "unconfirmed", tainted: true,
-      attemptedAt: this.#timestamp(), detail: "Owned process cleanup was not confirmed; workspace must remain quarantined." }),
-    this.#timestamp());
+    await this.#runs.interrupt(runId, error, cleanup ?? interruptionCleanup(runId,
+      record.snapshot.snapshotId, this.#timestamp()), this.#timestamp());
   }
 
   #timestamp(): string { return this.#now().toISOString(); }
-}
-
-function fingerprint(request: Readonly<ExecuteRequest>): string {
-  const { runId: _runId, ...stable } = request;
-  return createHash("sha256").update(stableStringify(cloneSafeData(stable))).digest("hex");
-}
-
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
-  const record = value as Record<string, unknown>;
-  return `{${Object.keys(record).sort().map(key => `${JSON.stringify(key)}:${stableStringify(record[key])}`).join(",")}}`;
-}
-
-function isTerminal(status: StoredRunRecord["status"]): boolean {
-  return status === "completed" || status === "failed" || status === "cancelled" || status === "interrupted";
-}
-
-async function waitBounded(promise: Promise<unknown>, milliseconds: number): Promise<boolean> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([promise.then(() => true),
-      new Promise<false>(resolve => { timer = setTimeout(() => resolve(false), milliseconds); })]);
-  } finally { if (timer !== undefined) clearTimeout(timer); }
-}
-
-function failClosedCleanup(result: RunResult): RunResult {
-  if (result.cleanup.status !== "unconfirmed" && !result.cleanup.tainted) return result;
-  if (result.executionStatus !== "completed") return result;
-  return { ...result, executionStatus: "failed", outcome: null,
-    error: { code: "cleanup_unconfirmed", message: "Executor cleanup was not confirmed.", retryable: false } };
-}
-
-function workspaceReleaseFailure(result: RunResult, cleanup: CleanupReceipt): RunResult {
-  return { ...result, finishedAt: cleanup.attemptedAt, cleanup,
-    executionStatus: "failed", outcome: null,
-    error: { code: "workspace_release_unconfirmed",
-      message: "Workspace release was not confirmed.", retryable: false } };
 }

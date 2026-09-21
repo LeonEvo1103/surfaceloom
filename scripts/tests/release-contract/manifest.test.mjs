@@ -239,7 +239,7 @@ test("license and NOTICE bytes must substantiate claimed package/dependency cove
   assert.deepEqual(baseline.manifest.compliance.thirdParty.coveredPackageNames,
     releasePackageNames);
   assert.deepEqual(baseline.manifest.compliance.thirdParty.coveredDependencyNames,
-    ["playwright-core"]);
+    ["@modelcontextprotocol/node", "@modelcontextprotocol/server", "playwright-core", "zod"]);
 
   const packageCoverage = releaseFixture();
   packageCoverage.manifest.compliance.thirdParty.coveredPackageNames =
