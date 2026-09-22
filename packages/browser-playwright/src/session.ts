@@ -134,12 +134,13 @@ export class PlaywrightBrowserSession implements BrowserSession {
     // Detach before the page and context go away, so no listener outlives the session.
     this.observations.stopAll();
     this.closed = true;
-    const attempts = await Promise.allSettled([
-      Promise.resolve().then(() => this.context.close()),
-      Promise.resolve().then(() => this.browser.close()),
-    ]);
-    const failures = attempts.flatMap((attempt) =>
-      attempt.status === "rejected" ? [attempt.reason] : []);
+    // Context is owned by the browser, so closing both concurrently races the
+    // parent teardown against Target.disposeBrowserContext in real Chromium.
+    // Keep the child-before-parent order, while still attempting the parent if
+    // context cleanup fails.
+    const failures: unknown[] = [];
+    try { await this.context.close(); } catch (error) { failures.push(error); }
+    try { await this.browser.close(); } catch (error) { failures.push(error); }
     if (failures.length > 0) {
       throw new BrowserAutomationError(
         "operationFailed",
