@@ -68,9 +68,10 @@ effect、显式语义判断、证据完整性和 cleanup 组合为一个保守 v
   executor、单进程 durable run/artifact store 与正式 MCP SDK v2 endpoint；已证明断线重连、`requestId`
   恢复、显式 cancel 和 MCP→v3 kernel→Reporter bundle。尚无 Planner adapter、远程 auth 或多进程
   store；service 与 CLI 的 v3 路径仍都要求精确选择一个 Case，不是通用 suite runner。
-- LLM Judge 已接入 Case 与 Reporter v3 required evidence，但仍只有 Fake/provider contract，没有真实模型
-  adapter/API smoke；中性登录仍只是 fixture，尚无 Playwright+Judge+MCP showcase。
-- browser/native 已有仓库外 packed consumer，但没有包含 service/Judge 的端到端仓外 consumer、第二个
+- LLM Judge 已接入 Case 与 Reporter v3 required evidence，并提供 OpenAI Responses-compatible 与 Anthropic
+  adapter；前者有一次显式真实 API smoke，后者仍只有本地协议合同。中性登录仍只是 fixture，尚无
+  Playwright+Judge+MCP showcase。
+- service/Judge 执行闭包已有仓库外 packed consumer，但没有真实模型 adapter 的仓外 consumer、第二个
   公开消费者或 npm alpha 发布证据。
 
 ### 2.3 第三方复用的真实状态
@@ -135,6 +136,8 @@ AX、native host/protocol 大量为自研代码。替换只能在同一 fixture 
   必须得到明确的 `insufficient`/provider failure，不能判绿。
 - evidence reference 必须存在且属于当前执行；Judge 必须把 observed facts 与 hypotheses 分开。只有页面
   证据时，后端根因只能是待验证假设或 `insufficient`，不能写成已证实原因。
+- OpenAI adapter 只承诺 Responses API structured output，可配置兼容网关；Anthropic adapter 走原生
+  Messages structured output。二者都使用官方 SDK、禁用 SDK retry，并继承 Case deadline/AbortSignal。
 - Fake provider 用于默认可重复测试；真实模型 smoke 必须显式启用。模型 API token 由消费方运行环境注入，
   不进入 Case、报告或仓库。
 
@@ -326,7 +329,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | ID | 状态 | 依赖 | 排他写入范围 | 产物与 DoD |
 | --- | --- | --- | --- | --- |
 | `SL-P6-010` | done | `SL-P0-070`,`SL-P0-071` | 新 `packages/llm-judge` contracts/fake/tests | 定义 rubric、允许标签、有界 multimodal evidence、当前 run evidence refs、observed facts/hypotheses、structured result、`insufficient` 与 provider failure；Fake provider 可重复，provider SDK 为可选依赖 |
-| `SL-P6-020` | ready | `SL-P6-010` | llm-judge provider adapter/tests | 基于成熟 SDK 的结构化输出、AbortSignal、deadline、401/429/5xx、token/latency metadata；未知标签 fail closed；真实 API 只做显式 smoke |
+| `SL-P6-020` | done | `SL-P6-010` | llm-judge provider adapter/tests | 基于成熟 SDK 的结构化输出、AbortSignal、deadline、401/429/5xx、token/latency metadata；未知标签 fail closed；真实 API 只做显式 smoke |
 | `SL-P6-030` | done | `SL-P6-010`,`SL-P3-055` | test/reporter Judge integration/tests | Case 显式声明 Judge criterion，结果进入 Reporter v3 evidence/correlation；确定性失败、insufficient 或 provider failure 不能被模型改绿，不创建 Reporter v4 |
 | `SL-P6-040` | done | `SL-P0-070` | 新 `examples/login-testing` fixture/tests | 中性本地登录应用与邮箱：两个入口、全新/旧账号、测试模式验证码、可开关误分流故障、稳定 run/attempt identity；账号/邮箱/验证码按 attempt 隔离并可重置，连续两次与故障恢复后结果一致；不接真实模型/邮箱/公司页面 |
 | `SL-P6-050` | planned | `SL-P5-050`,`SL-P5-060`,`SL-P6-020`,`SL-P6-030`,`SL-P6-040` | login Playwright Cases、MCP showcase、Reporter assertions | 真实 Playwright 覆盖正常/误分流/邮件缺失/Judge insufficient/API failure；Fake 默认、real opt-in；一条命令通过 MCP 生成可解释报告 |
@@ -383,6 +386,7 @@ contract-tested、live-fixture-tested 或 target-app-tested；没有 live 证据
 | `SL-P0-071` | `d4eba3f0c5a7eba6eb98cd3254ee44aefa42d7c8` | `scripts/lib/framework-ssot.mjs`、`scripts/tests/framework-ssot.test.mjs` | `node --test scripts/tests/framework-ssot.test.mjs && node scripts/check-framework-ssot.mjs` / 0 | macOS / Node 22 | 4 tests + 79-task ledger / 0 | `scripts/tests/framework-ssot.test.mjs` | 识别任意数字 phase 并拒绝畸形/裸/残缺依赖与任务 ID；只验证账本结构，不调度任务，也不机器判断证据真实性或依赖是否适合开工。 |
 | `SL-P5-010` | `29eb24f8c7da704ed48eedad2bc786e671b48f09` | `packages/service/**`、TypeScript/框架测试与 CI 接线 | `npm --prefix packages/service test && npm --prefix packages/service run typecheck && npm --prefix packages/service pack --dry-run && ./scripts/run-framework-p1-tests.sh` / 0 | macOS / Node 22 / Chrome | 19 service tests + 全量框架门禁 / 0 required skip | `packages/service/tests`、`scripts/run-framework-p1-tests.sh` | 交付 service 身份、TestDefinition/catalog 和执行边界合同；没有真实 workspace、进程 executor、run store、artifact store 或 MCP。 |
 | `SL-P6-010` | `29eb24f8c7da704ed48eedad2bc786e671b48f09` | `packages/llm-judge/**`、TypeScript/框架测试与 CI 接线 | `npm --prefix packages/llm-judge test && npm --prefix packages/llm-judge run typecheck && npm --prefix packages/llm-judge pack --dry-run && ./scripts/run-framework-p1-tests.sh` / 0 | macOS / Node 22 / Chrome | 41 Judge tests + 全量框架门禁 / 0 required skip | `packages/llm-judge/tests`、`scripts/run-framework-p1-tests.sh` | 只有可重复 Fake 与 provider contract；没有真实模型 SDK、Reporter 接线或 API smoke，且不拥有确定性 verdict。 |
+| `SL-P6-020` | `2126634a0afc1702437b30c2ec88f9db0d9f212a` | `packages/llm-judge/src/providers/**`、provider tests/README、optional peers 与 release license/SBOM evidence | `npm --prefix packages/llm-judge test && npm --prefix packages/llm-judge run typecheck && npm --prefix packages/llm-judge pack --dry-run && node --test scripts/tests/release-contract/*.test.mjs && ./scripts/run-framework-p1-tests.sh && ./scripts/run-swift-tests.sh && ./scripts/check-architecture.sh && node scripts/check-framework-ssot.mjs && git diff --check` / 0 | macOS / Node 22 / Chrome | 58 Judge + 37 release contracts + 2 仓外 packed consumer + 7 required live browser Cases + 18 login fixture + 78 Swift；另 1 次显式 OpenAI-compatible API smoke / 0 required skip | `packages/llm-judge/tests`、`packages/llm-judge/README.md`、`scripts/release/license-evidence.mjs` | OpenAI-compatible 只承诺 Responses API；Anthropic adapter 为协议合同测试，尚无真实 API smoke。真实 provider 不进默认 CI、token 不留存，Judge 仍不能覆盖确定性 verdict。 |
 | `SL-P6-040` | `29eb24f8c7da704ed48eedad2bc786e671b48f09` | `examples/login-testing/**`、框架测试与 CI 接线 | `npm --prefix examples/login-testing test && node --check examples/login-testing/src/*.mjs && ./scripts/run-framework-p1-tests.sh` / 0 | macOS / Node 22 / Chrome | 18 fixture tests + 全量框架门禁 / 0 required skip | `examples/login-testing/test`、`scripts/run-framework-p1-tests.sh` | 证明中性本地登录/邮箱状态机、attempt 隔离和故障恢复；没有 Playwright、Judge、MCP、Reporter 或真实外部资源。 |
 | `SL-P5-020` | `14689246462809d5588b31e07e66e0e2972f4f05` | `packages/service/src/workspaces/**`、`packages/service/tests/workspaces/**` | `npm --prefix packages/service test && npm --prefix packages/service run typecheck && ./scripts/run-framework-p1-tests.sh` / 0 | macOS / Node 22 / Chrome | 20 workspace tests（70 service total）+ 全量框架门禁 / 0 required skip | `packages/service/tests/workspaces`、`scripts/run-framework-p1-tests.sh` | 证明本地 Git snapshot、identity/lease、只读 executable bit、symlink/TOCTOU 与 UUID collision fail closed；只有本机 provider，没有 remote checkout 或持久化 run ownership。 |
 | `SL-P5-030` | `14689246462809d5588b31e07e66e0e2972f4f05` | `packages/service/src/executors/command/**`、`packages/service/tests/executors/command/**` | `npm --prefix packages/service test && npm --prefix packages/service run typecheck && ./scripts/run-framework-p1-tests.sh` / 0 | macOS / Node 22 / Chrome | 31 command tests（70 service total）+ 全量框架门禁 / 0 required skip | `packages/service/tests/executors/command`、`scripts/run-framework-p1-tests.sh` | registered argv、bounded output、deadline/cancel、tree/stdio cleanup 与 replay identity 已测；公开包尚无内建 OS process-tree controller，缺少 containment proof 时保守为 unconfirmed/tainted。 |
@@ -467,3 +471,4 @@ contract-tested、live-fixture-tested 或 target-app-tested；没有 live 证据
 | 2026-09-21 | GPT-6 对 P5-040/P5-050 的反例审计发现并推动修复失败写入幽灵索引、取消信号污染 workspace release、同制品并发发布、并发 cancel、store 自身超预算及 `not-required` cleanup 误判。正式 MCP SDK v2 endpoint 以七个结构化工具接入同一 service；official client 完成断线重连、响应丢失重试、真实 registered command、artifact 与 cancel 验收。93 项 service tests、37 项 release contracts、全框架 P1 和公开扫描通过，关闭 `SL-P5-050`；`SL-P5-060` 继续负责现有 v3 kernel executor。 |
 | 2026-09-21 | 关闭 `SL-P5-060`：新增精确注册的单 Case v3 service executor，服务注入 `runId`、取消信号和私有工作目录，直接调用公开 `runCaseV3`；完整 Reporter v3 bundle 进入 ArtifactStore，CaseSpec correlation 经 MCP 返回。GPT-6 Xhigh 反向审计阻断并修复两项 P1：清理只删除本次独占创建的 run 目录；kernel 以结构化 `failureOrigin` 区分业务失败、insufficient 与基础设施故障，Judge provider/传输/读取/生命周期错误不能冒充产品 verdict。101 项 service tests、367 项 test package tests和 37 项 release contracts通过；`SL-P5-070` 开放做仓外 consumer、断线与崩溃回归。 |
 | 2026-09-21 | 关闭 `SL-P5-070`：新增仓库外临时 consumer，只安装 core/Judge/reporter/test/service 的候选 `.tgz` 并校验模块解析不回落源码树；两条 conformance 覆盖真实 registered CLI、v3 Reporter bundle、MCP 重连/制品/取消、dispatch 后响应丢失，以及 service 被强杀但 child 存活后的重启隔离。原 `requestId` 只恢复同一 interrupted run，新请求无法租用 crash/cleanup-unconfirmed 污染的 workspace，执行计数保持一次。全框架、101 项 service、7 个真实 Playwright 和公开扫描通过；这不提前宣称 registry-ready，P4 继续负责 `private`/`file:` 清理和正式安装。`SL-P6-060` 转 ready。 |
+| 2026-09-22 | 关闭 `SL-P6-020`：`@surfaceloom/llm-judge` 新增 OpenAI Responses-compatible 与 Anthropic 官方 SDK adapter，统一 structured output、deadline/cancel、HTTP failure、usage/latency 与 fail-closed 本地验证；58 项 Judge、37 项 release、仓外 consumer、7 个真实 Playwright、18 个登录 fixture 和 78 个 Swift 测试通过。OpenAI-compatible 显式真实 API smoke 通过且不留存 token；Anthropic 保持 contract-tested，不虚报 live。 |
