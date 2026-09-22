@@ -1,5 +1,5 @@
 import { spawn as nodeSpawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -19,6 +19,8 @@ type SpawnCodex = (
   argv: readonly string[],
   options: Parameters<typeof nodeSpawn>[2],
 ) => ChildProcessWithoutNullStreams;
+
+const MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
 
 export interface CodexExecExampleOptions {
   /** Pin the actual model so report metadata does not guess what local config selected. */
@@ -91,6 +93,10 @@ export function createCodexExecExampleProvider(options: CodexExecExampleOptions)
         const exit = await waitForOwnedChild(child, context, terminateGraceMs);
         if (exit.code !== 0 || exit.signal !== null) {
           throw new JudgeProviderError("provider", "Codex Judge process failed", false, metadata());
+        }
+        const outputStat = await stat(outputPath);
+        if (!outputStat.isFile() || outputStat.size > MAX_OUTPUT_BYTES) {
+          throw new JudgeProviderError("provider", "Codex Judge output was invalid", false, metadata());
         }
         const output = await readFile(outputPath, "utf8");
         return bindStructuredDecision(output, metadata());
