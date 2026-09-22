@@ -20,6 +20,42 @@ function modelDecision() {
   };
 }
 
+function response(stopReason: "end_turn" | "max_tokens" | "refusal" = "end_turn") {
+  return {
+    id: "msg-anthropic-test",
+    type: "message",
+    role: "assistant",
+    model: "claude-test",
+    content: [{ type: "text", text: JSON.stringify(modelDecision()) }],
+    stop_reason: stopReason,
+    stop_sequence: null,
+    usage: {
+      input_tokens: 30,
+      output_tokens: 15,
+      cache_creation_input_tokens: 2,
+      cache_read_input_tokens: 3,
+    },
+  };
+}
+
+for (const stopReason of ["max_tokens", "refusal"] as const) {
+  test(`Anthropic adapter rejects ${stopReason} responses with valid residual JSON`, async () => {
+    process.env[KEY_ENV] = "test-anthropic-secret";
+    try {
+      const outcome = await withServer(async (_incoming, outgoing) => {
+        json(outgoing, 200, response(stopReason));
+      }, async (baseURL) => await judge(
+        createAnthropicJudgeProvider({ model: "claude-test", baseURL, apiKeyEnv: KEY_ENV }),
+        request(),
+        { deadlineAt: Date.now() + 5_000 },
+      ));
+      assert.equal(outcome.status === "providerFailure" && outcome.failure.kind, "invalidResponse");
+    } finally {
+      delete process.env[KEY_ENV];
+    }
+  });
+}
+
 test("Anthropic adapter uses native structured output while preserving the shared contract", async () => {
   process.env[KEY_ENV] = "test-anthropic-secret";
   let captured: { path?: string; apiKey?: string; body?: unknown } = {};
@@ -30,21 +66,7 @@ test("Anthropic adapter uses native structured output while preserving the share
         apiKey: incoming.headers["x-api-key"] as string | undefined,
         body: await readJson(incoming),
       };
-      json(outgoing, 200, {
-        id: "msg-anthropic-test",
-        type: "message",
-        role: "assistant",
-        model: "claude-test",
-        content: [{ type: "text", text: JSON.stringify(modelDecision()) }],
-        stop_reason: "end_turn",
-        stop_sequence: null,
-        usage: {
-          input_tokens: 30,
-          output_tokens: 15,
-          cache_creation_input_tokens: 2,
-          cache_read_input_tokens: 3,
-        },
-      }, { "request-id": "req-anthropic-test" });
+      json(outgoing, 200, response(), { "request-id": "req-anthropic-test" });
     }, async (baseURL) => await judge(
       createAnthropicJudgeProvider({ model: "claude-test", baseURL, apiKeyEnv: KEY_ENV }),
       request(),

@@ -99,7 +99,7 @@ export function judgePrompt(request: JudgeRequest): string {
   ].join("\n\n");
 }
 
-function invalidResponse(metadata: ProviderMetadata): unknown {
+export function invalidProviderResponse(metadata: ProviderMetadata): unknown {
   return {
     status: "providerFailure",
     failure: { kind: "invalidResponse", message: "Provider response was invalid", retryable: false },
@@ -112,9 +112,11 @@ export function bindStructuredDecision(text: string, metadata: ProviderMetadata)
   try {
     value = JSON.parse(text);
   } catch {
-    return invalidResponse(metadata);
+    return invalidProviderResponse(metadata);
   }
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return invalidResponse(metadata);
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return invalidProviderResponse(metadata);
+  }
   const decision = value as Record<string, unknown>;
   const support = {
     reasons: decision.reasons,
@@ -134,5 +136,5 @@ export function bindStructuredDecision(text: string, metadata: ProviderMetadata)
   if (decision.status === "insufficient" && decision.label === null && decision.confidence === null) {
     return { status: "insufficient", reason: decision.reason, ...support };
   }
-  return invalidResponse(metadata);
+  return invalidProviderResponse(metadata);
 }
