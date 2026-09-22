@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   createJudgeRouter,
   judge,
+  JudgeProviderError,
+  type JudgeProvider,
   type JudgeRouterConfig,
 } from "../src/index.js";
 import { classified, request } from "./fixtures.js";
@@ -233,4 +235,95 @@ test("rejects secret values, unknown models, duplicate candidates and hostile co
   Object.defineProperty(getter, "routes", { enumerable: true, get: () => base.routes });
   assert.throws(() => createJudgeRouter(getter as JudgeRouterConfig), /data property/u);
   assert.throws(() => createJudgeRouter(new Proxy(base, {}) as JudgeRouterConfig), /Proxy/u);
+});
+
+test("routes to a trusted registered provider without inventing a model or credential profile", async () => {
+  let calls = 0;
+  const external: JudgeProvider = {
+    name: "local-review",
+    async judge() {
+      calls += 1;
+      return classified();
+    },
+  };
+  const router = createJudgeRouter({
+    profiles: {
+      agent: { provider: "registered", providerId: "local-review" },
+    },
+    routes: {
+      "login-agent": [{ profileId: "agent" }],
+    },
+  }, { providers: { "local-review": external } });
+
+  const routed = await router.classify("login-agent", request(), { deadlineAt: future() });
+  assert.equal(routed.outcome.status, "classified");
+  assert.equal(calls, 1);
+  assert.deepEqual(routed.attempts, [{
+    profileId: "agent",
+    provider: "registered",
+    providerId: "local-review",
+    disposition: "selected",
+  }]);
+  assert.equal((await judge(router.provider("login-agent"), request(), {
+    deadlineAt: future(),
+  })).status, "classified");
+  assert.equal(calls, 2);
+});
+
+test("registered providers participate in the existing bounded fallback policy", async () => {
+  const calls: string[] = [];
+  const unavailable: JudgeProvider = {
+    name: "unavailable-review",
+    async judge() {
+      calls.push("unavailable");
+      throw new JudgeProviderError("server", "fixture failure", true);
+    },
+  };
+  const healthy: JudgeProvider = {
+    name: "healthy-review",
+    async judge() {
+      calls.push("healthy");
+      return classified();
+    },
+  };
+  const router = createJudgeRouter({
+    profiles: {
+      first: { provider: "registered", providerId: "unavailable" },
+      second: { provider: "registered", providerId: "healthy" },
+    },
+    routes: {
+      diagnostic: [{ profileId: "first" }, { profileId: "second" }],
+    },
+  }, { providers: { unavailable, healthy } });
+
+  const routed = await router.classify("diagnostic", request(), { deadlineAt: future() });
+  assert.equal(routed.outcome.status, "classified");
+  assert.deepEqual(calls, ["unavailable", "healthy"]);
+  assert.deepEqual(routed.attempts.map((attempt) => attempt.disposition), ["fallback", "selected"]);
+});
+
+test("registered provider references fail closed and do not execute during configuration", () => {
+  let calls = 0;
+  const provider: JudgeProvider = {
+    name: "local-review",
+    async judge() {
+      calls += 1;
+      return classified();
+    },
+  };
+  const config: JudgeRouterConfig = {
+    profiles: { agent: { provider: "registered", providerId: "missing" } },
+    routes: { diagnostic: [{ profileId: "agent" }] },
+  };
+  assert.throws(
+    () => createJudgeRouter(config, { providers: { "local-review": provider } }),
+    /unknown registered provider/u,
+  );
+  assert.equal(calls, 0);
+
+  assert.throws(() => createJudgeRouter({
+    profiles: { agent: { provider: "registered", providerId: "local-review" } },
+    routes: { diagnostic: [{ profileId: "agent", model: "fake-model" }] },
+  }, { providers: { "local-review": provider } }), /model is not allowed/u);
+  assert.equal(calls, 0);
 });
