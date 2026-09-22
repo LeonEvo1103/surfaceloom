@@ -10,6 +10,7 @@ import type {
 } from "../contracts.js";
 import {
   bindStructuredDecision,
+  invalidProviderResponse,
   judgeInstructions,
   judgeOutputSchema,
   judgePrompt,
@@ -96,6 +97,7 @@ export class AnthropicJudgeProvider implements JudgeProvider {
         requestId(response, response.id),
         usage(response.usage),
       );
+      if (response.stop_reason !== "end_turn") return invalidProviderResponse(metadata);
       return bindStructuredDecision(output, metadata);
     } catch (error) {
       throwMappedProviderError(

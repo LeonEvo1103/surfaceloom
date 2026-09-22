@@ -25,12 +25,13 @@ function modelDecision(label = "sign-up") {
   };
 }
 
-function response(text: string) {
+function response(text: string, status: "completed" | "incomplete" | "failed" = "completed") {
   return {
     id: "resp-provider-test",
     object: "response",
     created_at: Math.floor(Date.now() / 1_000),
     model: "gateway-model",
+    status,
     output: [{
       id: "msg-provider-test",
       type: "message",
@@ -46,6 +47,24 @@ function response(text: string) {
       output_tokens_details: { reasoning_tokens: 0 },
     },
   };
+}
+
+for (const status of ["incomplete", "failed"] as const) {
+  test(`OpenAI-compatible adapter rejects ${status} responses with valid residual JSON`, async () => {
+    process.env[KEY_ENV] = "test-openai-secret";
+    try {
+      const outcome = await withServer(async (_incoming, outgoing) => {
+        json(outgoing, 200, response(JSON.stringify(modelDecision()), status));
+      }, async (baseURL) => await judge(
+        createOpenAICompatibleJudgeProvider({ model: "gateway-model", baseURL, apiKeyEnv: KEY_ENV }),
+        request(),
+        { deadlineAt: future() },
+      ));
+      assert.equal(outcome.status === "providerFailure" && outcome.failure.kind, "invalidResponse");
+    } finally {
+      delete process.env[KEY_ENV];
+    }
+  });
 }
 
 test("OpenAI-compatible adapter sends bounded structured multimodal input and binds provenance", async () => {

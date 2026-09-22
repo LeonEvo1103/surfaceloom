@@ -7,6 +7,7 @@ import type {
 } from "../contracts.js";
 import {
   bindStructuredDecision,
+  invalidProviderResponse,
   judgeInstructions,
   judgeOutputSchema,
   judgePrompt,
@@ -97,6 +98,7 @@ export class OpenAICompatibleJudgeProvider implements JudgeProvider {
         requestId(response, response.id),
         usage(response.usage),
       );
+      if (response.status !== "completed") return invalidProviderResponse(metadata);
       return bindStructuredDecision(response.output_text, metadata);
     } catch (error) {
       throwMappedProviderError(

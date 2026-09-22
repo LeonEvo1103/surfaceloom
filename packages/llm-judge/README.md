@@ -18,13 +18,23 @@ and cancellation signal, disable SDK retries, record bounded provider metadata,
 and map authentication, rate-limit, server, and malformed-response failures to
 explicit non-passing outcomes.
 
-The SDKs are optional peer dependencies. Install only the one needed by the
-selected provider:
+The SDKs are optional peer dependencies. This package is not published to npm
+yet. Build and pack the current checkout first:
 
 ```bash
-npm install @surfaceloom/llm-judge openai
+git clone https://github.com/LeonEvo1103/surfaceloom.git
+cd surfaceloom
+npm ci --prefix packages/llm-judge
+npm run --prefix packages/llm-judge build
+npm pack ./packages/llm-judge --pack-destination /tmp
+```
+
+Then install the generated tarball and only the SDK needed by the consumer:
+
+```bash
+npm install /tmp/surfaceloom-llm-judge-0.1.0.tgz openai
 # or
-npm install @surfaceloom/llm-judge @anthropic-ai/sdk
+npm install /tmp/surfaceloom-llm-judge-0.1.0.tgz @anthropic-ai/sdk
 ```
 
 ## OpenAI or a Responses-compatible gateway
