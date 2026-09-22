@@ -93,6 +93,54 @@ const outcome = await judge(provider, request, {
 });
 ```
 
+## Multiple keys and models
+
+`createJudgeRouter()` maps non-secret profile IDs to environment-backed provider
+profiles. One profile may allow multiple models, and one model may appear under
+multiple profiles:
+
+```ts
+import { createJudgeRouter } from "@surfaceloom/llm-judge";
+
+const router = createJudgeRouter({
+  profiles: {
+    key1: {
+      provider: "openai-compatible",
+      apiKeyEnv: "JUDGE_KEY_1",
+      baseURL: "https://api.example.test",
+      models: ["model-a", "model-b"],
+    },
+    key2: {
+      provider: "openai-compatible",
+      apiKeyEnv: "JUDGE_KEY_2",
+      baseURL: "https://api.example.test",
+      models: ["model-a", "model-c"],
+    },
+  },
+  routes: {
+    "login-default": [
+      { profileId: "key1", model: "model-a" },
+      { profileId: "key2", model: "model-a" },
+    ],
+    "login-deep": [{ profileId: "key2", model: "model-c" }],
+  },
+});
+
+const routed = await router.classify("login-default", request, {
+  deadlineAt: Date.now() + 15_000,
+});
+console.log(routed.outcome, routed.attempts);
+
+// Existing SurfaceLoom Case runners accept the same route as a JudgeProvider.
+const provider = router.provider("login-default");
+```
+
+The configuration contains environment variable names, never credential
+values. Routing falls through only after a retryable rate-limit or server
+failure. Authentication, invalid responses, insufficient evidence, aborts, and
+deadlines stop on the current candidate. `attempts` records non-secret profile,
+provider, model, disposition, and failure kind for reporting.
+
 ## Security and evidence boundary
 
 - API keys are read only from the configured environment variable. They are
