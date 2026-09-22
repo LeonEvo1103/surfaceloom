@@ -58,6 +58,7 @@ export interface ProviderMetadata {
   readonly provider: string;
   readonly model: string;
   readonly requestId?: string;
+  readonly latencyMs?: number;
   readonly usage?: ProviderUsage;
 }
 

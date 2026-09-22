@@ -11,6 +11,8 @@ import {
 import { zip } from "./archive-builder.mjs";
 
 const dependencyRoots = new Map([
+  ["@anthropic-ai/sdk", ["packages", "llm-judge", "node_modules", "@anthropic-ai", "sdk"]],
+  ["openai", ["packages", "llm-judge", "node_modules", "openai"]],
   ["playwright-core", ["packages", "browser-playwright", "node_modules", "playwright-core"]],
   ["@modelcontextprotocol/node", ["packages", "service", "node_modules",
     "@modelcontextprotocol", "node"]],

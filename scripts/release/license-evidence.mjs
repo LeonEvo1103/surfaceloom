@@ -7,6 +7,10 @@ const trustedProjectLicenses = Object.freeze([
     digest: "a85611811148e50bc64026e3742e744eda23aea468d5732ca29c75ef416273e4" }),
 ]);
 const trustedDependencyLicenses = new Map([
+  ["@anthropic-ai/sdk@0.127.0", Object.freeze({ license: "MIT", byteLength: 1056,
+    digest: "8bf96984ff8bcfae7e48cae76a529e8a25317ba9e02abf7fd3cc64fdf95657a6" })],
+  ["openai@6.49.0", Object.freeze({ license: "Apache-2.0", byteLength: 11336,
+    digest: "636eb7d79da9bb6d515a4b3fd417aa26679eb3cf16396ddab4bc55fa74e616e4" })],
   ["playwright-core@1.63.0", Object.freeze({ license: "Apache-2.0", byteLength: 11601,
     digest: "45873d00a0dd243596deb4aa23b2493b3d1f0671921bf2538ea431d7380220eb" })],
   ["@modelcontextprotocol/node@2.0.0", Object.freeze({ license: "MIT", byteLength: 12227,

@@ -43,17 +43,19 @@ function usage(value: unknown, path: string): ProviderUsage {
 
 function metadata(value: unknown, path: string): ProviderMetadata {
   const input = record(value, path);
-  exactKeys(input, ["provider", "model", "requestId", "usage"], path);
+  exactKeys(input, ["provider", "model", "requestId", "latencyMs", "usage"], path);
   const result: {
     provider: string;
     model: string;
     requestId?: string;
+    latencyMs?: number;
     usage?: ProviderUsage;
   } = {
     provider: text(input.provider, `${path}.provider`, 128),
     model: text(input.model, `${path}.model`, 128),
   };
   if (input.requestId !== undefined) result.requestId = text(input.requestId, `${path}.requestId`, 256);
+  if (input.latencyMs !== undefined) result.latencyMs = finiteInteger(input.latencyMs, `${path}.latencyMs`);
   if (input.usage !== undefined) result.usage = usage(input.usage, `${path}.usage`);
   return result;
 }
