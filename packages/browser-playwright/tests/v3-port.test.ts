@@ -163,7 +163,7 @@ test("newPage failure starts browser close even while context close is hanging",
     error instanceof BrowserAutomationError && error.code === "operationFailed");
 });
 
-test("a hanging close produces no proof until both Playwright close calls complete", async () => {
+test("session close finishes the child context before closing its parent browser", async () => {
   const module = fakePlaywright();
   const browserType = module.chromium as FakeBrowserType;
   const contextClosed = deferred<void>();
@@ -174,11 +174,26 @@ test("a hanging close produces no proof until both Playwright close calls comple
   const pending = session.close().then((proof) => { settled = true; return proof; });
   await Promise.resolve();
   assert.equal(settled, false);
-  assert.equal(browserType.browser.closeCount, 1);
+  assert.equal(browserType.browser.closeCount, 0,
+    "parent close must not race context disposal");
   contextClosed.resolve();
   const proof = await pending;
   assert.equal(browserType.browser.closeCount, 1);
   assert.equal(proof.sessionId, session.identity.sessionId);
+});
+
+test("context close failure still attempts the parent browser close", async () => {
+  const module = fakePlaywright();
+  const browserType = module.chromium as FakeBrowserType;
+  browserType.browser.context.close = async () => {
+    throw new Error("context close failed");
+  };
+  const session = await new PlaywrightBrowserSurfaceBackend({ loader: async () => module })
+    .launch(requirement, call([], 1_000));
+
+  await assert.rejects(session.close(), (error: unknown) =>
+    error instanceof BrowserAutomationError && error.code === "operationFailed");
+  assert.equal(browserType.browser.closeCount, 1);
 });
 
 function call(
