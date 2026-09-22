@@ -177,16 +177,19 @@ test("Fake failure provenance is isolated across reset", async () => {
 
 test("late synchronous providers cannot classify after the absolute deadline", async () => {
   let calls = 0;
+  // Leave enough dispatch headroom for loaded CI runners, then deliberately
+  // keep the synchronous provider running past the same absolute deadline.
+  const deadlineAt = Date.now() + 250;
   const provider = {
     name: "blocking",
     judge() {
       calls += 1;
-      const until = Date.now() + 15;
+      const until = deadlineAt + 15;
       while (Date.now() < until) { /* deliberately blocks timer delivery */ }
       return classified();
     },
   } as unknown as JudgeProvider;
-  const outcome = await judge(provider, request(), { deadlineAt: Date.now() + 2 });
+  const outcome = await judge(provider, request(), { deadlineAt });
   assert.equal(calls, 1);
   assert.equal(outcome.status === "providerFailure" && outcome.failure.kind, "deadlineExceeded");
 });
