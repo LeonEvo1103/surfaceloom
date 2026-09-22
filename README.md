@@ -84,14 +84,14 @@ replacement for those platform engines.
 | Agent loop | Extensible `TraceAdapter`; unified event schema; Codex, native, and third-party imports; cross-clock merge; explicit evidence correlation; static HTML timeline |
 | Execution kernel | Fixtures/resources, criteria, observation polling, effect policy, deadlines, cleanup receipts, Reporter v3 evidence, and an explicit single-Case v3 CLI path |
 | Agent-callable service foundation | Contract-tested service identities/catalog, immutable local Git snapshots, registered command and SurfaceLoom v3 executors, durable local run/artifact stores, and an official-SDK MCP v2 endpoint with catalog/prepare/status/run/result/artifact/cancel tools. A repository-external consumer installs only packed artifacts and verifies CLI/v3 execution, reconnect, response-loss replay, cancellation, report retrieval, crash recovery, and tainted-workspace rejection. Structured failure origin keeps product failures, insufficient evidence, and infrastructure failures distinct |
-| LLM Judge foundation | Contract-tested evidence-bound semantic judgment interface, deterministic Fake provider, explicit outcomes, Case deadline/cancellation inheritance, and Reporter v3 evidence/correlation. No real model provider or API smoke yet |
+| LLM Judge | Evidence-bound semantic judgment with deterministic Fake, OpenAI Responses-compatible, and native Anthropic adapters; structured output, Case deadline/cancellation inheritance, explicit provider failures, token/latency metadata, and Reporter v3 evidence/correlation. Provider adapters are contract-tested; real API use remains explicit opt-in |
 | M1 Agent showcase | Four real Playwright v3 Cases run serially against a deterministic reference Agent and produce one Reporter v3 bundle: two expected passes and two honest product failures |
 | Neutral login fixture | Browser-ready local HTTP fixture with two entry points, new/existing accounts, attempt-scoped mailbox/CAPTCHA/session state, deterministic fault injection, and reset/cleanup contracts. It is contract-tested, not yet Playwright-live |
 | Release contracts | Preserved seven-package v1 and explicit nine-package v2 plan/manifest schemas; exact artifact digests and inventory; SBOM, license, provenance and signature evidence validation; recursive fail-closed archive scanning. No registry publication is performed |
 | macOS | Swift AX/AppKit library plus a real `surfaceloom.native/1.0` stdio executable. Protocol, lifecycle, fake-platform backend behavior, and subprocess handshake are contract-tested; there is no TS-to-host or live AX fixture proof |
 | Windows | .NET 8 UIA/Win32 backend; isolated `0.2` and `1.0` NDJSON routes; neutral WPF fixture. Verified on Windows 11 with 59 host contract cases and 5 live C#-client-to-UIA cases, with zero skipped |
 
-Still missing are a real model provider, Playwright Cases for the login fixture, platform-specific
+Still missing are Playwright Cases for the login fixture, platform-specific
 TypeScript native bindings, a TypeScript-to-host-to-AX/UIA live path, live AX
 conformance for the macOS fixture, target-application evidence, and full runner
 features such as parallelism, sharding, and watch mode.
@@ -113,7 +113,7 @@ packages/
   native/              Versioned native protocol and TypeScript client
   test/                Execution kernel, assertions, and minimal CLI
   service/             Test catalog and service lifecycle contracts
-  llm-judge/           Evidence-bound semantic Judge contracts and Fake provider
+  llm-judge/           Evidence-bound Judge contracts and optional model adapters
 Sources/
   SurfaceLoomMacOS/    macOS Accessibility/AppKit backend
   SurfaceLoomMacOSHost/ macOS native/1.0 stdio host and AX adapter

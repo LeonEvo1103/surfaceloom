@@ -18,13 +18,23 @@
     }
   },
   "files": ["dist"],
+  "peerDependencies": {
+    "@anthropic-ai/sdk": "^0.127.0",
+    "openai": "^6.49.0"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/sdk": { "optional": true },
+    "openai": { "optional": true }
+  },
   "scripts": {
     "build": "node ../../scripts/clean-package-dist.mjs && tsc -p tsconfig.json && node ../../scripts/copy-package-license.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node ../../scripts/run-typescript-package-tests.mjs"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.127.0",
     "@types/node": "^22.10.2",
+    "openai": "^6.49.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   },
