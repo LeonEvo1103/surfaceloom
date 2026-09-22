@@ -330,6 +330,7 @@ contract 和 live conformance 必须分别记录；默认跳过的 smoke 不算�
 | --- | --- | --- | --- | --- |
 | `SL-P6-010` | done | `SL-P0-070`,`SL-P0-071` | 新 `packages/llm-judge` contracts/fake/tests | 定义 rubric、允许标签、有界 multimodal evidence、当前 run evidence refs、observed facts/hypotheses、structured result、`insufficient` 与 provider failure；Fake provider 可重复，provider SDK 为可选依赖 |
 | `SL-P6-020` | done | `SL-P6-010` | llm-judge provider adapter/tests | 基于成熟 SDK 的结构化输出、AbortSignal、deadline、401/429/5xx、token/latency metadata；未知标签 fail closed；真实 API 只做显式 smoke |
+| `SL-P6-025` | in_progress | `SL-P6-020` | llm-judge multi-profile router/tests | 同一环境 Key profile 可授权多个模型，同一模型可按显式 route 使用多个 profile；只对 retryable 429/5xx 有界切换，401、无效响应、证据不足、取消与 deadline 不切换；配置只保存环境变量名，返回非敏感路由尝试记录，并可适配现有 Case JudgeProvider 接口 |
 | `SL-P6-030` | done | `SL-P6-010`,`SL-P3-055` | test/reporter Judge integration/tests | Case 显式声明 Judge criterion，结果进入 Reporter v3 evidence/correlation；确定性失败、insufficient 或 provider failure 不能被模型改绿，不创建 Reporter v4 |
 | `SL-P6-040` | done | `SL-P0-070` | 新 `examples/login-testing` fixture/tests | 中性本地登录应用与邮箱：两个入口、全新/旧账号、测试模式验证码、可开关误分流故障、稳定 run/attempt identity；账号/邮箱/验证码按 attempt 隔离并可重置，连续两次与故障恢复后结果一致；不接真实模型/邮箱/公司页面 |
 | `SL-P6-050` | planned | `SL-P5-050`,`SL-P5-060`,`SL-P6-020`,`SL-P6-030`,`SL-P6-040` | login Playwright Cases、MCP showcase、Reporter assertions | 真实 Playwright 覆盖正常/误分流/邮件缺失/Judge insufficient/API failure；Fake 默认、real opt-in；一条命令通过 MCP 生成可解释报告 |
