@@ -141,6 +141,57 @@ failure. Authentication, invalid responses, insufficient evidence, aborts, and
 deadlines stop on the current candidate. `attempts` records non-secret profile,
 provider, model, disposition, and failure kind for reporting.
 
+## Custom and Agent-backed providers
+
+`JudgeProvider` is the generic extension point. A provider may call an HTTP API,
+a local Agent CLI, or a remote service; SurfaceLoom still validates its result
+against the same evidence and outcome contract:
+
+```ts
+import {
+  createJudgeRouter,
+  type JudgeProvider,
+} from "@surfaceloom/llm-judge";
+
+const localReview: JudgeProvider = {
+  name: "local-review",
+  judge: async (request, context) => invokeYourAgent(request, context),
+};
+
+const router = createJudgeRouter({
+  profiles: {
+    agent: { provider: "registered", providerId: "local-review" },
+  },
+  routes: {
+    "login-deep-review": [{ profileId: "agent" }],
+  },
+}, {
+  providers: { "local-review": localReview },
+});
+```
+
+The registry is trusted application code and remains separate from the
+data-only router configuration. Registered profiles do not declare a fake API
+key or model. Their implementation returns the provider/model metadata it can
+actually prove.
+
+The repository includes an optional
+[`codex exec` example](https://github.com/LeonEvo1103/surfaceloom/blob/main/packages/llm-judge/examples/codex-exec-provider.ts). It is deliberately not
+a new core provider type: it is one thin `JudgeProvider` binding that invokes
+Codex non-interactively with a read-only sandbox, an ephemeral session, attached
+image evidence, and the shared JSON Schema. Its contract tests use a local fake
+CLI to verify structured output, deadline cancellation, owned-process exit, and
+temporary-file cleanup without spending model tokens. A real Codex smoke remains
+explicit and opt-in. See the
+[official Codex non-interactive documentation](https://learn.chatgpt.com/docs/non-interactive-mode)
+for current CLI behavior.
+
+If an external Agent already runs Cases through SurfaceLoom MCP and merely
+needs to explain failures afterward, it can read the existing run result and
+artifacts directly. That workflow does not need a nested Judge provider; use a
+registered provider only when unattended execution must write the semantic
+classification into the current Case report.
+
 ## Security and evidence boundary
 
 - API keys are read only from the configured environment variable. They are

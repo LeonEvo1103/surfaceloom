@@ -11,19 +11,29 @@ import { normalizeJudgeRequest } from "./request-validation.js";
 import { normalizeRouter, type PreparedCandidate } from "./router-config.js";
 import { identifier } from "./validation-primitives.js";
 
-export type JudgeProfileProvider = "openai-compatible" | "anthropic";
+export type BuiltInJudgeProfileProvider = "openai-compatible" | "anthropic";
+export type JudgeProfileProvider = BuiltInJudgeProfileProvider | "registered";
 
-export interface JudgeProfileConfig {
-  readonly provider: JudgeProfileProvider;
+export interface BuiltInJudgeProfileConfig {
+  readonly provider: BuiltInJudgeProfileProvider;
   readonly apiKeyEnv: string;
   readonly baseURL?: string;
   readonly models: readonly string[];
   readonly maxOutputTokens?: number;
 }
 
+export interface RegisteredJudgeProfileConfig {
+  readonly provider: "registered";
+  /** References trusted code supplied separately through JudgeRouterOptions. */
+  readonly providerId: string;
+}
+
+export type JudgeProfileConfig = BuiltInJudgeProfileConfig | RegisteredJudgeProfileConfig;
+
 export interface JudgeRouteCandidate {
   readonly profileId: string;
-  readonly model: string;
+  /** Required for built-in API profiles and omitted for registered providers. */
+  readonly model?: string;
 }
 
 export interface JudgeRouterConfig {
@@ -34,7 +44,8 @@ export interface JudgeRouterConfig {
 export interface JudgeRoutingAttempt {
   readonly profileId: string;
   readonly provider: JudgeProfileProvider;
-  readonly model: string;
+  readonly model?: string;
+  readonly providerId?: string;
   readonly disposition: "selected" | "fallback" | "failed";
   readonly failureKind?: ProviderFailureKind;
 }
@@ -55,8 +66,16 @@ export interface JudgeRouter {
   provider(routeId: string): JudgeProvider;
 }
 
-export function createJudgeRouter(config: JudgeRouterConfig): JudgeRouter {
-  const normalized = normalizeRouter(config);
+export interface JudgeRouterOptions {
+  /** Trusted application code. IDs are referenced by data-only router profiles. */
+  readonly providers?: Readonly<Record<string, JudgeProvider>>;
+}
+
+export function createJudgeRouter(
+  config: JudgeRouterConfig,
+  options: JudgeRouterOptions = {},
+): JudgeRouter {
+  const normalized = normalizeRouter(config, options.providers);
   const providers = new Map<string, JudgeProvider>();
 
   const resolveRoute = (routeId: string): { id: string; candidates: readonly PreparedCandidate[] } => {
@@ -85,7 +104,8 @@ export function createJudgeRouter(config: JudgeRouterConfig): JudgeRouter {
       attempts.push(Object.freeze({
         profileId: candidate.profileId,
         provider: candidate.providerKind,
-        model: candidate.model,
+        ...(candidate.model === undefined ? {} : { model: candidate.model }),
+        ...(candidate.providerId === undefined ? {} : { providerId: candidate.providerId }),
         disposition: fallback ? "fallback" : outcome.status === "providerFailure" ? "failed" : "selected",
         ...(outcome.status === "providerFailure" ? { failureKind: outcome.failure.kind } : {}),
       }));

@@ -5,8 +5,8 @@ import {
   type ProviderOptions,
 } from "./providers/index.js";
 import type {
-  JudgeProfileConfig,
-  JudgeProfileProvider,
+  BuiltInJudgeProfileConfig,
+  BuiltInJudgeProfileProvider,
   JudgeRouteCandidate,
   JudgeRouterConfig,
 } from "./router.js";
@@ -27,20 +27,34 @@ const MAX_MODELS_PER_PROFILE = 64;
 const MAX_ROUTES = 128;
 const MAX_CANDIDATES_PER_ROUTE = 16;
 
-interface NormalizedProfile extends JudgeProfileConfig {
+interface NormalizedBuiltInProfile extends BuiltInJudgeProfileConfig {
   readonly id: string;
 }
 
+interface NormalizedRegisteredProfile {
+  readonly id: string;
+  readonly provider: "registered";
+  readonly providerId: string;
+  readonly implementation: JudgeProvider;
+}
+
+type NormalizedProfile = NormalizedBuiltInProfile | NormalizedRegisteredProfile;
+
 export interface PreparedCandidate extends JudgeRouteCandidate {
-  readonly providerKind: JudgeProfileProvider;
+  readonly providerKind: BuiltInJudgeProfileProvider | "registered";
   readonly provider: JudgeProvider;
+  readonly providerId?: string;
 }
 
 export interface NormalizedRouter {
   readonly routes: ReadonlyMap<string, readonly PreparedCandidate[]>;
 }
 
-export function normalizeRouter(value: JudgeRouterConfig): NormalizedRouter {
+export function normalizeRouter(
+  value: JudgeRouterConfig,
+  providerInput?: Readonly<Record<string, JudgeProvider>>,
+): NormalizedRouter {
+  const registeredProviders = normalizeRegisteredProviders(providerInput);
   const input = record(sanitizeUntrusted(value, "judgeRouter", ROUTER_BUDGET), "judgeRouter");
   exactKeys(input, ["profiles", "routes"], "judgeRouter");
   const profilesInput = record(input.profiles, "judgeRouter.profiles");
@@ -51,7 +65,7 @@ export function normalizeRouter(value: JudgeRouterConfig): NormalizedRouter {
   const profiles = new Map<string, NormalizedProfile>();
   for (const [rawId, rawProfile] of profileEntries) {
     const id = identifier(rawId, `judgeRouter.profiles.${rawId}`);
-    profiles.set(id, normalizeProfile(id, rawProfile));
+    profiles.set(id, normalizeProfile(id, rawProfile, registeredProviders));
   }
 
   const routesInput = record(input.routes, "judgeRouter.routes");
@@ -73,9 +87,22 @@ export function normalizeRouter(value: JudgeRouterConfig): NormalizedRouter {
   return Object.freeze({ routes });
 }
 
-function normalizeProfile(id: string, value: unknown): NormalizedProfile {
+function normalizeProfile(
+  id: string,
+  value: unknown,
+  registeredProviders: ReadonlyMap<string, JudgeProvider>,
+): NormalizedProfile {
   const path = `judgeRouter.profiles.${id}`;
   const input = record(value, path);
+  if (input.provider === "registered") {
+    exactKeys(input, ["provider", "providerId"], path);
+    const providerId = identifier(input.providerId, `${path}.providerId`);
+    const implementation = registeredProviders.get(providerId);
+    if (implementation === undefined) {
+      throw new Error(`${path}.providerId references an unknown registered provider.`);
+    }
+    return Object.freeze({ id, provider: "registered", providerId, implementation });
+  }
   exactKeys(input, ["provider", "apiKeyEnv", "baseURL", "models", "maxOutputTokens"], path);
   if (input.provider !== "openai-compatible" && input.provider !== "anthropic") {
     throw new Error(`${path}.provider must be openai-compatible or anthropic.`);
@@ -105,9 +132,18 @@ function prepareCandidate(routeId: string, index: number, value: unknown,
   const input = record(value, path);
   exactKeys(input, ["profileId", "model"], path);
   const profileId = identifier(input.profileId, `${path}.profileId`);
-  const model = text(input.model, `${path}.model`, 256);
   const profile = profiles.get(profileId);
   if (profile === undefined) throw new Error(`${path}.profileId references an unknown profile.`);
+  if (profile.provider === "registered") {
+    if (input.model !== undefined) throw new Error(`${path}.model is not allowed for a registered provider.`);
+    return Object.freeze({
+      profileId,
+      providerKind: "registered",
+      providerId: profile.providerId,
+      provider: profile.implementation,
+    });
+  }
+  const model = text(input.model, `${path}.model`, 256);
   if (!profile.models.includes(model)) throw new Error(`${path}.model is not allowed by profile ${profileId}.`);
   return Object.freeze({ profileId, model, providerKind: profile.provider,
     provider: createProvider(profile.provider,
@@ -120,8 +156,28 @@ function providerOptions(model: string, apiKeyEnv: string, baseURL?: string,
     ...(maxOutputTokens === undefined ? {} : { maxOutputTokens }) };
 }
 
-function createProvider(kind: JudgeProfileProvider, options: ProviderOptions): JudgeProvider {
+function createProvider(kind: BuiltInJudgeProfileProvider, options: ProviderOptions): JudgeProvider {
   return kind === "openai-compatible"
     ? createOpenAICompatibleJudgeProvider(options)
     : createAnthropicJudgeProvider(options);
+}
+
+function normalizeRegisteredProviders(
+  input?: Readonly<Record<string, JudgeProvider>>,
+): ReadonlyMap<string, JudgeProvider> {
+  if (input === undefined) return new Map();
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    throw new TypeError("Judge router providers must be a record.");
+  }
+  const providers = new Map<string, JudgeProvider>();
+  for (const [rawId, provider] of Object.entries(input)) {
+    const id = identifier(rawId, `judgeRouter.providers.${rawId}`);
+    if (typeof provider !== "object" || provider === null || typeof provider.judge !== "function") {
+      throw new TypeError(`judgeRouter.providers.${id} must implement JudgeProvider.`);
+    }
+    const name = identifier(provider.name, `judgeRouter.providers.${id}.name`);
+    const invoke = provider.judge.bind(provider);
+    providers.set(id, Object.freeze({ name, judge: invoke }));
+  }
+  return providers;
 }
