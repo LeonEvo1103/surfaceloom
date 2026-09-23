@@ -30,7 +30,9 @@
 >
 > Packed service consumer / crash recovery revision：`f80632baef0955ba220c573fe6093c98e898524a`
 >
-> 审计日期：2026-09-21
+> Runtime helpers 增量验收 revision：`f7997036f1c16b911bfb21af4e8cae6a60825529`
+>
+> 审计日期：2026-09-21；runtime helpers 增量验收：2026-09-23
 
 本文记录基线审计及后续明确列出的验收 revision 中可由源码和测试证明的能力。SurfaceLoom 当前的
 框架职责是 Agent 行为验证与测试编排；Playwright、AX/UIA native host 和 trace adapter 是它调用的
