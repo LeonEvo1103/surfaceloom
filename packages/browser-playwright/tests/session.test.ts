@@ -88,7 +88,7 @@ test("returns sensitive screenshot and trace artifacts", async () => {
     const screenshotPath = path.join(directory, "page.png");
     const tracePath = path.join(directory, "trace.zip");
 
-    const screenshot = await session.screenshot(screenshotPath, true);
+    const screenshot = await session.screenshot(screenshotPath, true, { timeoutMs: 321 });
     await session.startTrace();
     const trace = await session.stopTrace(tracePath);
 
@@ -98,6 +98,9 @@ test("returns sensitive screenshot and trace artifacts", async () => {
     );
     assert.equal(trace.contentType, "application/zip");
     assert.equal(browserType.browser.context.page.screenshotPath, screenshotPath);
+    assert.deepEqual(browserType.browser.context.page.screenshotOptions, {
+      path: screenshotPath, type: "png", fullPage: true, timeout: 321,
+    });
     assert.equal(browserType.browser.context.tracing.stopPath, tracePath);
     await assert.rejects(session.stopTrace(tracePath), /not active/);
     await session.close();
@@ -121,5 +124,21 @@ test("rejects empty locators and relative artifact paths", async () => {
     (error: unknown) =>
       error instanceof BrowserAutomationError && error.code === "invalidArgument",
   );
+  await session.close();
+});
+
+test("rejects an exhausted screenshot budget before submitting to Playwright", async (t) => {
+  const directory = await mkdtemp(path.join(tmpdir(), "browser-screenshot-budget-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const module = fakePlaywright();
+  const browserType = module.chromium as FakeBrowserType;
+  const session = await new PlaywrightBrowserBackend(async () => module).launch();
+
+  await assert.rejects(
+    session.screenshot(path.join(directory, "page.png"), false, { timeoutMs: 0 }),
+    (error: unknown) => error instanceof BrowserAutomationError
+      && error.code === "invalidArgument",
+  );
+  assert.equal(browserType.browser.context.page.screenshotOptions, undefined);
   await session.close();
 });

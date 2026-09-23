@@ -5,17 +5,16 @@ import path from "node:path";
 import test from "node:test";
 
 import { defineCaseV3, defineExecutionPlan, runCaseV3, type CaseDefinitionV3 } from "@surfaceloom/test";
-import { createPlaywrightBrowserSurfaceBackend } from "@surfaceloom/browser-playwright/v3";
+import {
+  createPlaywrightBrowserRunOptions,
+  createPlaywrightBrowserSurfaceBackend,
+} from "@surfaceloom/browser-playwright/v3";
 import { BrowserAutomationError } from "@surfaceloom/browser-playwright";
 
 const localTest = process.env.SURFACELOOM_BROWSER_SMOKE === "1" ? test : test.skip;
 
 localTest("real headless Chrome executes the public v3 runner and confirms owned cleanup", async (t) => {
   const root = await temporary(t);
-  const backend = createPlaywrightBrowserSurfaceBackend({
-    hostId: "playwright.live",
-    channel: "chrome",
-  });
   const definition = defineCaseV3({
     spec: caseSpec("playwright.v3.live"),
     run: async (context) => {
@@ -37,7 +36,17 @@ localTest("real headless Chrome executes the public v3 runner and confirms owned
       await context.criterion("verified", () => undefined);
     },
   });
-  const result = await runCaseV3(definition, runnerOptions(root, backend, definition));
+  const result = await runCaseV3(definition, createPlaywrightBrowserRunOptions({
+    spec: definition.spec,
+    run: { id: "run-playwright-live-preset", title: "Playwright v3 live preset",
+      app: { id: "browser-fixture", name: "Browser Fixture" } },
+    outputDirectory: path.join(root, "report"),
+    stagingDirectory: path.join(root, "staging"),
+    effects: browserEffects,
+    policy: browserPolicy,
+    browser: { hostId: "playwright.live", channel: "chrome" },
+    runner: { hostId: "runner-host" },
+  }));
   assert.equal(result.exitCode, 0);
 });
 

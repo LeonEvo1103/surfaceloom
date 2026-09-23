@@ -30,7 +30,9 @@
 >
 > Packed service consumer / crash recovery revision：`f80632baef0955ba220c573fe6093c98e898524a`
 >
-> 审计日期：2026-09-21
+> Runtime helpers 增量验收 revision：`f7997036f1c16b911bfb21af4e8cae6a60825529`
+>
+> 审计日期：2026-09-21；runtime helpers 增量验收：2026-09-23
 
 本文记录基线审计及后续明确列出的验收 revision 中可由源码和测试证明的能力。SurfaceLoom 当前的
 框架职责是 Agent 行为验证与测试编排；Playwright、AX/UIA native host 和 trace adapter 是它调用的
@@ -65,6 +67,8 @@ TypeScript binding 或 TCC 下的 live AX。双平台 DesktopSession live 与 fl
 | doctor schema/summary | [`doctor.ts`](../../packages/core/src/doctor.ts) | [`runtime.test.ts`](../../packages/core/tests/runtime.test.ts) | `contract-tested` | 只解析/汇总报告；平台 doctor 仍各自实现。 |
 | Core trace recorder | [`trace.ts`](../../packages/core/src/trace.ts) | [`runtime.test.ts`](../../packages/core/tests/runtime.test.ts) | `contract-tested` | 内存事件与脱敏；不是持久化 trace、Case verdict 或跨 surface 因果模型。 |
 | component/fixture catalog | [`catalog.ts`](../../packages/component-catalog/src/catalog.ts)、[`fixtures.ts`](../../packages/component-catalog/src/fixtures.ts) | [`catalog.test.ts`](../../packages/component-catalog/tests/catalog.test.ts) | `contract-tested`（仅目录数据） | 测试证明 37 个 manifest 和 7 个 fixture metadata 自洽，不证明对应行为或 fixture setup 可执行。 |
+| 有界 observation / diagnostic 辅助 API | [`runtime-helpers.ts`](../../packages/test/src/runtime-helpers.ts) | [`observation helpers`](../../packages/test/tests/runtime-observation-helpers.test.ts)、[`diagnostic helper`](../../packages/test/tests/runtime-diagnostic-helper.test.ts)、[`file/HTTP recipe`](../../examples/reference-agent/test/runtime-helpers.test.mjs) | `contract-tested` | 组合原有 deadline/observation；挂起读取有界返回、取消撤销轮询 timer、迟到结果不改绿，否定断言仍需 completeness。停止未确认保持 `unconfirmed`，不强停任意 JS，不自动发布诊断制品。 |
+| Playwright v3 接入预设与 screenshot 预算 | [`v3-run-options.ts`](../../packages/browser-playwright/src/v3-run-options.ts)、[`session-artifacts.ts`](../../packages/browser-playwright/src/session-artifacts.ts) | [`preset contracts`](../../packages/browser-playwright/tests/v3-run-options.test.ts)、[`session contracts`](../../packages/browser-playwright/tests/session.test.ts)、[`real v3 Chrome`](../../packages/browser-playwright/tests/v3-live.test.ts) | `live-fixture-tested`（预设的真实 Chrome 正常执行路径）；截图预算 `contract-tested` | 预设装配现有 runner 配置，effects 与 policy 分别显式提供；清理失败仍由 kernel 决定。旧 session screenshot 可下传正数预算，未增加 v3 自动失败截图；无 target-app 证据。 |
 | browser backend | [`backend.ts`](../../packages/browser-playwright/src/backend.ts)、[`session.ts`](../../packages/browser-playwright/src/session.ts) | contract：[`backend.test.ts`](../../packages/browser-playwright/tests/backend.test.ts)、[`session.test.ts`](../../packages/browser-playwright/tests/session.test.ts)；live：[`approval.e2e.test.mjs`](../../examples/reference-agent/tests/e2e/approval.e2e.test.mjs)、[`showcase.e2e.test.mjs`](../../examples/reference-agent/tests/e2e/showcase.e2e.test.mjs) | `live-fixture-tested`（Agent 审批切片） | M1 无 skip 启动真实 owned Chrome/Chromium；截图、trace、storage 等更宽能力仍以 contract 或显式 local smoke 为主。 |
 | macOS Swift library | [`SurfaceLoomMacOS`](../../Sources/SurfaceLoomMacOS) | [`SurfaceLoomMacOSTests`](../../Tests/SurfaceLoomMacOSTests) | `contract-tested` | 直接提供 AX/AppKit/CGEvent API；与新 stdio host 是并存实现，不是 TypeScript `DesktopSession` binding。 |
 | macOS native/1.0 stdio host | [`SurfaceLoomMacOSHost`](../../Sources/SurfaceLoomMacOSHost)、[`executable`](../../Sources/SurfaceLoomMacOSHostExecutable) | [`SurfaceLoomMacOSHostTests`](../../Tests/SurfaceLoomMacOSHostTests)、[`SurfaceLoomNativeProtocolTests`](../../Tests/SurfaceLoomNativeProtocolTests) | `contract-tested` | 真实 subprocess handshake、framing、lifecycle 与 fake-platform backend 已测；没有 `TS → host`、中性 fixture live AX 或 TCC 证据。 |

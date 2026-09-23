@@ -111,6 +111,52 @@ await context.criterion("run-completed", () =>
 最后一次有效 observation、最后一次读取错误、deadline、criterion 与 evidence，并通过标准
 `context.criterion` 写入 Reporter 的结构化 diagnostic。
 
+### 有界 observation 与诊断采集
+
+`waitForObservationBounded` 在现有 observation 语义外增加一个覆盖全部轮询和单次 reader 的总
+deadline。reader 额外收到同一个 `AbortSignal`，并在每次调用时收到当前 `remainingMs`；取消或
+超时后不会再次调用真实 reader。`assertObservationBounded` 返回相同回执，只有非 `passed` 时抛出
+带 `.result` 的 `BoundedObservationAssertionError`。原有 `waitForObservation` 与
+`assertObservation` 保持不变，适用于调用方已经能保证 reader 自身有界的场景。
+
+```ts
+import {
+  assertObservationBounded,
+  captureBoundedDiagnostic,
+} from "@surfaceloom/test";
+
+await assertObservationBounded(
+  ({ signal, remainingMs }) => ledger.read({ signal, timeoutMs: remainingMs }),
+  {
+    expectation: {
+      kind: "negative-value",
+      expected: 0,
+      matches: (count) => count === 0,
+      completeness: { kind: "barrier", id: "run.done" },
+    },
+    timeoutMs: 5_000,
+  },
+);
+
+const diagnostic = await captureBoundedDiagnostic(
+  ({ signal, remainingMs }) => screenshotBytes({ signal, timeoutMs: remainingMs() }),
+  { timeoutMs: 1_000 },
+);
+if (diagnostic.status === "captured") {
+  // 调用方再把 diagnostic.payload 交给 Reporter 或自己的 artifact store。
+}
+```
+
+有界 observation 继续复用原 matcher：`unknown`、`read-failed` 和不完整的负观察不能通过，reader
+只允许读取，不应派发 action。回执区分 `timedOut`、`cancelled`、`clockFailed` 与普通失败，并用
+`stopStatus` 说明 callback 是否实际 settle。`unconfirmed` 表示仍可能有同进程工作；JavaScript
+deadline 无法强停一个忽略 signal 的 Promise、同步死循环或 callback 启动的 detached 工作。
+
+`captureBoundedDiagnostic` 只做 best-effort callback 管理：成功分支才包含 `payload`，普通异常以
+`failed + cause` 返回，方便调用者继续保留原始 Case 错误。它不发布或删除 artifact，不会把仍在写入
+的文件当成已清理，也不参与 Case verdict。优先让 callback 在内存中采集有界 bytes，再由 Reporter
+或调用方在 `captured` 后归档；timeout/cancel 后不要使用迟到 payload。
+
 ## ExecutionPlan 与 effect policy
 
 `defineExecutionPlan` 声明 Case 所需 host、surface、capability 和精确 effect；

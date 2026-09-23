@@ -38,6 +38,24 @@ try {
   execFileSync(process.execPath, ["packed-consumer.mjs"], {
     cwd: temporary, stdio: "inherit",
   });
+  const closure = ["core", "reporter", "llm-judge", "test"].map((name) => {
+    const packageRoot = path.resolve(root, "..", name);
+    const [packed] = JSON.parse(npm(["pack", "--json", "--pack-destination", temporary], packageRoot));
+    return path.join(temporary, packed.filename);
+  });
+  npm(["install", "--ignore-scripts", "--no-audit", "--no-fund", "--package-lock=false",
+    ...closure], temporary);
+  for (const fixture of ["packed-consumer-v3.mjs", "packed-consumer-v3.mts"]) {
+    copyFileSync(path.join(fixtureRoot, fixture), path.join(temporary, fixture));
+  }
+  execFileSync(process.execPath, [
+    path.join(root, "node_modules/typescript/bin/tsc"),
+    "--noEmit", "--strict", "--skipLibCheck", "--module", "NodeNext",
+    "--moduleResolution", "NodeNext", "--target", "ES2022", "packed-consumer-v3.mts",
+  ], { cwd: temporary, stdio: "inherit" });
+  execFileSync(process.execPath, ["packed-consumer-v3.mjs"], {
+    cwd: temporary, stdio: "inherit",
+  });
   console.log("Packed browser public exports, types, lifecycle and artifacts passed.");
 } finally {
   rmSync(temporary, { recursive: true, force: true });
