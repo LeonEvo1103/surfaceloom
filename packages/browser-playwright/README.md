@@ -95,6 +95,38 @@ The session returns `browserSessionClosed` only after both Playwright context an
 browser close operations complete. A failed or hanging close never manufactures a
 release proof, and a failed close result is sticky across repeated calls.
 
+For a single owned browser surface, the v3 entry also provides a thin runner
+configuration preset:
+
+```ts
+import { runCaseV3 } from "@surfaceloom/test";
+import { createPlaywrightBrowserRunOptions } from "@surfaceloom/browser-playwright/v3";
+
+const options = createPlaywrightBrowserRunOptions({
+  spec: definition.spec,
+  run: {
+    id: "run-login-20260923-001",
+    title: "Login flow",
+    app: { id: "web-app", name: "Web App" },
+  },
+  outputDirectory: "/absolute/reports/run-login-20260923-001",
+  effects,
+  policy,
+  browser: { channel: "chrome" },
+  signal: cancellation.signal,
+});
+
+const result = await runCaseV3(definition, options);
+```
+
+The preset composes the public backend and execution plan with stable default
+runner, host, and `page` surface identities. `effects` and `policy` are separate
+required inputs. It never derives grants from the Case or declared effects, so an
+omitted or insufficient policy cannot authorize browser work. Each execution needs
+a fresh `run.id` and output directory. Optional browser settings include a loader,
+channel, executable path, engine, headless mode, and launch arguments; optional
+budgets retain the existing runner validation and cleanup semantics.
+
 Proxy settings are scoped to the owned browser context. Supported servers use
 `http`, `https`, or `socks5` and contain only scheme, host, and port. HTTP(S)
 credentials must be supplied through the separate
@@ -121,6 +153,12 @@ sessionStorage. The destination is replaced atomically from an exclusive owner-o
 partial file; a pre-existing partial is not overwritten. Reuse the result through
 `context.storageStatePath`. These files are credential-equivalent and must not be
 committed or treated as ordinary public evidence.
+
+The legacy session API accepts an optional screenshot operation budget as
+`session.screenshot(path, fullPage, { timeoutMs })` and passes it to Playwright.
+This is useful for bounded diagnostics. An explicit `timeoutMs` must be positive;
+zero is rejected instead of disabling Playwright's timeout. This does not add a v3
+screenshot action or automatic failure screenshots.
 
 This package remains private to npm publication. Consumers can check out a pinned
 framework commit, run `npm ci && npm run build && npm pack` in this package, and

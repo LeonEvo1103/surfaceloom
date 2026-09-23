@@ -164,7 +164,11 @@ export interface BrowserSession {
   ): Promise<DomElementState>;
   title(): Promise<string>;
   currentURL(): string;
-  screenshot(outputPath: string, fullPage?: boolean): Promise<BrowserArtifact>;
+  screenshot(
+    outputPath: string,
+    fullPage?: boolean,
+    options?: BrowserOperationOptions,
+  ): Promise<BrowserArtifact>;
   /**
    * Exports the live cookies and origin localStorage so one real login can seed
    * later sessions through `BrowserContextOptions.storageStatePath`. sessionStorage

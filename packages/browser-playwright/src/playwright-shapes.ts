@@ -52,6 +52,7 @@ export interface PlaywrightPageLike {
     readonly path: string;
     readonly type: "png";
     readonly fullPage: boolean;
+    readonly timeout?: number;
   }): Promise<unknown>;
   /** Event payloads stay `unknown`; normalization happens in the session. */
   on(event: string, handler: (payload: unknown) => void): void;

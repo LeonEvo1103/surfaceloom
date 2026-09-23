@@ -1,4 +1,8 @@
-import type { BrowserArtifact, BrowserStorageStateOptions } from "./contracts.js";
+import type {
+  BrowserArtifact,
+  BrowserOperationOptions,
+  BrowserStorageStateOptions,
+} from "./contracts.js";
 import { browserArtifact, captureArtifact, prepareArtifactPath, writeSensitiveArtifactFile } from "./artifact.js";
 import { BrowserAutomationError } from "./errors.js";
 import type { PlaywrightContextLike, PlaywrightPageLike } from "./playwright-shapes.js";
@@ -15,10 +19,12 @@ export class SessionArtifacts {
   public async screenshot(
     outputPath: string,
     fullPage = false,
+    options: BrowserOperationOptions = {},
   ): Promise<BrowserArtifact> {
+    const timeout = screenshotTimeout(options.timeoutMs);
     return captureArtifact("screenshot", "image/png", outputPath, async (target) => {
       await this.run("capture screenshot", () =>
-        this.page.screenshot({ path: target, type: "png", fullPage })
+        this.page.screenshot({ path: target, type: "png", fullPage, ...timeout })
       );
     });
   }
@@ -67,4 +73,14 @@ export class SessionArtifacts {
     return browserArtifact("storageState", target, "application/json");
   }
 
+}
+
+function screenshotTimeout(timeoutMs: number | undefined): { readonly timeout?: number } {
+  if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
+    throw new BrowserAutomationError(
+      "invalidArgument",
+      "A screenshot timeout must be a positive finite number.",
+    );
+  }
+  return timeoutMs === undefined ? {} : { timeout: timeoutMs };
 }

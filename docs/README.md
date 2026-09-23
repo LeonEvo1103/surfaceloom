@@ -40,6 +40,7 @@
 - [组件目录](COMPONENT_CATALOG_V2.md)：组件语义、manifest、fixture、优先级和防膨胀规则；这是目标目录，
   不代表全部行为已实现。
 - [组件库入口](COMPONENT_LIBRARY.md)：当前 macOS 与 browser 组件积木，以及产品 adapter 的责任边界。
+- [通用运行辅助模块](RUNTIME_HELPERS.md)：减少浏览器配置、等待和诊断采集中的重复代码。
 - [添加测试指南](ADDING_TESTS.md)：从 CaseSpec 到 locator、fixture、副作用门禁、报告和验证的完整流程。
 - [Playwright 浏览器后端](PLAYWRIGHT.md)：DOM surface 与 AX/UIA/System Surface 的职责分工。
 - [Windows 自动化后端设计](WINDOWS.md)：UIA/Win32 host、定位器、进程 ownership、系统表面和 CI 条件。

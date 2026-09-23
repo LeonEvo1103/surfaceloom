@@ -123,6 +123,15 @@ export type {
 } from "./deadline-contracts.js";
 export { DeadlineCancellationError, startDeadlineTask } from "./deadline.js";
 export type {
+  BoundedDiagnosticContext, BoundedDiagnosticOptions, BoundedDiagnosticResult,
+  BoundedObservationOptions, BoundedObservationReadContext, BoundedObservationReader,
+  BoundedObservationResult, RuntimeHelperClock, RuntimeStopStatus,
+} from "./runtime-helpers-contracts.js";
+export {
+  assertObservationBounded, BoundedObservationAssertionError,
+  captureBoundedDiagnostic, waitForObservationBounded,
+} from "./runtime-helpers.js";
+export type {
   ResourceCleanupOutcome, ResourceCleanupReceipt, ResourceCleanupResult, ResourceFailure,
   ResourceCleanupBoundary, ResourceCleanupRemaining, ResourceFailureCode,
   ResourceRegistration, ResourceScopeOptions,

@@ -23,6 +23,7 @@ export class FakePage implements PlaywrightPageLike {
   public readonly target = new FakeLocator();
   public readonly resolutions: string[] = [];
   public screenshotPath: string | undefined;
+  public screenshotOptions: Record<string, unknown> | undefined;
   public readonly events = new FakeEmitter();
   /** Emitted while goto() runs, so tests can drive events from inside an action. */
   public readonly gotoEmissions: Array<{
@@ -98,8 +99,14 @@ export class FakePage implements PlaywrightPageLike {
     return this.target;
   }
 
-  public async screenshot(options: { readonly path: string }): Promise<void> {
+  public async screenshot(options: {
+    readonly path: string;
+    readonly type: "png";
+    readonly fullPage: boolean;
+    readonly timeout?: number;
+  }): Promise<void> {
     this.screenshotPath = options.path;
+    this.screenshotOptions = { ...options };
     await writeUnrestrictedArtifact(options.path, "fake-png-bytes");
   }
 }

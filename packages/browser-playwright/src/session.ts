@@ -103,8 +103,13 @@ export class PlaywrightBrowserSession implements BrowserSession {
     return this.page.url();
   }
 
-  public screenshot(outputPath: string, fullPage = false): Promise<BrowserArtifact> {
-    return this.run("capture screenshot", () => this.artifacts.screenshot(outputPath, fullPage));
+  public screenshot(
+    outputPath: string,
+    fullPage = false,
+    options: BrowserOperationOptions = {},
+  ): Promise<BrowserArtifact> {
+    return this.run("capture screenshot", () =>
+      this.artifacts.screenshot(outputPath, fullPage, options));
   }
 
   public startTrace(): Promise<void> {

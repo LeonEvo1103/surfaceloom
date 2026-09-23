@@ -88,6 +88,8 @@ custom path.
 
 For output locations, report inspection, wider validation, and platform
 prerequisites, continue with [Getting started](docs/GETTING_STARTED.md).
+See [Runtime helpers](docs/RUNTIME_HELPERS.md) for reusable bounded observation,
+diagnostic collection, and Playwright v3 configuration.
 
 ## What SurfaceLoom solves
 
