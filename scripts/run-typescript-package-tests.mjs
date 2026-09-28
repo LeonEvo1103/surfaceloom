@@ -19,8 +19,13 @@ const files = await testFiles("tests");
 if (files.length === 0) throw new Error("No TypeScript contract tests were discovered.");
 
 const tsxCli = path.resolve("node_modules", "tsx", "dist", "cli.mjs");
+// These contracts include real subprocesses and short deadline/cancellation
+// windows. Parallel test files contend for small hosted runners and can expire
+// before reaching the behavior under test. Keep every assertion, but serialize
+// files in CI; local runs retain Node's default concurrency.
+const scheduling = process.env.CI === "true" ? ["--test-concurrency=1"] : [];
 const exitCode = await new Promise((resolve, reject) => {
-  const child = spawn(process.execPath, [tsxCli, "--test", ...files], {
+  const child = spawn(process.execPath, [tsxCli, "--test", ...scheduling, ...files], {
     stdio: "inherit",
   });
   child.once("error", reject);

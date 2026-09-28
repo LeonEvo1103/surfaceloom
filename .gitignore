@@ -25,3 +25,8 @@ recordings/
 screenshots/
 test-results/
 traces/
+
+# Documentation site dependencies and generated output
+website/node_modules/
+website/.vitepress/cache/
+website/.vitepress/dist/
