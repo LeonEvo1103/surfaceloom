@@ -10,10 +10,12 @@ export default defineConfig({
   lang: 'en-US',
   base,
   srcDir: './content',
+  srcExclude: ['public/**'],
   lastUpdated: true,
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}mark.svg` }],
     ['meta', { name: 'theme-color', content: '#0d1b27' }],
+    ['meta', { name: 'google-site-verification', content: 'kJm0XCNSoEba193mtntaH2z8gjJCrr_J-z0Ec3G6sPA' }],
   ],
   sitemap: { hostname: `${origin}${base}` },
   transformHead({ pageData }) {
