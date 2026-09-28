@@ -1,3 +1,5 @@
+<p><img src="website/content/public/mark.svg" width="64" height="64" alt=""></p>
+
 # SurfaceLoom
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)

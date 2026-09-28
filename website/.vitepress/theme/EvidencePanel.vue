@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { withBase } from 'vitepress';
 import { showcase } from './showcase';
 
 const selected = ref(0);
@@ -9,7 +10,7 @@ const active = computed(() => showcase[selected.value]);
 <template>
   <section class="evidence-panel" aria-label="Illustrative reference-agent outcomes">
     <div class="evidence-topline">
-      <span><span class="evidence-mark" aria-hidden="true">▦</span> CASE EXPLORER</span>
+      <span><img class="evidence-mark" :src="withBase('/brand/surfaceloom-symbol-dark.svg')" alt="" aria-hidden="true"> CASE EXPLORER</span>
       <span class="illustration-label">Illustrative view</span>
     </div>
     <div class="case-selector" role="group" aria-label="Choose an example outcome">
