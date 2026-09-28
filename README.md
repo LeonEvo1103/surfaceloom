@@ -4,6 +4,10 @@
 
 **Open-source AI agent testing for browser and native desktop applications.**
 
+[Documentation](https://leonevo1103.github.io/surfaceloom/) ·
+[Quick start](https://leonevo1103.github.io/surfaceloom/guide/quick-start.html) ·
+[Approval testing tutorial](https://leonevo1103.github.io/surfaceloom/tutorials/approval-testing.html)
+
 SurfaceLoom is an experimental framework for testing whether an AI agent did
 the right thing, not merely whether its final answer looked plausible. It
 combines approval decisions, tool execution, actual side effects, UI state,
