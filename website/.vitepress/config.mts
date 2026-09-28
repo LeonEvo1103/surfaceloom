@@ -13,7 +13,7 @@ export default defineConfig({
   lastUpdated: true,
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}mark.svg` }],
-    ['meta', { name: 'theme-color', content: '#0d766e' }],
+    ['meta', { name: 'theme-color', content: '#0d1b27' }],
   ],
   sitemap: { hostname: `${origin}${base}` },
   transformHead({ pageData }) {
@@ -31,7 +31,7 @@ export default defineConfig({
     ];
   },
   themeConfig: {
-    logo: '/mark.svg',
+    logo: { light: '/brand/surfaceloom-symbol.svg', dark: '/brand/surfaceloom-symbol-dark.svg', alt: '' },
     nav: [
       { text: 'Quick start', link: '/guide/quick-start' },
       { text: 'Tutorials', link: '/tutorials/approval-testing' },
