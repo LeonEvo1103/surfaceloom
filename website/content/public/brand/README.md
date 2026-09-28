@@ -1,8 +1,14 @@
 # SurfaceLoom mark
 
-Two folded surfaces form an open **S**. Their offset center suggests threads
-crossing on a loom: independent traces brought into one readable structure.
-The shape is built from two flat paths; it needs no glow, shadow or animation.
+Two broad interface surfaces interlace around an open center. **Surface** is the
+pair of interface planes; **Loom** is their alternating over-under crossing,
+which brings independent traces into one readable structure. Rounded outer ends
+keep the mark calm while the two deliberate cuts make the weave legible.
+
+The geometry began as an image-model concept selected for its woven-surface
+idea, then was rebuilt and hand-refined as vector paths. The checked-in SVGs use
+consistent curve tension, band width and crossing space; they contain no bitmap,
+font, gradient, filter or external dependency.
 
 ## Assets
 
@@ -17,9 +23,10 @@ Use the badge at 16 px or larger. Use the transparent symbol at 24 px or larger;
 32 px works well beside a navigation wordmark. Preserve the square viewBox and
 its built-in clear space. Do not add a stroke to the symbol or close its gaps.
 
-The main palette is graphite `#0d1b27`, pale silver `#e5edf1`, and cool cyan
-`#65bdbb`. On light surfaces, the cyan shifts to `#287b80` for stronger contrast.
-The monochrome version remains recognizable without relying on color.
+The symbol uses deep petrol `#123640` on light surfaces and pale silver
+`#e6eef0` on dark surfaces. Its weave is defined by negative space rather than
+color changes. The favicon uses a darker petrol field, `#0b232b`, to keep the
+silhouette distinct at small sizes. The monochrome asset inherits `currentColor`.
 
 When the image stands alone, give its containing `<img>` the alt text
 `SurfaceLoom`. When the same link already contains the visible wordmark, use
@@ -27,5 +34,5 @@ When the image stands alone, give its containing `<img>` the alt text
 An external `<img>` does not inherit CSS `color`; inline the monochrome SVG
 or set its fill explicitly when a non-black monochrome asset is needed.
 
-The symbol is original vector artwork created for this project. It does not
-depend on an icon library, a font, or an external image service.
+The resulting vector artwork is original to this project and does not depend on
+an icon library or runtime image service.
