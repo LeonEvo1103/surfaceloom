@@ -10,6 +10,7 @@ export default defineConfig({
   lang: 'en-US',
   base,
   srcDir: './content',
+  srcExclude: ['public/**'],
   lastUpdated: true,
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}mark.svg` }],
