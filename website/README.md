@@ -28,5 +28,7 @@ the main branch. Only the generated `.vitepress/dist` directory is uploaded.
 
 Search-engine ownership verification and sitemap submission are separate account
 operations. This repository does not claim that deployment guarantees indexing.
+The `google-site-verification` meta tag in `.vitepress/config.mts` is the public
+ownership proof for this URL-prefix property; keep it after verification.
 A project-level `robots.txt` cannot govern the hostname root; do not add one here
 and assume it controls `leonevo1103.github.io/robots.txt`.
