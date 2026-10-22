@@ -59,8 +59,7 @@ extension MacOSApplicationDriver {
 				"Cannot click an element because \(configuration.displayName) is not running"
 			)
 		}
-		_ = application.activate()
-		guard wait(until: { application.isActive }, timeout: 3) else {
+		guard activateBoundApplication(timeout: 3) else {
 			throw DesktopAutomationError.actionFailed(
 				"\(configuration.displayName) did not become active before element click"
 			)
@@ -137,8 +136,7 @@ extension MacOSApplicationDriver {
 				"Cannot send a shortcut because \(configuration.displayName) is not running"
 			)
 		}
-		_ = application.activate()
-		guard wait(until: { application.isActive }, timeout: 3) else {
+		guard activateBoundApplication(timeout: 3) else {
 			throw DesktopAutomationError.actionFailed(
 				"\(configuration.displayName) did not become active"
 			)

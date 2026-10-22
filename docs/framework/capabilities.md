@@ -266,3 +266,11 @@ Reporter 或现有 execution kernel 的 verdict。
 
 因此当前两者都是已测试的“结果消费者/视图”能力，不是 runner、Agent fixture、side-effect probe
 或最终判定引擎。
+
+### 本地审查中的观察稳定性补充（SL-P3-015 / SL-P3-065）
+
+原生文件夹选择器在路径跳转后会暂时失效旧 AX 节点。`requireStableAbsence` 的本地修正仅重新读取
+`invalidUIElement (-25202)`，该读取不计入连续缺席次数；其他错误立即失败，超时仍失败。
+不重放点击或键盘动作，不扩大权限或改变接口。确定性故障注入验证“缺席、失效、缺席、缺席”
+须完成四次读取；持续失效和权限错误不通过。此补充处于本地 review，不能据此关闭 TS live
+conformance 任务或把所有原生系统面板标为已验证。
