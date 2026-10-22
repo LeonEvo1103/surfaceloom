@@ -80,16 +80,7 @@ public final class MacOSApplicationDriver {
 		reference.bind(runningApplication, ownership: .attached)
 
 		let activationTimeout = min(max(configuration.launchTimeout, 0), 8)
-		let activationDeadline = Date().addingTimeInterval(activationTimeout)
-		var becameActive = runningApplication.isActive
-		repeat {
-			_ = runningApplication.activate()
-			let remaining = max(activationDeadline.timeIntervalSinceNow, 0)
-			becameActive = wait(
-				until: { runningApplication.isActive },
-				timeout: min(remaining, 1)
-			)
-		} while !becameActive && Date() < activationDeadline
+		let becameActive = activateBoundApplication(timeout: activationTimeout)
 
 		guard becameActive else {
 			detach()

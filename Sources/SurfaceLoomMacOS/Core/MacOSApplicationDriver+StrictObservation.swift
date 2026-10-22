@@ -89,21 +89,10 @@ extension MacOSApplicationDriver {
 		timeout: TimeInterval? = nil
 	) throws {
 		precondition(consecutiveObservations > 0)
-		let deadline = Date().addingTimeInterval(max(timeout ?? locator.timeout, 0))
-		var consecutive = 0
-		repeat {
-			switch try observePresence(locator) {
-			case .absent:
-				consecutive += 1
-				if consecutive >= consecutiveObservations { return }
-			case .present:
-				consecutive = 0
-			}
-			RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-		} while Date() < deadline
-		throw DesktopAutomationError.actionFailed(
-			"Stable absence was not proven for \(locator.name)"
-		)
+		try MacOSStableAbsence.require(name: locator.name,
+			consecutiveObservations: consecutiveObservations, timeout: timeout ?? locator.timeout) {
+			try observePresence(locator)
+		}
 	}
 
 }
