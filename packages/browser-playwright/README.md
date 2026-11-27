@@ -158,7 +158,8 @@ The legacy session API accepts an optional screenshot operation budget as
 `session.screenshot(path, fullPage, { timeoutMs })` and passes it to Playwright.
 This is useful for bounded diagnostics. An explicit `timeoutMs` must be positive;
 zero is rejected instead of disabling Playwright's timeout. This does not add a v3
-screenshot action or automatic failure screenshots.
+screenshot action. Separately, the v3 runner captures one viewport PNG of each browser
+surface before closing it when a Case fails, through the v3 port's `captureScreenshot`.
 
 This package remains private to npm publication. Consumers can check out a pinned
 framework commit, run `npm ci && npm run build && npm pack` in this package, and

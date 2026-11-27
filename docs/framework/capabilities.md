@@ -32,7 +32,9 @@
 >
 > Runtime helpers 增量验收 revision：`f7997036f1c16b911bfb21af4e8cae6a60825529`
 >
-> 审计日期：2026-09-21；runtime helpers 增量验收：2026-09-23
+> 失败证据与输入护栏增量验收 revision：`8cba0ea6e9200beb06115efdc6310c459a51f277`
+>
+> 审计日期：2026-09-21；runtime helpers 增量验收：2026-09-23；失败证据与输入护栏增量验收：2026-11-27
 
 本文记录基线审计及后续明确列出的验收 revision 中可由源码和测试证明的能力。SurfaceLoom 当前的
 框架职责是 Agent 行为验证与测试编排；Playwright、AX/UIA native host 和 trace adapter 是它调用的
@@ -68,11 +70,17 @@ TypeScript binding 或 TCC 下的 live AX。双平台 DesktopSession live 与 fl
 | Core trace recorder | [`trace.ts`](../../packages/core/src/trace.ts) | [`runtime.test.ts`](../../packages/core/tests/runtime.test.ts) | `contract-tested` | 内存事件与脱敏；不是持久化 trace、Case verdict 或跨 surface 因果模型。 |
 | component/fixture catalog | [`catalog.ts`](../../packages/component-catalog/src/catalog.ts)、[`fixtures.ts`](../../packages/component-catalog/src/fixtures.ts) | [`catalog.test.ts`](../../packages/component-catalog/tests/catalog.test.ts) | `contract-tested`（仅目录数据） | 测试证明 37 个 manifest 和 7 个 fixture metadata 自洽，不证明对应行为或 fixture setup 可执行。 |
 | 有界 observation / diagnostic 辅助 API | [`runtime-helpers.ts`](../../packages/test/src/runtime-helpers.ts) | [`observation helpers`](../../packages/test/tests/runtime-observation-helpers.test.ts)、[`diagnostic helper`](../../packages/test/tests/runtime-diagnostic-helper.test.ts)、[`file/HTTP recipe`](../../examples/reference-agent/test/runtime-helpers.test.mjs) | `contract-tested` | 组合原有 deadline/observation；挂起读取有界返回、取消撤销轮询 timer、迟到结果不改绿，否定断言仍需 completeness。停止未确认保持 `unconfirmed`，不强停任意 JS，不自动发布诊断制品。 |
-| Playwright v3 接入预设与 screenshot 预算 | [`v3-run-options.ts`](../../packages/browser-playwright/src/v3-run-options.ts)、[`session-artifacts.ts`](../../packages/browser-playwright/src/session-artifacts.ts) | [`preset contracts`](../../packages/browser-playwright/tests/v3-run-options.test.ts)、[`session contracts`](../../packages/browser-playwright/tests/session.test.ts)、[`real v3 Chrome`](../../packages/browser-playwright/tests/v3-live.test.ts) | `live-fixture-tested`（预设的真实 Chrome 正常执行路径）；截图预算 `contract-tested` | 预设装配现有 runner 配置，effects 与 policy 分别显式提供；清理失败仍由 kernel 决定。旧 session screenshot 可下传正数预算，未增加 v3 自动失败截图；无 target-app 证据。 |
+| Playwright v3 接入预设与 screenshot 预算 | [`v3-run-options.ts`](../../packages/browser-playwright/src/v3-run-options.ts)、[`session-artifacts.ts`](../../packages/browser-playwright/src/session-artifacts.ts) | [`preset contracts`](../../packages/browser-playwright/tests/v3-run-options.test.ts)、[`session contracts`](../../packages/browser-playwright/tests/session.test.ts)、[`real v3 Chrome`](../../packages/browser-playwright/tests/v3-live.test.ts) | `live-fixture-tested`（预设的真实 Chrome 正常执行路径）；截图预算 `contract-tested` | 预设装配现有 runner 配置，effects 与 policy 分别显式提供；清理失败仍由 kernel 决定。旧 session screenshot 可下传正数预算；预设本身不增加 v3 截图动作，v3 失败自动截图由 runner 完成，见下一行；无 target-app 证据。 |
+| v3 失败自动截图（browser surface） | [`runner-v3-capture.ts`](../../packages/test/src/runner-v3-capture.ts)、[`final-capture.ts`](../../packages/test/src/surfaces/final-capture.ts)、[`v3-port.ts`](../../packages/browser-playwright/src/v3-port.ts) | [`runner contracts`](../../packages/test/tests/runner-v3-final-screenshot.test.ts)、[`edge contracts`](../../packages/test/tests/runner-v3-final-screenshot-edges.test.ts)、[`Playwright contracts + real Chrome`](../../packages/browser-playwright/tests/v3-final-screenshot.test.ts) | `live-fixture-tested`（失败时截图的真实 headless Chrome 路径，1 项）；超时、关闭失败、unsupported、预算与 policy 分支 `contract-tested` | Case 失败或 policy 为 `always` 时，runner 在关闭每个 browser surface 前截一张 viewport PNG；单次不超过 2 秒且不超过 cleanup 窗口一半，不改 status、error、failureOrigin 或 exit code，截图标 sensitive。真实用例在 `8cba0ea` 的 Ubuntu CI 与一次 macOS 本地回归中运行，夹具是 data URL 页面；native surface 无此能力，无 target-app 证据。 |
+| 失败报告的期望/实际值 | [`errors.ts`](../../packages/test/src/errors.ts)、[`error-presentation.ts`](../../packages/reporter/src/error-presentation.ts) | [`report-failure-readability.test.ts`](../../packages/test/tests/report-failure-readability.test.ts)、[`v2 rendering`](../../packages/reporter/tests/error-readability.test.ts)、[`v3 rendering`](../../packages/reporter/tests/v3/error-readability.test.ts) | `contract-tested` | observation 断言与有界 observation 辅助失败时，把有界 expected/actual 写入既有可选 `error.expected/actual`，v2/v3 HTML 与 AI Markdown 显示期望、实际和失败验收项；缺失一侧不推断，展示超过 480 字符截断。verdict、exit code 与 report/v3 schema 不变；真实浏览器 E2E 未断言这些文本。 |
 | browser backend | [`backend.ts`](../../packages/browser-playwright/src/backend.ts)、[`session.ts`](../../packages/browser-playwright/src/session.ts) | contract：[`backend.test.ts`](../../packages/browser-playwright/tests/backend.test.ts)、[`session.test.ts`](../../packages/browser-playwright/tests/session.test.ts)；live：[`approval.e2e.test.mjs`](../../examples/reference-agent/tests/e2e/approval.e2e.test.mjs)、[`showcase.e2e.test.mjs`](../../examples/reference-agent/tests/e2e/showcase.e2e.test.mjs) | `live-fixture-tested`（Agent 审批切片） | M1 无 skip 启动真实 owned Chrome/Chromium；截图、trace、storage 等更宽能力仍以 contract 或显式 local smoke 为主。 |
 | macOS Swift library | [`SurfaceLoomMacOS`](../../Sources/SurfaceLoomMacOS) | [`SurfaceLoomMacOSTests`](../../Tests/SurfaceLoomMacOSTests) | `contract-tested` | 直接提供 AX/AppKit/CGEvent API；与新 stdio host 是并存实现，不是 TypeScript `DesktopSession` binding。 |
 | macOS native/1.0 stdio host | [`SurfaceLoomMacOSHost`](../../Sources/SurfaceLoomMacOSHost)、[`executable`](../../Sources/SurfaceLoomMacOSHostExecutable) | [`SurfaceLoomMacOSHostTests`](../../Tests/SurfaceLoomMacOSHostTests)、[`SurfaceLoomNativeProtocolTests`](../../Tests/SurfaceLoomNativeProtocolTests) | `contract-tested` | 真实 subprocess handshake、framing、lifecycle 与 fake-platform backend 已测；没有 `TS → host`、中性 fixture live AX 或 TCC 证据。 |
-| Windows backend | [`SurfaceLoom.WindowsHost`](../../native/windows-host/src/SurfaceLoom.WindowsHost) | [`SurfaceLoom.WindowsHost.ContractTests`](../../native/windows-host/tests/SurfaceLoom.WindowsHost.ContractTests)、[`LiveTests`](../../native/windows-fixture/tests/SurfaceLoom.WindowsFixture.LiveTests) | `live-fixture-tested`（列出的 5 项行为） | Windows 11 最新实跑 59 个 host contracts 与 5 个 WPF/UIA/lifecycle cases、0 skip；live client 是 C# `NativeProcessClient`，不证明 TS platform binding/DesktopSession live。 |
+| macOS 动作证据记录与绑定窗口截图 | [`MacOSActionEvidence.swift`](../../Sources/SurfaceLoomMacOS/Core/MacOSActionEvidence.swift)、[`MacOSWindowCapturer.swift`](../../Sources/SurfaceLoomMacOS/Core/MacOSWindowCapturer.swift)、[`ScreenCaptureKit backend`](../../Sources/SurfaceLoomMacOS/Core/MacOSWindowCapture+ScreenCaptureKit.swift) | [`MacOSActionEvidenceTests.swift`](../../Tests/SurfaceLoomMacOSTests/MacOSActionEvidenceTests.swift)、[`MacOSWindowCapturerTests.swift`](../../Tests/SurfaceLoomMacOSTests/MacOSWindowCapturerTests.swift)、[`MacOSScreenCaptureKitWindowCapturerTests.swift`](../../Tests/SurfaceLoomMacOSTests/MacOSScreenCaptureKitWindowCapturerTests.swift)、[`live smoke`](../../Tests/SurfaceLoomMacOSTests/MacOSWindowCaptureLiveSmokeTests.swift) | `contract-tested`（注入的权限、窗口列表与截图 fake） | Swift library 能力，不经 stdio host 或 Reporter v3。记录器须显式安装，只包住 press/click/shortcut，截图失败不替换动作错误，只在 failed/timeout 保留截图；`captureBoundWindow` 只截绑定应用的一个窗口，Screen Recording 只读预检、从不请求，有界且不覆盖已有文件。真实 ScreenCaptureKit 截图从未执行：两项 live smoke 默认跳过，`8cba0ea` 的 macOS CI 中也跳过。 |
+| macOS 会话输入护栏 | [`MacOSSessionInputState.swift`](../../Sources/SurfaceLoomMacOS/Core/MacOSSessionInputState.swift)、[`MacOSSyntheticInputGate.swift`](../../Sources/SurfaceLoomMacOS/Core/MacOSSyntheticInputGate.swift)、[`doctor check`](../../Sources/SurfaceLoomMacOS/Diagnostics/MacOSAutomationDoctor+SessionInput.swift) | [`MacOSSessionInputStateTests.swift`](../../Tests/SurfaceLoomMacOSTests/MacOSSessionInputStateTests.swift)、[`MacOSSyntheticInputGateTests.swift`](../../Tests/SurfaceLoomMacOSTests/MacOSSyntheticInputGateTests.swift)、[`MacOSSessionGateEvidenceTests.swift`](../../Tests/SurfaceLoomMacOSTests/MacOSSessionGateEvidenceTests.swift) | `contract-tested`（注入 probe 与会话字典分类） | `clickCenter`、`pressShortcut`、`attachToRunningApplication` 在会话锁屏、不在 console、登录未完成或不可读时抛 `sessionInputUnavailable`，不激活、不投递 CGEvent，激活后复查；纯 AX 动作不受影响。doctor `macos.sessionInput` 对锁屏/非 console 报 fail、不可证明报 warn。真实锁屏、快速用户切换未实测；锁屏判定依赖私有会话键，“登录完成”键在不同系统版本上的行为未验证。 |
+| Windows backend | [`SurfaceLoom.WindowsHost`](../../native/windows-host/src/SurfaceLoom.WindowsHost) | [`SurfaceLoom.WindowsHost.ContractTests`](../../native/windows-host/tests/SurfaceLoom.WindowsHost.ContractTests)、[`LiveTests`](../../native/windows-fixture/tests/SurfaceLoom.WindowsFixture.LiveTests) | `live-fixture-tested`（列出的 5 项行为） | Windows 11 实跑 59 个 host contracts 与 5 个 WPF/UIA/lifecycle cases、0 skip；`windows-2022` CI 在 `8cba0ea` 上另实跑当前登记的 73/73 host contracts、0 skip（未运行 5 项 WPF/UIA live）。live client 是 C# `NativeProcessClient`，不证明 TS platform binding/DesktopSession live。 |
+| Windows 完整性级别探测与 attach 护栏 | [`WindowsIntegrityLevelReader.cs`](../../native/windows-host/src/SurfaceLoom.WindowsHost/Automation/WindowsIntegrityLevelReader.cs)、[`IntegrityBoundaryDoctorCheck.cs`](../../native/windows-host/src/SurfaceLoom.WindowsHost/Automation/IntegrityBoundaryDoctorCheck.cs)、[`IntegrityBoundaryGuard.cs`](../../native/windows-host/src/SurfaceLoom.WindowsHost/Automation/IntegrityBoundaryGuard.cs) | [`IntegrityLevelContractTests.cs`](../../native/windows-host/tests/SurfaceLoom.WindowsHost.ContractTests/IntegrityLevelContractTests.cs)、[`DoctorContractTests.cs`](../../native/windows-host/tests/SurfaceLoom.WindowsHost.ContractTests/DoctorContractTests.cs) | `contract-tested` | doctor `windows.integrityBoundary`（非 required）读取 host 令牌 RID 并分级；`session.attach` 只在两侧都读到且目标更高时拒绝，任一侧不可读保持原行为；不提权、不依赖 UIAccess。5 项合同在 `windows-2022` CI 实跑，其中 1 项真实读取当前进程级别；真实更高完整性目标的 attach 未端到端运行。native/1.0 只返回固定文案的 `capability_unsupported`。 |
+| Windows 绑定窗口截图 | [`WindowsWindowCapturer.cs`](../../native/windows-host/src/SurfaceLoom.WindowsHost/Automation/WindowsWindowCapturer.cs)、[`UiaSession.Capture.cs`](../../native/windows-host/src/SurfaceLoom.WindowsHost/Automation/UiaSession.Capture.cs) | [`WindowCaptureContractTests.cs`](../../native/windows-host/tests/SurfaceLoom.WindowsHost.ContractTests/WindowCaptureContractTests.cs)、[`selection`](../../native/windows-host/tests/SurfaceLoom.WindowsHost.ContractTests/WindowCaptureContractTests.Selection.cs)、[`live window`](../../native/windows-host/tests/SurfaceLoom.WindowsHost.ContractTests/WindowCaptureContractTests.Live.cs) | `contract-tested`；另有 1 项测试自建窗口的真实截图 | C# 库级 API，不进入 NDJSON/native 1.0 协议、`CapabilityCatalog` 或 TS binding。只截绑定进程的一个顶层窗口，`PrintWindow(PW_RENDERFULLCONTENT)` 画入内存 DIB，锁屏或 Secure Desktop 返回 `EnvironmentUnavailable`，有界、不覆盖已有文件并标出单色画面。真实那一项由 `SURFACELOOM_WINDOWS_CAPTURE_LIVE=1` 开启并在 CI 实跑，截的是测试进程自建的纯色 WPF 窗口，不是中性 fixture，故不升为 `live-fixture-tested`；DPI-unaware 窗口在非 100% 缩放下未验证。 |
 | shared native wire protocol | [`packages/native/src`](../../packages/native/src)、[`Swift codec`](../../Sources/SurfaceLoomNativeProtocol)、[`vectors/v1`](../../packages/native/vectors/v1) | [`packages/native/tests`](../../packages/native/tests)、[`SurfaceLoomNativeProtocolTests`](../../Tests/SurfaceLoomNativeProtocolTests)、macOS subprocess handshake | `contract-tested` | `surfaceloom.native/1.0` 已冻结 framing、deadline、ownership、scope、method descriptor 与 operation outcome；有真实 host 进程合同，但没有 TS client→platform host→native UI live conformance。Windows 0.2 不是兼容别名。 |
 | report/v2 | [`model.ts`](../../packages/reporter/src/model.ts)、[`write-report.ts`](../../packages/reporter/src/write-report.ts) | [`report-validation.contract.test.ts`](../../packages/reporter/tests/report-validation.contract.test.ts)、[`reporter.test.ts`](../../packages/reporter/tests/reporter.test.ts) | `contract-tested` | 校验/归档/派生 HTML 和 Markdown；不执行 Case、不采集 UI、不决定 runner cleanup。单 run 只有一个 `platform`，没有 surface/attempt。 |
 | report/v3 | [`packages/reporter/src/v3`](../../packages/reporter/src/v3) | [`packages/reporter/tests/v3`](../../packages/reporter/tests/v3)、[`showcase.e2e.test.mjs`](../../examples/reference-agent/tests/e2e/showcase.e2e.test.mjs) | `live-fixture-tested`（M1 报告链） | 保留 host、surface、attempt 与实际 executionPlatforms；M1 聚合真实 Playwright Case 与附件。Reporter 仍只校验/呈现 runner 输入，不自行观察 AUT。 |
@@ -104,7 +112,7 @@ Core 在 [`capabilities.ts`](../../packages/core/src/capabilities.ts) 声明 30 
 | Core capability | Browser Playwright | macOS Swift | Windows NDJSON host |
 | --- | --- | --- | --- |
 | `app.launch` | — | CT：owned launch/清理合同 | CT：`session.launch` |
-| `app.attach` | — | CT：唯一进程与 attached ownership | CT：按 PID `session.attach` |
+| `app.attach` | — | CT：唯一进程与 attached ownership；会话不可接收输入时拒绝 attach | CT：按 PID `session.attach`；目标完整性级别已证实高于 host 时拒绝 |
 | `app.quit` | — | D：Quit menu/shortcut 组件路径 | CT(partial)：owned `WM_CLOSE`，不保证完整退出 |
 | `app.terminate` | — | CT：仅 owned process | CT：仅 owned process tree |
 | `ui.inspect` | — | CT：AX identifier/label/role 与 strict match | CT：UIA find/findAll/get/batch |
@@ -114,11 +122,11 @@ Core 在 [`capabilities.ts`](../../packages/core/src/capabilities.ts) 声明 30 
 | `window.inspect` | — | D：按 PID 观察 on-screen window 数 | CT(partial)：创建 session 时定位 root window |
 | `window.manage` | — | D(partial)：关闭快捷键、reopen、可见性等待 | —：没有通用 focus/close/minimize/restore API |
 | `menu.invoke` | — | D：`MenuComponent` + AXPress | CT(partial)：可对可访问 menu item 做通用 UIA action |
-| `keyboard.inject` | — | D：CGEvent shortcut | 明确 unsupported |
-| `pointer.inject` | — | D：显式 `clickCenter` CGEvent API；不是 AXPress 的静默 fallback | 明确 unsupported |
+| `keyboard.inject` | — | D：CGEvent shortcut；会话护栏 CT：锁屏、非 console 或不可读时拒绝投递 | 明确 unsupported |
+| `pointer.inject` | — | D：显式 `clickCenter` CGEvent API；不是 AXPress 的静默 fallback；会话护栏 CT：锁屏、非 console 或不可读时拒绝投递 | 明确 unsupported |
 | `clipboard.read` / `clipboard.write` | — | — | — |
 | `drag-drop.perform` | — | — | — |
-| `screenshot.capture` | CT；backend 对外 advertise | — | — |
+| `screenshot.capture` | CT；backend 对外 advertise | CT(partial)：库级绑定窗口截图，fake 合同；真实截图未执行，未对外声明该 capability | —：host 协议未暴露；C# 库级绑定窗口截图见第 2 节，`CapabilityCatalog` 未声明 |
 | `browser.navigate` | CT；对外 advertise | — | — |
 | `browser.dom.inspect` | CT；对外 advertise | — | — |
 | `browser.dom.invoke` | CT；对外 advertise | — | — |
@@ -128,10 +136,10 @@ Core 在 [`capabilities.ts`](../../packages/core/src/capabilities.ts) 声明 30 
 | `browser.network.proxy` | CT；对外 advertise | — | — |
 | `browser.storage.export` | CT：`saveStorageState()` 已实现，但 capability 数组未 advertise | — | — |
 | `system.open-save-panel` | — | CT(partial)：只测输入拒绝；真实 panel roundtrip 未测 | D(partial)：desktop root 可遍历；无专用组件 |
-| `system.permission.inspect` | — | CT(partial)：doctor 观察 runner AX trust，不是产品 permission-consent 组件 | — |
+| `system.permission.inspect` | — | CT(partial)：doctor 观察 runner AX trust，不是产品 permission-consent 组件；Screen Recording 只在截图前只读预检，未进入 doctor | — |
 | `system.notification.inspect` | — | — | — |
 | `system.status-area.inspect` | — | — | — |
-| `system.elevation.observe` | — | — | 明确不支持 UAC Secure Desktop；没有通用 elevation observation API |
+| `system.elevation.observe` | — | — | 明确不支持 UAC Secure Desktop；没有通用 elevation observation API；doctor 只读报告 host 完整性级别（CT），未对外声明该 capability |
 
 Browser 行为测试主要使用 [`fakes.ts`](../../packages/browser-playwright/tests/fakes.ts)；network/console
 观察见 [`observation.test.ts`](../../packages/browser-playwright/tests/observation.test.ts)，storage export 见
@@ -148,9 +156,11 @@ Windows 能力声明与边界见 [`CapabilityCatalog.cs`](../../native/windows-h
 和 [`local-features.test.ts`](../../packages/browser-playwright/tests/local-features.test.ts)，会启动系统 Chrome，
 操作 data URL/本地 HTTP fixture，并验证 DOM、严格匹配、trace、截图、observation 和 storage replay。
 但两组测试都只有在 `SURFACELOOM_BROWSER_SMOKE=1` 时运行；默认 `npm test` 会报告 skip。
-[`run-local-smoke.mjs`](../../packages/browser-playwright/scripts/run-local-smoke.mjs) 只由显式
-`npm run test:local` 入口设置该变量。这些可选 smoke 所覆盖的 trace、截图、observation 和 storage
-能力仍不能因默认 skip 升级为 live。与其不同，M1 showcase 是 0 skip 的真实 owned Chrome/Chromium
+[`run-local-smoke.mjs`](../../packages/browser-playwright/scripts/run-local-smoke.mjs) 在显式
+`npm run test:local` 入口设置该变量；自 `34c1c6f` 起，[`ci.yml`](../../.github/workflows/ci.yml) 也为 Ubuntu
+的 TypeScript 任务设置 `SURFACELOOM_BROWSER_SMOKE=1`，`8cba0ea` 那次运行中 browser-playwright 为 76/76、0 skip。
+本次增量没有据此给 trace、截图、observation、storage 等更宽能力重新定级，只新增了第 2 节“v3 失败自动截图”
+一行的定级；这些能力的级别仍以第 2、3 节为准。与其不同，M1 showcase 是 0 skip 的真实 owned Chrome/Chromium
 门禁，已经把 Agent 审批切片升级为 `live-fixture-tested`。两类中性 fixture 都不是产品 adapter，
 因此都不能升级为 `target-app-tested`。
 
@@ -228,6 +238,9 @@ Core [`FixtureRegistry`](../../packages/core/src/fixture-registry.ts) 能在消�
   backend 行为。这些是 host contract，不是 TypeScript client binding，也不是 live AX。
 - 仓库已有中性 AppKit fixture 源码、build/model contracts 和稳定 `.app` artifact；该产物尚未在
   TCC 授权身份下由 stdio host 启动和操作，因此没有中性 fixture live AX 或目标 App 证据。
+- `SurfaceLoomMacOS` Swift library（不经 stdio host）另有可选动作证据记录器、ScreenCaptureKit 绑定窗口
+  截图、合成输入的会话护栏与 doctor `macos.sessionInput`，均只有注入 fake/probe 的合同证据。真实截图在
+  任何机器上都未执行（两项 live smoke 在 `8cba0ea` 的 macOS CI 中跳过）；真实锁屏与快速用户切换未实测。
 
 ### Windows
 
@@ -238,9 +251,13 @@ Core [`FixtureRegistry`](../../packages/core/src/fixture-registry.ts) 能在消�
   定义 UIA locator、session ownership、element snapshot 和 action；
   [`RequestDispatcher.cs`](../../native/windows-host/src/SurfaceLoom.WindowsHost/Host/RequestDispatcher.cs)
   在单进程内路由请求。
-- 合同可执行程序最新登记 59 个协议/安全检查，已在 Windows 11/.NET 8 实跑。中性 WPF fixture 也通过
+- 合同可执行程序当时登记的 59 个协议/安全检查已在 Windows 11/.NET 8 实跑；当前登记 73 个，`windows-2022`
+  CI 在 `8cba0ea` 上实跑 73/73、0 skip。中性 WPF fixture 也通过
   C# process client 完成 5 个不可跳过的 launch → find → action → postcondition/lifecycle live Case。
-  该证据不经过 TypeScript client，且 fixture 当前没有 Dialog 行为。
+  该证据不经过 TypeScript client，且 fixture 当前没有 Dialog 行为；5 项 live 未在 `8cba0ea` 上重跑。
+- `host.doctor` 的 `windows.integrityBoundary` 只读报告 host 令牌完整性级别，`session.attach` 拒绝已证实
+  更高完整性的目标，二者都有合同证据；真实更高完整性目标的 attach 未端到端运行。绑定窗口截图是 C#
+  库级 API，未进入 NDJSON/native 1.0 协议；它的真实截图用例截的是测试进程自建窗口，不是中性 fixture。
 - 1.0 `element.action` 用 `notExecuted/executed/unknown` receipt 保守表达提交边界，超限响应与 deadline
   fallback 保留 outcome；legacy 0.2 不获得这些语义，也不被重标为 1.0。
 - host feature 名称（例如 `uia.semanticActions`）不是 Core capability registry 的直接实现声明；已有
