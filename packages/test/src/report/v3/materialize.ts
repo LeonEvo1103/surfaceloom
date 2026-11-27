@@ -12,6 +12,7 @@ import {
 } from "../../evidence/collector.js";
 import { assertIssuedExecutionScope, type ExecutionScope } from "../../evidence/execution-scope.js";
 import type { MaterializedEvidenceV3 } from "./contracts.js";
+import { evidenceArtifactTitle } from "./evidence-title.js";
 
 const schemaVersion = "surfaceloom.runner-evidence/v1" as const;
 
@@ -120,7 +121,7 @@ function sourceArtifact(item: CollectedEvidenceArtifact, sourcePath: string): So
     id: item.artifact.artifactId,
     kind: item.content.kind === "trace" ? "trace" : "diagnostics",
     phase: "after",
-    title: item.content.kind === "trace" ? "Normalized trace" : "Normalized evidence",
+    title: evidenceArtifactTitle(item),
     captureStatus: "captured",
     sourcePath,
     contentType: "application/json",

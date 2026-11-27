@@ -4,6 +4,7 @@ import type {
   TestRunReport,
   TestStepResult,
 } from "./model.js";
+import { errorValueLines, failedCriteria } from "./error-presentation.js";
 import { safeArtifactPath } from "./safe-artifact-path.js";
 import { testsForReview } from "./summary.js";
 
@@ -55,6 +56,10 @@ function renderTest(test: ReportedTestCase): string[] {
   if (result.reason !== undefined) lines.push(`- 未执行原因：${md(result.reason)}`);
   if (result.error) {
     lines.push(`- 错误：**${md(result.error.category)}** — ${md(result.error.message)}`);
+    for (const line of errorValueLines(result.error)) lines.push(`  - ${line.label}：${md(line.text)}`);
+    for (const item of failedCriteria(spec.acceptanceCriteria, result.steps)) {
+      lines.push(`  - 未通过的验收条件：\`${md(item.id)}\` ${md(item.text)}`);
+    }
   }
   lines.push("- 前置条件：");
   if (spec.preconditions.length === 0) {

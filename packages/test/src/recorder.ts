@@ -62,7 +62,7 @@ export class ExecutionRecorder {
     if (this.#seenFailures.has(error)) return;
     this.capture(phase, error);
     this.#steps.push(Object.freeze({
-      id: this.nextId(phase), title: phase, status: "failed", durationMs: 0,
+      id: this.nextId(phase), title: kernelPhaseTitle(phase), status: "failed", durationMs: 0,
       diagnostic: errorDiagnostic(phase, error),
     }));
   }
@@ -135,6 +135,22 @@ export class ExecutionRecorder {
       criterionIds: Object.freeze([...criterionIds]) });
   }
 }
+
+/**
+ * Reader-facing title for a kernel failure step. The phase itself stays in the step id
+ * (`kernel.<phase>.<n>`), error.category and the diagnostic, so contracts keyed on it hold.
+ */
+export function kernelPhaseTitle(phase: string): string {
+  return kernelPhaseTitles.get(phase) ?? phase;
+}
+
+const kernelPhaseTitles: ReadonlyMap<string, string> = new Map([
+  ["authoring", "Case authoring validation"], ["fixtureSetup", "Fixture setup"],
+  ["body", "Case body"], ["effectDispatch", "Effect dispatch"],
+  ["drain", "Pending step drain"], ["acceptanceCriteria", "Acceptance criteria coverage"],
+  ["executionDeadline", "Execution deadline"], ["executionCancellation", "Execution cancellation"],
+  ["executionWorker", "Execution worker"], ["fixtureTeardown", "Fixture teardown"],
+]);
 
 export function elapsed(started: number): number {
   return Math.max(0, Math.floor(performance.now() - started));

@@ -1,6 +1,6 @@
 import type { TraceValue } from "@surfaceloom/core";
 import { assertIdentifier } from "./definition.js";
-import { attachErrorDiagnostic, errorSummary } from "./errors.js";
+import { attachErrorDiagnostic, attachErrorExpectation, errorSummary } from "./errors.js";
 import { AssertionTimer } from "./assertion-clock.js";
 import { matchesExpectation, snapshotExpectation } from "./assertion-expectation.js";
 import type { AssertionFailure, ObservationAssertionOptions, ObservationAssertionResult } from "./assertion-contracts.js";
@@ -114,10 +114,38 @@ function failedRead(code: string, error: unknown): ObservationSnapshot<never> {
 /** Details also survive context.criterion() in the existing step diagnostic JSON. */
 export class ObservationAssertionError<T extends TraceValue = TraceValue> extends Error {
   constructor(readonly result: ObservationAssertionResult<T>) {
-    super(`Observation assertion ${result.status} after ${result.attempts} attempts: ${result.failure?.message ?? "Unknown failure."}`);
+    super(`Observation assertion ${result.status} after ${result.attempts} attempts${
+      result.criterionId === undefined ? "" : ` for criterion ${result.criterionId}`}: ${
+      result.failure?.message ?? "Unknown failure."}`);
     this.name = "ObservationAssertionError";
     Object.defineProperty(this, observationAssertionResult, { value: result });
     attachErrorDiagnostic(this, "observationAssertion", result);
+    attachErrorExpectation(this, observationExpectation(result));
+  }
+}
+
+/** Reader-facing expected/actual pair for report error summaries. */
+export function observationExpectation(result: ObservationAssertionResult<TraceValue>):
+  { readonly expected: TraceValue; readonly actual: TraceValue | undefined } {
+  return { expected: result.expected, actual: observedValue(result) };
+}
+
+/**
+ * The last valid observation (its value, or "absent" to mirror the absent expectation),
+ * else a short description of the last unusable read.
+ */
+function observedValue(result: ObservationAssertionResult<TraceValue>): TraceValue | undefined {
+  const observation = result.lastValidObservation?.observation ?? result.actual?.observation;
+  return observation === undefined ? undefined : observationSummary(observation);
+}
+
+/** Reader-facing form of one snapshotted observation, shared with the bounded helper. */
+export function observationSummary(observation: ObservationSnapshot<TraceValue>): TraceValue {
+  switch (observation.state) {
+    case "available": return observation.value;
+    case "absent": return "absent";
+    case "unknown": return `unknown: ${observation.reason}`;
+    case "read-failed": return `read-failed: ${observation.error.message}`;
   }
 }
 

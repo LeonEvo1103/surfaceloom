@@ -1,9 +1,10 @@
 import type { TraceValue } from "@surfaceloom/core";
-import { waitForObservation } from "./assertion.js";
+import { observationExpectation, observationSummary, waitForObservation } from "./assertion.js";
 import type { AssertionClock, AssertionFailure, ObservationAssertionResult } from "./assertion-contracts.js";
 import type { DeadlineTaskContext, DeadlineTaskOutcome } from "./deadline-contracts.js";
 import { startDeadlineTask } from "./deadline.js";
-import { attachErrorDiagnostic, errorSummary } from "./errors.js";
+import { attachErrorDiagnostic, attachErrorExpectation, errorSummary } from "./errors.js";
+import { snapshotObservation } from "./observation-values.js";
 import type {
   BoundedDiagnosticContext, BoundedDiagnosticOptions, BoundedDiagnosticResult,
   BoundedObservationOptions, BoundedObservationReader, BoundedObservationResult, RuntimeHelperClock,
@@ -70,9 +71,38 @@ export async function waitForObservationBounded<T extends TraceValue>(
 export async function assertObservationBounded<T extends TraceValue>(
   reader: BoundedObservationReader<T>, options: BoundedObservationOptions<T>,
 ): Promise<BoundedObservationResult<T>> {
-  const result = await waitForObservationBounded(reader, options);
-  if (result.status !== "passed") throw new BoundedObservationAssertionError(result);
-  return result;
+  // Keep only a reference: the envelope is read once, by the assertion itself, so a
+  // getter-backed envelope cannot behave differently for the verdict. Reads that
+  // complete after cancellation are discarded by the assertion and are not kept here.
+  let lastRead: { readonly envelope: unknown } | undefined;
+  const observed: BoundedObservationReader<T> = typeof reader !== "function" ? reader
+    : async (context) => {
+      const observation = await reader(context);
+      if (!context.signal.aborted) lastRead = { envelope: observation };
+      return observation;
+    };
+  const result = await waitForObservationBounded(observed, options);
+  if (result.status === "passed") return result;
+  const error = new BoundedObservationAssertionError(result);
+  // A deadline can stop the inner assertion before it returns. The verdict is fixed
+  // by now, so describing the last completed read cannot change it.
+  if (result.assertion === null) {
+    attachErrorExpectation(error, { expected: declaredExpected(options),
+      actual: lastRead === undefined ? undefined : describeRead(lastRead.envelope) });
+  }
+  throw error;
+}
+
+function describeRead(envelope: unknown): TraceValue | undefined {
+  try { return observationSummary(snapshotObservation(envelope)); } catch { return undefined; }
+}
+
+function declaredExpected<T extends TraceValue>(options: BoundedObservationOptions<T>):
+  TraceValue | undefined {
+  try {
+    const expectation = options.expectation;
+    return expectation.kind === "absent" ? "absent" : expectation.expected;
+  } catch { return undefined; }
 }
 
 export class BoundedObservationAssertionError<T extends TraceValue = TraceValue> extends Error {
@@ -81,6 +111,7 @@ export class BoundedObservationAssertionError<T extends TraceValue = TraceValue>
     this.name = "BoundedObservationAssertionError";
     Object.defineProperty(this, boundedObservationResult, { value: result });
     attachErrorDiagnostic(this, "boundedObservationAssertion", result);
+    if (result.assertion !== null) attachErrorExpectation(this, observationExpectation(result.assertion));
   }
 }
 

@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 
-import type { ReportArtifact, ReportedCaseExecutionResult } from "../model.js";
+import type { CaseClause } from "@surfaceloom/core";
+
+import { errorValueLines, failedCriteria } from "../error-presentation.js";
+import type { ReportArtifact, ReportedCaseExecutionResult, TestErrorSummary } from "../model.js";
 import { safeArtifactPath } from "../safe-artifact-path.js";
 import type { ContextValue, ReportedTestCaseV3, TestRunReportV3 } from "./model.js";
 import { finalReportedResult } from "./result.js";
@@ -28,19 +31,30 @@ function renderTest(test: ReportedTestCaseV3): string {
   const result = finalReportedResult(test.attempts);
   const attemptState = test.attempts;
   const attempts = attemptState.state === "unknown"
-    ? `<section class="unknown"><strong>Attempt 未知</strong><p>${html(attemptState.reason)}${attemptState.detail === undefined ? "" : `：${html(attemptState.detail)}`}</p>${renderResult(result)}</section>`
+    ? `<section class="unknown"><strong>Attempt 未知</strong><p>${html(attemptState.reason)}${attemptState.detail === undefined ? "" : `：${html(attemptState.detail)}`}</p>${renderResult(result, test.spec.acceptanceCriteria)}</section>`
     : attemptState.items.map((attempt) => `<section class="attempt"><h3>Attempt ${attempt.ordinal} <code>${html(attempt.id)}</code>${attempt.id === attemptState.finalAttemptId ? "（最终）" : ""}</h3>
-      <p>执行平台：${attempt.executionPlatforms.map(html).join("、")} · Runner Host：${context(attempt.runnerHostId, html)} · Surface：${context(attempt.surfaceIds, (ids) => ids.map(html).join("、"))}</p>${renderResult(attempt.result)}</section>`).join("");
+      <p>执行平台：${attempt.executionPlatforms.map(html).join("、")} · Runner Host：${context(attempt.runnerHostId, html)} · Surface：${context(attempt.surfaceIds, (ids) => ids.map(html).join("、"))}</p>${renderResult(attempt.result, test.spec.acceptanceCriteria)}</section>`).join("");
   return `<article class="test ${css(result.status)}"><header><div><small>${html(test.spec.suite.name)}</small><h2>${html(test.spec.name)}</h2></div><b>${label(result.status)}</b></header>
   <p>Case ID：<code>${html(test.spec.id)}</code></p><p>${html(test.spec.intent)}</p>${attempts}</article>`;
 }
 
-function renderResult(result: ReportedCaseExecutionResult): string {
-  const error = result.error === undefined ? "" : `<div class="error"><strong>${html(result.error.category)}</strong><p>${html(result.error.message)}</p></div>`;
+function renderResult(result: ReportedCaseExecutionResult, criteria: readonly CaseClause[]): string {
+  const error = result.error === undefined ? "" : renderError(result.error, result, criteria);
   const reason = result.reason === undefined ? "" : `<p class="reason">${html(result.reason)}</p>`;
   const steps = result.steps.map((step) => `<li class="${css(step.status)}">${label(step.status)} · ${html(step.title)} · ${step.durationMs} ms</li>`).join("");
   const artifacts = result.artifacts.map(renderArtifact).join("");
   return `<p><strong>${label(result.status)}</strong> · ${result.durationMs} ms</p>${reason}${error}<ol>${steps}</ol><div class="evidence">${artifacts}</div>`;
+}
+
+function renderError(error: TestErrorSummary, result: ReportedCaseExecutionResult,
+  criteria: readonly CaseClause[]): string {
+  const failed = failedCriteria(criteria, result.steps).map((item) =>
+    `<li><code>${html(item.id)}</code> ${html(item.text)}</li>`).join("");
+  const values = errorValueLines(error).map((line) =>
+    `<dt>${line.label}</dt><dd><code>${html(line.text)}</code></dd>`).join("");
+  return `<div class="error"><strong>${html(error.category)}</strong><p>${html(error.message)}</p>${
+    values === "" ? "" : `<dl>${values}</dl>`}${
+    failed === "" ? "" : `<p>未通过的验收条件：</p><ul>${failed}</ul>`}</div>`;
 }
 
 function renderArtifact(artifact: ReportArtifact): string {
@@ -76,4 +90,4 @@ function html(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[character]!);
 }
 
-const styles = `:root{color-scheme:light;font-family:system-ui,sans-serif;background:#f6f8fa;color:#1f2328}body{margin:0}main{width:min(1080px,calc(100% - 32px));margin:auto;padding:40px 0}header{display:flex;justify-content:space-between;gap:16px}h1{margin-top:4px}.summary,.context,.test{background:#fff;border:1px solid #d0d7de;border-radius:12px;padding:18px;margin:16px 0}.summary{display:flex;gap:20px;flex-wrap:wrap}.notice,.attempt>p{color:#59636e}.test{border-left-width:5px}.attempt,.unknown{border:1px solid #d8dee4;border-radius:8px;padding:12px;margin-top:12px}.error{background:#ffebe9;padding:10px}.reason{background:#fff8c5;padding:10px}.evidence{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}figure{margin:0;padding:10px;background:#f6f8fa;border-radius:8px}img,video{width:100%;max-height:420px;object-fit:contain}.status-passed{border-color:#1a7f37!important}.status-failed,.status-timedout{border-color:#cf222e!important}.status-incomplete,.status-unsupported{border-color:#bf8700!important}`;
+const styles = `:root{color-scheme:light;font-family:system-ui,sans-serif;background:#f6f8fa;color:#1f2328}body{margin:0}main{width:min(1080px,calc(100% - 32px));margin:auto;padding:40px 0}header{display:flex;justify-content:space-between;gap:16px}h1{margin-top:4px}.summary,.context,.test{background:#fff;border:1px solid #d0d7de;border-radius:12px;padding:18px;margin:16px 0}.summary{display:flex;gap:20px;flex-wrap:wrap}.notice,.attempt>p{color:#59636e}.test{border-left-width:5px}.attempt,.unknown{border:1px solid #d8dee4;border-radius:8px;padding:12px;margin-top:12px}.error{background:#ffebe9;padding:10px}.error dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 10px;margin:8px 0 0}.error dt{font-weight:600}.error dd{margin:0;overflow-wrap:anywhere}.reason{background:#fff8c5;padding:10px}.evidence{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}figure{margin:0;padding:10px;background:#f6f8fa;border-radius:8px}img,video{width:100%;max-height:420px;object-fit:contain}.status-passed{border-color:#1a7f37!important}.status-failed,.status-timedout{border-color:#cf222e!important}.status-incomplete,.status-unsupported{border-color:#bf8700!important}`;
