@@ -4,11 +4,15 @@ import Foundation
 
 extension MacOSApplicationDriver {
 	public func press(_ element: AXUIElement) throws {
-		let result = AXUIElementPerformAction(element, kAXPressAction as CFString)
-		guard result == .success else {
-			throw DesktopAutomationError.actionFailed(
-				"AXPress failed with code \(result.rawValue)"
-			)
+		try MacOSActionEvidence.perform(
+			action: "press", target: MacOSActionTarget.identifier(of: element), pid: application?.processIdentifier ?? 0
+		) {
+			let result = AXUIElementPerformAction(element, kAXPressAction as CFString)
+			guard result == .success else {
+				throw DesktopAutomationError.actionFailed(
+					"AXPress failed with code \(result.rawValue)"
+				)
+			}
 		}
 	}
 
@@ -54,6 +58,12 @@ extension MacOSApplicationDriver {
 	}
 
 	public func clickCenter(of element: AXUIElement) throws {
+		try MacOSActionEvidence.perform(
+			action: "click", target: MacOSActionTarget.identifier(of: element), pid: application?.processIdentifier ?? 0
+		) { try clickCenterOnce(of: element) }
+	}
+
+	private func clickCenterOnce(of element: AXUIElement) throws {
 		guard let application, isProcessAlive(application.processIdentifier) else {
 			throw DesktopAutomationError.actionFailed(
 				"Cannot click an element because \(configuration.displayName) is not running"
@@ -131,6 +141,12 @@ extension MacOSApplicationDriver {
 	}
 
 	public func pressShortcut(_ shortcut: MacOSShortcut) throws {
+		try MacOSActionEvidence.perform(
+			action: "shortcut", target: MacOSActionTarget.shortcutName(shortcut), pid: application?.processIdentifier ?? 0
+		) { try pressShortcutOnce(shortcut) }
+	}
+
+	private func pressShortcutOnce(_ shortcut: MacOSShortcut) throws {
 		guard let application, isProcessAlive(application.processIdentifier) else {
 			throw DesktopAutomationError.actionFailed(
 				"Cannot send a shortcut because \(configuration.displayName) is not running"
