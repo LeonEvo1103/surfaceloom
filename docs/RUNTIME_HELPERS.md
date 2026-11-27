@@ -104,7 +104,8 @@ Node 的 [AbortController](https://nodejs.org/api/globals.html#class-abortcontro
 Case 声明需要某项能力，不代表 runner 已授权它。预设不会自动接受权限或接管用户已打开的浏览器。
 
 目前 v3 浏览器动作接口没有截图动作。通用诊断回调可以接现有浏览器 session 的截图 API，
-但这不等于 v3 已提供自动失败截图。本批也不宣称接通真实产品登录、邮箱或原生桌面自动化。
+但辅助模块本身不提供自动失败截图；v3 runner 后来在 Case 失败时于关闭浏览器前自动截图，见
+[能力事实矩阵](framework/capabilities.md)。本批也不宣称接通真实产品登录、邮箱或原生桌面自动化。
 
 现有 Playwright 依赖及其许可证保持不变；本批不复制第三方实现、不引入新的运行依赖，
 也不修改 SurfaceLoom 的 MIT 许可证。

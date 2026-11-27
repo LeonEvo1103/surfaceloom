@@ -150,7 +150,8 @@ cd ..\windows-fixture
 ```
 
 live suite 只启动和清理自己拥有的 fixture process，不操作 UAC Secure Desktop，也不修改安全设置。
-已登记的证据是 59 个 host contracts 和 5 个 C# client-to-UIA/lifecycle live Cases、零 skip；这不证明
+已登记的证据是 Windows 11 上 59 个 host contracts 和 5 个 C# client-to-UIA/lifecycle live Cases、零 skip，
+以及 `windows-2022` CI 在 `8cba0ea` 上实跑的 73/73 host contracts、零 skip；这不证明
 TypeScript client-to-UIA path。协议和平台限制见
 [Windows host guide](../native/windows-host/README.md)。
 

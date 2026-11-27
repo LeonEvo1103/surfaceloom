@@ -6,7 +6,7 @@
 ## 框架 SSOT
 
 - 框架执行模型、全部 `SL-P*` 原子任务、依赖、状态和验收证据以
-  `docs/FRAMEWORK_SSOT.md` 为唯一事实源；当前账本包含 P0–P6，后续阶段仍沿用同一编号和校验规则。
+  `docs/FRAMEWORK_SSOT.md` 为唯一事实源；当前账本包含 P0–P7，后续阶段仍沿用同一编号和校验规则。
 - 当前能力必须按 `docs/framework/capabilities.md` 的 `declared`、`contract-tested`、
   `live-fixture-tested`、`target-app-tested` 分级描述；manifest、接口或默认跳过的 smoke 不能冒充 live 实现。
 - 实现 Agent 只能把任务交付到 `review`；只有主集成人运行任务 DoD 并写入验收记录后才能置 `done`。
