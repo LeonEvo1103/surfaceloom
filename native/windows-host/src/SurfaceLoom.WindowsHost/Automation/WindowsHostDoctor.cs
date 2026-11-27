@@ -187,14 +187,9 @@ public static class WindowsHostDoctor
         }
     }
 
-    private static DoctorCheck DescribeIntegrityBoundary() => new(
-        IntegrityBoundaryCheck,
-        DoctorStatus.Warn,
-        "Doctor does not probe a target process; UIA access remains subject to Windows integrity " +
-        "and UIAccess boundaries.",
-        false,
-        new { targetProbed = false, bypassAttempted = false },
-        "Run the host at an integrity level permitted to inspect the intended target application.");
+    // The reader reports every Win32 failure as an unknown reading; it never throws for denial.
+    private static DoctorCheck DescribeIntegrityBoundary() =>
+        IntegrityBoundaryDoctorCheck.Create(WindowsIntegrityLevelReader.ReadCurrentProcess());
 
     private static DoctorCheck UnsupportedPointerInjection() => new(
         PointerInjectionCheck,
@@ -230,7 +225,7 @@ public static class WindowsHostDoctor
             new { exception = exception.GetType().Name, message = exception.Message },
             remediation);
 
-    private static DoctorStatus CalculateOverall(IEnumerable<DoctorCheck> checks)
+    internal static DoctorStatus CalculateOverall(IEnumerable<DoctorCheck> checks)
     {
         var all = checks.ToArray();
         if (all.Any(check => check.Required && check.Status == DoctorStatus.Fail))

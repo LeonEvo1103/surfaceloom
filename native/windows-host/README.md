@@ -127,14 +127,45 @@ reader 都只能得到 disposed rejection，不能重新登记 CTS；未能进�
 - 是否位于非 Session 0 的登录用户 session；
 - 默认 input desktop 是否处于活动且可读状态；
 - UIA desktop root 是否可读取；
-- 尚未针对具体目标验证的 integrity/UIAccess 边界；
+- host 自身进程令牌的完整性级别（只读读取，不探测任何目标进程，也不尝试提权或 UIAccess）；
 - pointer/keyboard injection 未实现；
 - UAC Secure Desktop 永远不尝试切换、绕过或自动确认。
+
+`windows.integrityBoundary` 用 `OpenProcessToken(TOKEN_QUERY)` + `GetTokenInformation(TokenIntegrityLevel)`
+读取 host 令牌标签 SID 的最后一个子授权（RID）分类，不依赖本地化组名。该项始终 `required: false`，
+因为是否构成阻断取决于被测目标，而 doctor 不针对目标：
+
+| host 级别 | status | 理由 |
+|---|---|---|
+| Medium / MediumPlus | `pass` | 标准用户级别，可检查普通应用；无法检查提升（High）目标 |
+| High（以管理员运行） | `warn` | 能检查提升目标，但测试在管理员权限下运行，看不到真实用户遇到的边界；以管理员运行的 CI runner 通常属于此类，该项不会让 overall 变成 `fail` |
+| Untrusted / Low | `fail` | 无法检查普通 Medium 应用 |
+| System / ProtectedProcess | `fail` | 不是受支持的最小权限配置 |
+| 未文档化的 RID | `warn` | 无法分类，不当作正常 |
+| 读取失败（unknown） | `warn` | 边界未验证，不当作正常；details 给出 `hostReadFailure`，有 Win32 错误码时另给 `hostWin32Error` |
+
+由于该项非 required，其中的 `fail` 也只会让 overall 至多降为 `warn`；overall 是否为 `fail` 仍只由 required 检查决定。
+details 固定包含 `hostProbed: true`、`hostIntegrityLevel`、`targetProbed: false`、`bypassAttempted: false`，
+读到时附 `hostIntegrityRid` 与 `canInspectElevatedTargets`。非 `pass` 时都带 remediation：High、System、未识别和读取失败时
+建议从非提升终端、以登录用户身份重新运行；Untrusted / Low 时建议改从普通的非沙箱用户终端运行。
+
+`session.attach` 在附着前用同一读取器比较 host 与目标 PID（目标只用 `PROCESS_QUERY_LIMITED_INFORMATION`
+打开）：只有两侧都读到且目标 RID 更高时，才提前返回 `capability_unsupported`（`capability` 为
+`windows.elevatedTarget`，details 含两侧级别与 `bypassAttempted: false`）。任一侧读不到时（例如非提升 host 可能无权
+读取提升目标的令牌）保持原有附着行为，不把“未知”当作已证实的边界。
+
+这项提前检查有三条已知边界：
+
+- 带说明文字和 details 的完整错误只出现在 0.2 协议和直接调用 C# API 的路径上。`native/1.0` 的错误文案是固定且
+  与输入无关的，同一拒绝在那里只表现为 `unsupported` 类别的 `capability_unsupported`，不带两侧级别。
+- 比较只看两侧的 RID。带 UIAccess 的 host 不在支持范围内：它自身的 RID 不是文档化的级别，doctor 会报告为未识别；
+  它本可以检查更高级别的目标，但这里仍会被提前拒绝。
+- 检查只在 `session.attach` 时做一次，不覆盖附着之后目标以更高级别重启的情况。
 
 每项检查的 `status` 是 `pass`、`warn`、`fail` 或 `unsupported`，并用 `required` 标明是否阻断普通 UIA session。required 的 `fail/unsupported` 会阻断；可选的 `unsupported` 只是有意保留的能力边界，不等于环境损坏。
 
 ```json
-{"protocolVersion":"0.2","id":"doctor","ok":true,"result":{"schemaVersion":"1","protocolVersion":"0.2","platform":"windows","readOnly":true,"generatedAt":"2026-08-18T00:00:00+00:00","overall":"warn","checks":[{"id":"windows.os","status":"pass","summary":"Windows version meets the host minimum.","required":true},{"id":"windows.integrityBoundary","status":"warn","summary":"Doctor does not probe a target process; UIA access remains subject to Windows integrity and UIAccess boundaries.","required":false},{"id":"windows.uac.secureDesktop","status":"unsupported","summary":"UAC Secure Desktop is a security boundary and is not automated, switched to, bypassed, or auto-approved.","required":false}]}}
+{"protocolVersion":"0.2","id":"doctor","ok":true,"result":{"schemaVersion":"1","protocolVersion":"0.2","platform":"windows","readOnly":true,"generatedAt":"2026-08-18T00:00:00+00:00","overall":"warn","checks":[{"id":"windows.os","status":"pass","summary":"Windows version meets the host minimum.","required":true},{"id":"windows.integrityBoundary","status":"warn","summary":"Host runs elevated (High integrity). It can inspect elevated targets, but tests run with administrator rights and will not see the integrity boundary real users hit.","required":false,"details":{"hostProbed":true,"hostIntegrityLevel":"high","hostIntegrityRid":12288,"canInspectElevatedTargets":true,"targetProbed":false,"bypassAttempted":false}},{"id":"windows.uac.secureDesktop","status":"unsupported","summary":"UAC Secure Desktop is a security boundary and is not automated, switched to, bypassed, or auto-approved.","required":false}]}}
 ```
 
 即使发现环境 `fail`，RPC 本身仍返回 `ok: true`；调用方应读取 `result.overall` 和各项 check。只有协议或 host 内部错误才使用 RPC 的 `ok: false`。
@@ -143,7 +174,7 @@ reader 都只能得到 disposed rejection，不能重新登记 CTS；未能进�
 
 - `session.launch`：只接受绝对 exe 路径，不通过 shell 展开参数；默认等待唯一主窗口。启动前若发现同进程名实例，会返回 `target_already_running`，而不是接管已有客户端。单实例应用若新进程自行退出，也会返回 `process_exited_before_window`，不会转而连接旧实例。
 - `waitForWindow: false`：立即返回 process surface；之后的 `element.find` 自动附加 PID 条件，不会扫到其他应用。
-- `session.attach`：必须给出 PID，返回 `external` ownership。若窗口定位匹配多个结果且没有 `matchIndex`，返回 `window_ambiguous`。
+- `session.attach`：必须给出 PID，返回 `external` ownership。若窗口定位匹配多个结果且没有 `matchIndex`，返回 `window_ambiguous`。若目标进程的完整性级别被证实高于 host，会在等待窗口之前返回 `capability_unsupported`（见上文 doctor 一节）。
 - `session.desktop`：返回当前默认交互桌面的 `system` surface，供文件弹窗、任务栏、托盘等系统组件定位。它不代表 Secure Desktop。
 - `session.release`：只释放 UIA handle。owned 进程仍运行时会拒绝 release，防止遗留测试进程。
 - `session.close`：仅用于 owned session，通过 `Process.CloseMainWindow` 请求 `WM_CLOSE`；托盘或多窗口应用可能不退出，此时返回明确错误，由产品组件执行语义化 Quit 或调用 `session.terminate`。

@@ -25,8 +25,28 @@ internal static class DoctorContractTests
             True(checks.ContainsKey(id), $"Doctor is missing required check '{id}'.");
         }
 
-        Equal(DoctorStatus.Warn, checks[WindowsHostDoctor.IntegrityBoundaryCheck].Status,
-            "Unprobed target integrity must be a warning, not a false pass.");
+        var integrity = checks[WindowsHostDoctor.IntegrityBoundaryCheck];
+        True(!integrity.Required,
+            "Integrity is target-dependent and must not block an elevated CI runner by itself.");
+        // The runner's own integrity level is environmental (Medium locally, typically High on an
+        // elevated CI runner, System under a service), so compare against an independent read of
+        // the same token instead of hard-coding which levels the machine running the test may have.
+        var hostReading = WindowsIntegrityLevelReader.ReadCurrentProcess();
+        var expectedIntegrity = IntegrityBoundaryDoctorCheck.Create(hostReading);
+        Equal(expectedIntegrity.Status, integrity.Status,
+            $"Doctor must classify the host's actual token level ({hostReading.Level}).");
+        var integrityDetails = JsonSerializer.SerializeToElement(integrity.Details, JsonDefaults.Options);
+        True(integrityDetails.GetProperty("hostProbed").GetBoolean(),
+            "Doctor must probe the host token instead of emitting a fixed warning.");
+        var reportedLevel = integrityDetails.GetProperty("hostIntegrityLevel").GetString() ?? string.Empty;
+        Equal(JsonSerializer.SerializeToElement(hostReading.Level, JsonDefaults.Options).GetString() ?? "?",
+            reportedLevel, "Doctor must report the real host integrity level.");
+        True(reportedLevel is not ("unknown" or "unrecognized"),
+            "The host's own token label must be readable and documented.");
+        True(!integrityDetails.GetProperty("targetProbed").GetBoolean(),
+            "Doctor has no target and must not claim to have probed one.");
+        True(!integrityDetails.GetProperty("bypassAttempted").GetBoolean(),
+            "Doctor must never attempt an integrity bypass.");
         True(checks[WindowsHostDoctor.OsCheck].Required,
             "OS, session, desktop, and UIA prerequisites must be blocking checks.");
         Equal(DoctorStatus.Unsupported, checks[WindowsHostDoctor.PointerInjectionCheck].Status,
@@ -41,6 +61,55 @@ internal static class DoctorContractTests
         Equal(ExpectedOverall(report.Checks), report.Overall,
             "Unsupported optional capabilities must not fail an ordinary UIA session.");
     }
+
+    public static void IntegrityStatusMapping()
+    {
+        var cases = new (WindowsIntegrityReading Reading, DoctorStatus Status, string Level)[]
+        {
+            (Rid(WindowsIntegrityLevels.UntrustedRid), DoctorStatus.Fail, "untrusted"),
+            (Rid(WindowsIntegrityLevels.LowRid), DoctorStatus.Fail, "low"),
+            (Rid(WindowsIntegrityLevels.MediumRid), DoctorStatus.Pass, "medium"),
+            (Rid(WindowsIntegrityLevels.MediumPlusRid), DoctorStatus.Pass, "mediumPlus"),
+            (Rid(WindowsIntegrityLevels.HighRid), DoctorStatus.Warn, "high"),
+            (Rid(WindowsIntegrityLevels.SystemRid), DoctorStatus.Fail, "system"),
+            (Rid(WindowsIntegrityLevels.ProtectedProcessRid), DoctorStatus.Fail, "protectedProcess"),
+            (Rid(0x2050), DoctorStatus.Warn, "unrecognized"),
+            (WindowsIntegrityReading.Failed(WindowsIntegrityReadFailure.OpenTokenFailed, 5),
+                DoctorStatus.Warn, "unknown"),
+            (WindowsIntegrityReading.Failed(WindowsIntegrityReadFailure.NotWindows),
+                DoctorStatus.Warn, "unknown"),
+        };
+        var requiredPass = new DoctorCheck(WindowsHostDoctor.OsCheck, DoctorStatus.Pass, "ok", true);
+        foreach (var (reading, status, level) in cases)
+        {
+            var check = IntegrityBoundaryDoctorCheck.Create(reading);
+            Equal(WindowsHostDoctor.IntegrityBoundaryCheck, check.Id, "Check id must stay stable.");
+            Equal(status, check.Status, $"Integrity level '{level}' maps to the wrong status.");
+            True(!check.Required, "The integrity check must stay non-required for every reading.");
+            True(status == DoctorStatus.Pass || !string.IsNullOrWhiteSpace(check.Remediation),
+                $"Non-passing level '{level}' must carry actionable remediation.");
+            Equal(status == DoctorStatus.Pass ? DoctorStatus.Pass : DoctorStatus.Warn,
+                WindowsHostDoctor.CalculateOverall([requiredPass, check]),
+                $"Integrity level '{level}' alone must never make the overall verdict fail.");
+
+            var details = JsonSerializer.SerializeToElement(check.Details, JsonDefaults.Options);
+            Equal(level, details.GetProperty("hostIntegrityLevel").GetString() ?? string.Empty,
+                "Details must report the classified level.");
+            True(details.GetProperty("hostProbed").GetBoolean(), "Details must mark the host as probed.");
+            True(!details.GetProperty("targetProbed").GetBoolean(), "Doctor never probes a target.");
+            True(!details.GetProperty("bypassAttempted").GetBoolean(), "Doctor never attempts a bypass.");
+            Equal(reading.HasRid, details.TryGetProperty("hostIntegrityRid", out _),
+                "A RID is reported exactly when one was read.");
+            Equal(reading.Win32Error is not null, details.TryGetProperty("hostWin32Error", out _),
+                "A Win32 error is reported exactly when a read failed with one.");
+        }
+
+        var highRemediation = IntegrityBoundaryDoctorCheck.Create(Rid(WindowsIntegrityLevels.HighRid)).Remediation;
+        True(highRemediation?.Contains("non-elevated", StringComparison.Ordinal) == true,
+            "Elevated hosts must be told to re-run from a non-elevated terminal.");
+    }
+
+    private static WindowsIntegrityReading Rid(uint rid) => WindowsIntegrityReading.FromRid(rid);
 
     public static void NdjsonIsMachineReadable()
     {
