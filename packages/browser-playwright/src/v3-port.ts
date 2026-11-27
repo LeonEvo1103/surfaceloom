@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import type {
   BrowserAction,
   BrowserCloseProof,
+  BrowserScreenshotCall,
+  BrowserScreenshotReceipt,
   BrowserSurfaceBackendPort,
   BrowserSurfaceRequirement,
   BrowserSurfaceSessionPort,
@@ -92,6 +94,15 @@ class PlaywrightBrowserSurfaceSession implements BrowserSurfaceSessionPort {
 
   public invoke(action: BrowserAction, call: SurfaceBackendCall): Promise<unknown> {
     return this.session.invokeSurface(action, call);
+  }
+
+  /** Bounded by the runner-supplied timeout; a closed or crashed session rejects. */
+  public async captureScreenshot(call: BrowserScreenshotCall): Promise<BrowserScreenshotReceipt> {
+    if (call.signal.aborted) {
+      throw new BrowserAutomationError("operationFailed", "The screenshot was stopped before it started.");
+    }
+    const bytes = await this.session.captureScreenshotBytes(call.timeoutMs);
+    return Object.freeze({ mediaType: "image/png" as const, bytes });
   }
 
   public close(): Promise<BrowserCloseProof> {

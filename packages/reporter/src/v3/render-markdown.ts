@@ -1,3 +1,6 @@
+import type { CaseClause } from "@surfaceloom/core";
+
+import { errorValueLines, failedCriteria } from "../error-presentation.js";
 import type { ReportArtifact, ReportedCaseExecutionResult } from "../model.js";
 import { safeArtifactPath } from "../safe-artifact-path.js";
 import type { ContextValue, ReportedTestCaseV3, TestRunReportV3 } from "./model.js";
@@ -36,7 +39,7 @@ function renderTest(test: ReportedTestCaseV3): string[] {
   ];
   if (test.attempts.state === "unknown") {
     lines.push(`- Attempt：未知（${test.attempts.reason}${test.attempts.detail === undefined ? "" : `；${md(test.attempts.detail)}`}）`);
-    lines.push(...renderResult(result, "最终结果"));
+    lines.push(...renderResult(result, "最终结果", test.spec.acceptanceCriteria));
   } else {
     lines.push(`- Attempt：${test.attempts.items.length} 次；最终 \`${test.attempts.finalAttemptId}\``);
     for (const attempt of test.attempts.items) {
@@ -44,16 +47,23 @@ function renderTest(test: ReportedTestCaseV3): string[] {
       lines.push(`  - 执行平台：${attempt.executionPlatforms.map((platform) => `\`${platform}\``).join("、")}`);
       lines.push(`  - Runner Host：${contextLabel(attempt.runnerHostId, md)}`);
       lines.push(`  - Surface：${contextLabel(attempt.surfaceIds, (ids) => ids.map((id) => `\`${id}\``).join("、"))}`);
-      lines.push(...renderResult(attempt.result, "  - 结果"));
+      lines.push(...renderResult(attempt.result, "  - 结果", test.spec.acceptanceCriteria));
     }
   }
   return lines;
 }
 
-function renderResult(result: ReportedCaseExecutionResult, prefix: string): string[] {
+function renderResult(result: ReportedCaseExecutionResult, prefix: string,
+  criteria: readonly CaseClause[]): string[] {
   const lines = [`${prefix}：${statusLabel(result.status)}；${result.durationMs} ms`];
   if (result.reason !== undefined) lines.push(`  - 原因：${md(result.reason)}`);
-  if (result.error !== undefined) lines.push(`  - 错误：${md(result.error.category)} — ${md(result.error.message)}`);
+  if (result.error !== undefined) {
+    lines.push(`  - 错误：${md(result.error.category)} — ${md(result.error.message)}`);
+    for (const line of errorValueLines(result.error)) lines.push(`  - ${line.label}：${md(line.text)}`);
+    for (const item of failedCriteria(criteria, result.steps)) {
+      lines.push(`  - 未通过的验收条件：\`${md(item.id)}\` ${md(item.text)}`);
+    }
+  }
   for (const step of result.steps) {
     lines.push(`  - ${icon(step.status)} ${md(step.title)}（${step.durationMs} ms）`);
   }

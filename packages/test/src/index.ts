@@ -36,7 +36,8 @@ export type {
   JudgeRunnerBindingV3,
 } from "./judge/contracts.js";
 export type {
-  AxAction, AxLocator, BrowserAction, BrowserCloseProof, BrowserSurfaceAuthor,
+  AxAction, AxLocator, BrowserAction, BrowserCloseProof, BrowserScreenshotCall,
+  BrowserScreenshotReceipt, BrowserSurfaceAuthor,
   BrowserSurfaceBackendPort, BrowserSurfaceRequirement, BrowserSurfaceSessionPort,
   DomLocator, NativeSurfaceAuthor, NativeSurfaceRequirement, SurfaceBackendCall, SurfaceOwnership,
   UiaAction, UiaLocator,

@@ -21,8 +21,6 @@ public struct MacOSEvidenceManifest: Equatable {
 	public var captureStatus: String
 }
 
-enum MacOSEvidenceError: Error { case captureFailed }
-
 /// Diagnostic frames and a semantic trace. Not a replay script.
 public final class MacOSActionEvidence {
 	public static let sharedLock = NSLock()
@@ -41,7 +39,11 @@ public final class MacOSActionEvidence {
 	}
 
 	public static func live(directory: URL) -> MacOSActionEvidence {
-		MacOSActionEvidence(directory: directory, permission: { CGPreflightScreenCaptureAccess() }, capturer: MacOSCGWindowCapturer())
+		MacOSActionEvidence(
+			directory: directory,
+			permission: { MacOSScreenCapturePermission.isGranted },
+			capturer: MacOSScreenCaptureKitWindowCapturer()
+		)
 	}
 
 	public static func install(_ evidence: MacOSActionEvidence) {
@@ -166,25 +168,5 @@ enum MacOSActionTarget {
 		var value: CFTypeRef?
 		guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success, let text = value as? String, !text.isEmpty else { return nil }
 		return text
-	}
-}
-
-final class MacOSCGWindowCapturer: MacOSWindowCapturing {
-	func capturePNG(pid: pid_t) throws -> Data {
-		guard let windowID = windowID(pid: pid),
-			let image = CGWindowListCreateImage(.null, .optionIncludingWindow, windowID, [.boundsIgnoreFraming]),
-			let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]), !data.isEmpty
-		else { throw MacOSEvidenceError.captureFailed }
-		return data
-	}
-
-	private func windowID(pid: pid_t) -> CGWindowID? {
-		guard let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
-		for window in info {
-			guard (window[kCGWindowOwnerPID as String] as? Int) == Int(pid), (window[kCGWindowLayer as String] as? Int ?? 0) == 0,
-				let number = window[kCGWindowNumber as String] as? Int else { continue }
-			return CGWindowID(number)
-		}
-		return nil
 	}
 }

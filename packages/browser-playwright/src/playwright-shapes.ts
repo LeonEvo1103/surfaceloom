@@ -48,8 +48,9 @@ export interface PlaywrightPageLike {
   ): PlaywrightLocatorLike;
   getByTestId(value: string): PlaywrightLocatorLike;
   locator(selector: string): PlaywrightLocatorLike;
+  /** Without `path`, Playwright returns the encoded image bytes. */
   screenshot(options: {
-    readonly path: string;
+    readonly path?: string;
     readonly type: "png";
     readonly fullPage: boolean;
     readonly timeout?: number;

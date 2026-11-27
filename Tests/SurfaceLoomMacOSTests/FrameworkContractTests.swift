@@ -99,7 +99,10 @@ struct FrameworkContractTests {
 
 	@Test("Center-click primitive requires a running application")
 	func centerClickRequiresRunningApplication() {
-		let driver = MacOSApplicationDriver(configuration: defaults)
+		let driver = MacOSApplicationDriver(
+			configuration: defaults,
+			sessionInputProbe: MacOSSessionInputProbe { .available }
+		)
 
 		do {
 			try driver.clickCenter(of: AXUIElementCreateSystemWide())

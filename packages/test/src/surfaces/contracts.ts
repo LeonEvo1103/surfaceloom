@@ -107,10 +107,24 @@ export interface BrowserCloseProof {
   readonly sessionId: string;
 }
 
+/** Runner-owned, bounded screenshot request issued only during surface cleanup. */
+export interface BrowserScreenshotCall {
+  readonly signal: AbortSignal;
+  readonly timeoutMs: number;
+}
+
+/** Untrusted, possibly sensitive viewport bytes; the runner validates them before use. */
+export interface BrowserScreenshotReceipt {
+  readonly mediaType: "image/png";
+  readonly bytes: Uint8Array;
+}
+
 export interface BrowserSurfaceSessionPort {
   readonly identity: { readonly hostId: string; readonly sessionId: string };
   invoke(action: BrowserAction, call: SurfaceBackendCall): Promise<unknown>;
   close(): Promise<BrowserCloseProof>;
+  /** Optional diagnostic capture before close; omission is reported as `unsupported`. */
+  captureScreenshot?(call: BrowserScreenshotCall): Promise<BrowserScreenshotReceipt>;
 }
 
 export interface BrowserSurfaceBackendPort {

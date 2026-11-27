@@ -44,6 +44,7 @@ import type {
   RunnerSurfaceV3,
 } from "./runner-v3-contracts.js";
 import type { ResourceCleanupResult } from "./resources-contracts.js";
+import { RunnerFinalCaptureV3 } from "./runner-v3-capture.js";
 import { snapshotCaseEvidenceSubmissionV3 } from "./runner-v3-evidence.js";
 import { RunCaseV3Error } from "./runner-v3-error.js";
 import { RunnerV3GateBarrier } from "./runner-v3-gate.js";
@@ -143,13 +144,14 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
   const requiredPolicy = new RunnerRequiredEvidenceAuthority().issue(scope,
     options.requiredEvidence ?? []);
   const evidencePolicy = policy(options.evidencePolicy);
+  const finalCapture = new RunnerFinalCaptureV3(evidencePolicy, imageEvidence);
   const judgeCriteria = judgeCriteriaForCaseV3(definition);
   const acquired: AcquiredSurface[] = [];
   const shell = definition as CaseDefinition;
   let judgeExecution: { readonly signal: AbortSignal; readonly deadlineAt: number } | undefined;
   const execution = await executeCaseWithRunnerContext(shell, {
     ...options.execution, platform: options.platform,
-  }, async (base, internals) => {
+  }, (kernelContext, internals) => finalCapture.observe(kernelContext, async (base) => {
     judgeExecution = Object.freeze({ signal: base.signal,
       deadlineAt: Date.now() + Math.floor(Math.max(0, base.remainingMs())) });
     const setup = surfaceSetupContext(base, internals.cleanupBoundary.deadlineAt,
@@ -162,6 +164,7 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
             cleanupTimeoutMs: options.execution.cleanupTimeoutMs,
           }),
           cleanupStop: internals.cleanupBoundary,
+          finalCapture: finalCapture.request,
           ...(config.lease === undefined ? {} : { lease: config.lease }),
         }).setup(config.requirement, setup)
         : await createNativeSurfaceFactory(config.backend).setup(config.requirement, setup);
@@ -174,7 +177,7 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
         criterionIds: [criterion.criterionId] }, () => undefined);
     }
     await definition.run(authorContext(base, acquired, evidence, imageEvidence, scope));
-  });
+  }));
   gate.observeExecution(execution);
   if (!execution.publicationReady) {
     if (execution.worker.state !== "notStarted") stickyClaims.add(claim);
@@ -197,6 +200,9 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
     submitSurfaceAcquisitions(registry, scope, acquired, execution.cleanup.status === "passed");
     surfaces = registry.seal();
     evidenceSnapshot = evidence.seal({ capturedAt: new Date().toISOString() });
+    finalCapture.commit([evidenceSnapshot.graphArtifactId,
+      ...evidenceSnapshot.artifacts.map((item) => item.artifact.artifactId),
+      ...(execution.report.result.artifacts ?? []).map((artifact) => artifact.id)]);
     imageSnapshot = imageEvidence.seal();
   } catch (error) {
     throw new RunCaseV3Error(execution.report, "evidence", error, execution.cleanup);
@@ -212,8 +218,8 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
   }
   let result = stripJudgePendingSteps(execution.report.result, judgeCriteria.map((item) => item.id));
   let failureOrigin = execution.failureOrigin;
-  result = Object.freeze({ ...result,
-    artifacts: Object.freeze([...(result.artifacts ?? []), ...materializedImages.artifacts]) });
+  result = Object.freeze({ ...result, artifacts: Object.freeze([...(result.artifacts ?? []),
+    ...materializedImages.artifacts]) });
   let judgeRequiredArtifacts: readonly RequiredReportArtifactReferenceV3[] = Object.freeze([]);
   if (judgeCriteria.length > 0 && result.status !== "skipped" && result.status !== "unsupported") {
     try {
@@ -235,6 +241,9 @@ async function prepareSnapshotCaseV3(definition: CaseDefinitionV3,
       throw new RunCaseV3Error(execution.report, "evidence", error, execution.cleanup);
     }
   }
+  // Non-captured screenshot outcomes are explained against the final verdict, Judge included.
+  result = Object.freeze({ ...result, artifacts: Object.freeze([...(result.artifacts ?? []),
+    ...finalCapture.artifacts(result.status)]) });
   let reportCase: CaseReportV3Input;
   try {
     const adapted = createReportV3Attempt({ scope, surfaces, evidence: evidenceSnapshot,

@@ -13,6 +13,7 @@ public enum DesktopAutomationError: LocalizedError {
 	case invalidMatchPolicy(MacOSAXLocator, reason: String)
 	case unsupported(String)
 	case actionFailed(String)
+	case sessionInputUnavailable(MacOSSessionInputState)
 
 	public var errorDescription: String? {
 		switch self {
@@ -40,6 +41,8 @@ public enum DesktopAutomationError: LocalizedError {
 			return "Unsupported automation capability: \(reason)"
 		case let .actionFailed(message):
 			return message
+		case let .sessionInputUnavailable(state):
+			return "Synthetic input refused before activation or event delivery: \(state.summary)"
 		}
 	}
 }

@@ -29,6 +29,18 @@ export class SessionArtifacts {
     });
   }
 
+  /** In-memory viewport PNG for runner-owned cleanup capture; no file is written here. */
+  public async screenshotBytes(timeoutMs: number): Promise<Uint8Array> {
+    const timeout = screenshotTimeout(timeoutMs);
+    const value = await this.run("capture screenshot", () =>
+      this.page.screenshot({ type: "png", fullPage: false, ...timeout })
+    );
+    if (!(value instanceof Uint8Array) || value.byteLength === 0) {
+      throw new BrowserAutomationError("operationFailed", "The browser returned no screenshot bytes.");
+    }
+    return Uint8Array.from(value);
+  }
+
   public async startTrace(): Promise<void> {
     if (this.traceStarted) {
       throw new BrowserAutomationError("artifactState", "Browser tracing is already active.");

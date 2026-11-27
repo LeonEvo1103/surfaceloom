@@ -24,6 +24,15 @@ export interface CollectedImageEvidenceV3 {
   readonly completeness: EvidenceCompleteness;
   readonly correlationId?: string;
   readonly capturedAt: string;
+  readonly presentation?: RunnerImagePresentationV3;
+}
+
+/** Runner-only report metadata; Case authors cannot reach this through submitImage. */
+export interface RunnerImagePresentationV3 {
+  readonly title: string;
+  readonly phase: "after" | "failure";
+  readonly sensitive: boolean;
+  readonly durationMs: number;
 }
 
 export interface ImageEvidenceSnapshotV3 {
@@ -66,7 +75,17 @@ export class ImageEvidenceCollectorV3 {
     this.#scope = scope;
   }
 
-  submit(input: CaseImageEvidenceSubmissionV3): void {
+  submit(input: CaseImageEvidenceSubmissionV3): void { this.#accept(input, undefined); }
+
+  /** Same validation and budgets as submit; used for runner-captured surface screenshots. */
+  submitRunnerCapture(input: CaseImageEvidenceSubmissionV3, presentation: RunnerImagePresentationV3): void {
+    this.#accept(input, Object.freeze({ ...presentation }));
+  }
+
+  /** Whether a submission or artifact already uses this id; lets the runner avoid collisions. */
+  reserves(id: string): boolean { return this.#ids.has(id) || this.#artifactIds.has(id); }
+
+  #accept(input: CaseImageEvidenceSubmissionV3, presentation: RunnerImagePresentationV3 | undefined): void {
     if (this.#sealed) throw new Error("Late image evidence submission after seal.");
     const fields = plainData(input, "image evidence submission", [
       "id", "artifactId", "mediaType", "bytes", "completeness", "correlationId",
@@ -102,7 +121,7 @@ export class ImageEvidenceCollectorV3 {
     this.#items.push(Object.freeze({ submissionId: id, artifactId, mediaType,
       bytes: Uint8Array.from(bytes), completeness,
       ...(correlationId === undefined ? {} : { correlationId }),
-      capturedAt: new Date().toISOString() }));
+      capturedAt: new Date().toISOString(), ...(presentation === undefined ? {} : { presentation }) }));
     this.#ids.add(id);
     this.#artifactIds.add(artifactId);
     this.#totalBytes += bytes.byteLength;
@@ -126,16 +145,19 @@ export async function materializeImageEvidenceV3(snapshot: ImageEvidenceSnapshot
   const artifacts: SourceArtifact[] = [];
   const integrity: MaterializedImageEvidenceIntegrityV3[] = [];
   for (const [index, item] of snapshot.artifacts.entries()) {
-    const sourcePath = path.join(root,
-      `${String(index + 1).padStart(4, "0")}-judge-image-${safe(item.artifactId)}.${extension(item.mediaType)}`);
+    const shown = item.presentation;
+    const sourcePath = path.join(root, `${String(index + 1).padStart(4, "0")}-${shown === undefined
+      ? "judge" : "runner"}-image-${safe(item.artifactId)}.${extension(item.mediaType)}`);
     const bytes = Buffer.from(item.bytes);
     await writeFile(sourcePath, bytes, { flag: "wx", mode: 0o600 });
     integrity.push(Object.freeze({ artifactId: item.artifactId, sourcePath,
       mediaType: item.mediaType, sizeBytes: bytes.byteLength,
       sha256: createHash("sha256").update(bytes).digest("hex") }));
-    artifacts.push(Object.freeze({ id: item.artifactId, kind: "screenshot", phase: "after",
-      title: "Judge image evidence", captureStatus: "captured", sourcePath,
-      contentType: item.mediaType, capturedAt: item.capturedAt, reviewPriority: "primary",
+    artifacts.push(Object.freeze({ id: item.artifactId, kind: "screenshot",
+      phase: shown?.phase ?? "after", title: shown?.title ?? "Judge image evidence",
+      captureStatus: "captured", sourcePath, contentType: item.mediaType, capturedAt: item.capturedAt,
+      reviewPriority: "primary", ...(shown === undefined ? {} : {
+        sensitive: shown.sensitive, durationMs: shown.durationMs }),
       ...(item.completeness.state === "incomplete"
         ? { description: "Image evidence is incomplete; Judge was not invoked." } : {}) }));
   }

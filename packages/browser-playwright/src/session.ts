@@ -112,6 +112,11 @@ export class PlaywrightBrowserSession implements BrowserSession {
       this.artifacts.screenshot(outputPath, fullPage, options));
   }
 
+  /** Viewport PNG bytes for the v3 runner's bounded cleanup-time capture. */
+  public captureScreenshotBytes(timeoutMs: number): Promise<Uint8Array> {
+    return this.run("capture screenshot", () => this.artifacts.screenshotBytes(timeoutMs));
+  }
+
   public startTrace(): Promise<void> {
     return this.run("start trace", () => this.artifacts.startTrace());
   }

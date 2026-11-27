@@ -161,6 +161,8 @@ jobs:
         run: dotnet build .\SurfaceLoom.WindowsHost.sln -c Release
       - if: env.RUN_WINDOWS_HOST == 'true'
         run: dotnet run --project .\tests\SurfaceLoom.WindowsHost.ContractTests -c Release
+        env:
+          SURFACELOOM_WINDOWS_CAPTURE_LIVE: "1"
       - name: Artifact release contracts
         if: env.RUN_ARTIFACT_RELEASE == 'true'
         shell: powershell

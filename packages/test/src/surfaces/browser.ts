@@ -15,6 +15,7 @@ import type {
 } from "./contracts.js";
 import { browserActionEffect, browserLaunchEffect } from "./effects.js";
 import { SurfaceProviderError } from "./errors.js";
+import { createBrowserFinalCapture, type SurfaceFinalCaptureRequest } from "./final-capture.js";
 import { effectiveCapabilities, stableId } from "./validation.js";
 
 export interface BrowserSurfaceFactory {
@@ -28,6 +29,8 @@ export interface BrowserSurfaceFactoryOptions {
   readonly cleanupTimeoutMs?: number;
   /** Required with a lease; abort when the outer cleanup scope stops or times out. */
   readonly cleanupStop?: BrowserCleanupStop;
+  /** Runner-owned bounded screenshot taken during cleanup, before the session closes. */
+  readonly finalCapture?: SurfaceFinalCaptureRequest;
 }
 
 /** The optional backend is a required constructor argument and is never dynamically imported. */
@@ -59,7 +62,7 @@ async function setupBrowser(
   const cleanupTimeoutMs = positiveTimeout(options.cleanupTimeoutMs ?? 1_000);
   const cleanupStop = validateCleanupStop(options.cleanupStop, options.lease !== undefined);
   const controller = new BrowserAcquisitionController(surfaceId, context.evidence, cleanupTimeoutMs,
-    cleanupStop);
+    cleanupStop, undefined, finalCapture(surfaceId, options.finalCapture));
   let pending: Promise<BrowserSurfaceSessionPort>;
   try {
     registerResources(context, controller, surfaceId, options.lease);
@@ -89,6 +92,16 @@ function positiveTimeout(value: number): number {
     throw new SurfaceProviderError("invalidRequest", "Browser cleanup timeout is invalid.");
   }
   return Math.floor(value);
+}
+
+function finalCapture(surfaceId: string, request: SurfaceFinalCaptureRequest | undefined) {
+  if (request === undefined) return undefined;
+  if (typeof request !== "object" || request === null || typeof request.decide !== "function"
+      || typeof request.record !== "function" || typeof request.maxTimeoutMs !== "number"
+      || !Number.isFinite(request.maxTimeoutMs) || request.maxTimeoutMs <= 0) {
+    throw new SurfaceProviderError("invalidRequest", "Browser final capture request is invalid.");
+  }
+  return createBrowserFinalCapture(surfaceId, request);
 }
 
 function validateCleanupStop(value: BrowserCleanupStop | undefined,

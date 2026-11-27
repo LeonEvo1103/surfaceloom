@@ -183,7 +183,9 @@ function verifyScenario(entry, value, evidence, caseResult, result) {
   } else {
     assert.equal(effects.length, 1);
     assert.equal(rawLedger.complete, false);
-    const cleanupSteps = caseResult.steps.filter((step) => step.title === "fixtureTeardown");
+    // The kernel phase lives in the step id; the title is reader-facing text.
+    const cleanupSteps = caseResult.steps.filter((step) =>
+      step.id.startsWith("kernel.fixtureTeardown."));
     assert.ok(cleanupSteps.length >= 1);
     const cleanups = cleanupSteps.map((step) => JSON.parse(step.diagnostic).details)
       .filter((details) => details?.kind === "resourceCleanup").map((details) => details.data);

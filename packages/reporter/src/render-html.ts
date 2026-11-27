@@ -6,6 +6,7 @@ import type {
   TestRunReport,
   TestStepResult,
 } from "./model.js";
+import { errorValueLines, failedCriteria } from "./error-presentation.js";
 import { safeArtifactPath } from "./safe-artifact-path.js";
 import { testsForReview } from "./summary.js";
 
@@ -69,7 +70,11 @@ function renderTest(test: ReportedTestCase): string {
         `<li><span class="step-status ${statusClass(step.status)}">${statusLabel(step.status)}</span>${html(step.title)}<small>${step.durationMs} ms${step.criterionIds === undefined || step.criterionIds.length === 0 ? "" : ` · 对应验收项 ${step.criterionIds.map(html).join(", ")}`}</small>${renderStepDetails(step)}</li>`,
       ).join("")}</ol>`;
   const error = result.error
-    ? `<div class="error"><strong>${html(result.error.category)}</strong><p>${html(result.error.message)}</p></div>`
+    ? `<div class="error"><strong>${html(result.error.category)}</strong><p>${html(result.error.message)}</p>${
+      errorValueLines(result.error).map((line) =>
+        `<p>${line.label}：<code>${html(line.text)}</code></p>`).join("")}${
+      failedCriteria(spec.acceptanceCriteria, result.steps).map((item) =>
+        `<p>未通过的验收条件：<code>${html(item.id)}</code> ${html(item.text)}</p>`).join("")}</div>`
     : "";
   const reason = result.reason === undefined
     ? ""
@@ -210,7 +215,7 @@ h1{margin:4px 0 24px;font-size:clamp(2rem,5vw,3.5rem);letter-spacing:-.04em}.eye
 .summary div{padding:18px}.summary strong{display:block;font-size:1.65rem}.summary span,.meta,.test-meta,small,.empty,.notice{color:#59636e}
 .meta{display:flex;gap:16px;flex-wrap:wrap;padding:14px 18px}.meta a{color:#0969da}.notice{margin:16px 2px 26px}.tests{display:grid;gap:18px}
 .test{padding:24px;border-left-width:5px}.test-heading{display:flex;justify-content:space-between;gap:16px}.test-heading p{margin:0 0 4px;color:#59636e}.test h2{margin:0;font-size:1.35rem}.test h3{font-size:.88rem;text-transform:uppercase;letter-spacing:.08em;margin-top:24px}
-.test-meta,.source-name{font-size:.84rem}.intent,.reason,.error{padding:14px 16px;border-radius:10px}.intent{background:#ddf4ff;border:1px solid #54aeff66}.reason{background:#fff8c5;border:1px solid #d4a72c66}.error{background:#ffebe9;border:1px solid #ff818266}.intent p,.reason p,.error p{margin:6px 0 0}.clause-id{display:inline-block;margin-right:8px;color:#59636e}.steps li{padding:5px 0}.steps small{display:inline;margin-left:8px}.step-status{display:inline-block;width:88px;font:600 .72rem ui-monospace,monospace;text-transform:uppercase}.step-details{margin:4px 0 0 88px;color:#59636e;font-size:.8rem;overflow-wrap:anywhere}
+.test-meta,.source-name{font-size:.84rem}.intent,.reason,.error{padding:14px 16px;border-radius:10px}.intent{background:#ddf4ff;border:1px solid #54aeff66}.reason{background:#fff8c5;border:1px solid #d4a72c66}.error{background:#ffebe9;border:1px solid #ff818266}.intent p,.reason p,.error p{margin:6px 0 0;overflow-wrap:anywhere}.clause-id{display:inline-block;margin-right:8px;color:#59636e}.steps li{padding:5px 0}.steps small{display:inline;margin-left:8px}.step-status{display:inline-block;width:88px;font:600 .72rem ui-monospace,monospace;text-transform:uppercase}.step-details{margin:4px 0 0 88px;color:#59636e;font-size:.8rem;overflow-wrap:anywhere}
 .evidence{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}.artifact{margin:0;padding:12px;background:#f6f8fa;border:1px solid #d0d7de;border-radius:10px;overflow:hidden}.artifact figcaption{font-weight:600;margin-bottom:10px}.artifact small{display:block;margin-top:3px;font-weight:400}.artifact img,.artifact video{width:100%;max-height:460px;object-fit:contain;background:#fff;border:1px solid #d8dee4;border-radius:6px}.artifact a{color:#0969da}.restricted,.unavailable{border-style:dashed}
 .status-passed{border-color:#1a7f37!important;color:#116329}.status-failed,.status-timedout{border-color:#cf222e!important;color:#a40e26}.status-unsupported,.status-incomplete{border-color:#bf8700!important;color:#7d4e00}.status-skipped,.status-unknown{border-color:#6e7781!important;color:#57606a}
 @media(max-width:760px){main{padding-top:28px}.summary{grid-template-columns:repeat(2,1fr)}header,.test-heading{align-items:start}.meta{display:grid}}

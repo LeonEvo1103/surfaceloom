@@ -16,6 +16,10 @@ import { FakeLocator } from "./dom-fakes.js";
 export { FakeEmitter } from "./event-fakes.js";
 export { FakeElementHandle, FakeLocator } from "./dom-fakes.js";
 
+/** Smallest byte prefix that passes the runner's PNG signature check. */
+export const fakePngBytes = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+  0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52]);
+
 export class FakePage implements PlaywrightPageLike {
   public current = "about:blank";
   public pageTitle = "Fixture";
@@ -100,13 +104,15 @@ export class FakePage implements PlaywrightPageLike {
   }
 
   public async screenshot(options: {
-    readonly path: string;
+    readonly path?: string;
     readonly type: "png";
     readonly fullPage: boolean;
     readonly timeout?: number;
-  }): Promise<void> {
+  }): Promise<Buffer | void> {
     this.screenshotPath = options.path;
     this.screenshotOptions = { ...options };
+    // Playwright returns the encoded bytes when no path is given.
+    if (options.path === undefined) return Buffer.from(fakePngBytes);
     await writeUnrestrictedArtifact(options.path, "fake-png-bytes");
   }
 }

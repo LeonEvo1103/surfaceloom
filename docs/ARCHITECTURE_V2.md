@@ -312,7 +312,8 @@ Agent 流程默认使用确定性的 fake model/tool server：
 
 ## 10. 测试分层
 
-1. **Contract**：bundle/manifest、权限用途说明、组件 manifest 和 fixture 校验；不启动 UI。
+1. **Contract**：bundle/manifest、权限用途说明、组件 manifest 和 fixture 校验；默认不启动 UI（Windows host
+   的绑定窗口真实截图测试仅在 `SURFACELOOM_WINDOWS_CAPTURE_LIVE=1` 时运行，否则记为 `SKIP`）。
 2. **Backend conformance**：用 sample app 验证每个 driver capability 的一致语义。
 3. **Component contract**：用标准 fixture 验证通用组件的动作与诊断。
 4. **Product scenario**：产品适配器组合组件，验证业务验收行为。

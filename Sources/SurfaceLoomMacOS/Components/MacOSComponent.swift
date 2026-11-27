@@ -25,13 +25,16 @@ public struct MacOSAppSession {
 	public var fileDialog: NativeFileDialogComponent { component() }
 }
 
+/// `sessionInputProbe` defaults to the live window server session; inject one
+/// only when the runner proves session readiness some other way.
 public enum MacOSTestHarness {
 	public static func withApplication(
 		configuration: MacOSAppConfiguration,
+		sessionInputProbe: MacOSSessionInputProbe = .live,
 		_ body: (MacOSAppSession) throws -> Void
 	) throws {
 		try MacOSUIStateRecovery.requireProcessStateClean(for: configuration)
-		let driver = MacOSApplicationDriver(configuration: configuration)
+		let driver = MacOSApplicationDriver(configuration: configuration, sessionInputProbe: sessionInputProbe)
 		try driver.launch()
 		try MacOSUIStateRecovery.requireProcessStateClean(for: configuration)
 		var bodyFailure: Error?
@@ -57,10 +60,11 @@ public enum MacOSTestHarness {
 
 	public static func withAttachedApplication(
 		configuration: MacOSAppConfiguration,
+		sessionInputProbe: MacOSSessionInputProbe = .live,
 		_ body: (MacOSAppSession) throws -> Void
 	) throws {
 		try MacOSUIStateRecovery.requireProcessStateClean(for: configuration)
-		let driver = MacOSApplicationDriver(configuration: configuration)
+		let driver = MacOSApplicationDriver(configuration: configuration, sessionInputProbe: sessionInputProbe)
 		try driver.attachToRunningApplication()
 		defer { driver.detach() }
 		try MacOSUIStateRecovery.requireProcessStateClean(for: configuration)

@@ -43,6 +43,7 @@ public sealed partial class UiaSession : IDisposable
         ProtocolValidator.Validate(request);
         DesktopAccessPolicy.ValidateDefaultInteractive(request.Desktop);
         ExistingProcessGuard.EnsureRunning(request.ProcessId);
+        IntegrityBoundaryGuard.EnsureTargetNotHigher(request.ProcessId);
         var window = UiaWindowFinder.WaitForProcessWindow(
             request.ProcessId,
             request.Window,
