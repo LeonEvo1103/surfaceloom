@@ -86,10 +86,12 @@ test("submitted action deadline is unknown, is not replayed, and cleanup is conf
   let clicks = 0;
   browserType.browser.context.page.target.click = async () => {
     clicks += 1;
+    // Arm the late completion only once the click is submitted; a timer armed before launch
+    // can fire during a slow (loaded) setup and let the 5 ms action deadline pass as green.
+    setTimeout(() => clicked.resolve(), 15);
     return clicked.promise;
   };
   const backend = createPlaywrightBrowserSurfaceBackend({ loader: async () => module });
-  setTimeout(() => clicked.resolve(), 15);
   const subject = definition("playwright.v3.action-deadline", async (browser) => {
     await browser.perform({ kind: "click", locator: {
       kind: "testId", key: "action", value: "action",

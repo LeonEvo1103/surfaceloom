@@ -6,6 +6,7 @@ import type {
   SurfaceBackendCall,
   SurfaceEvidenceSink,
 } from "./contracts.js";
+import type { BrowserFinalCaptureHook } from "./final-capture.js";
 
 const abortedGetter = Object.getOwnPropertyDescriptor(AbortSignal.prototype, "aborted")?.get;
 const addEventListener = EventTarget.prototype.addEventListener;
@@ -60,6 +61,7 @@ export class BrowserAcquisitionController {
   readonly #cleanupTimeoutMs: number;
   readonly #stop: BrowserCleanupStop | undefined;
   readonly #now: () => number;
+  readonly #capture: BrowserFinalCaptureHook | undefined;
   #settled: Promise<Settlement> = Promise.resolve({ state: "notStarted" });
   #cleanup: Promise<BrowserControllerReceipt> | undefined;
   #close: Promise<BrowserCloseProof> | undefined;
@@ -68,8 +70,10 @@ export class BrowserAcquisitionController {
   #observed: Settlement = { state: "notStarted" };
 
   constructor(surfaceId: string, evidence: SurfaceEvidenceSink, cleanupTimeoutMs: number,
-    stop?: BrowserCleanupStop, now: () => number = () => performance.now()) {
+    stop?: BrowserCleanupStop, now: () => number = () => performance.now(),
+    capture?: BrowserFinalCaptureHook) {
     this.#surfaceId = surfaceId;
+    this.#capture = capture;
     this.#evidence = evidence;
     this.#cleanupTimeoutMs = cleanupTimeoutMs;
     this.#stop = snapshotBrowserCleanupStop(stop, false);
@@ -117,18 +121,23 @@ export class BrowserAcquisitionController {
     try { settled = await this.untilStop(this.#settled, deadlineAt); }
     catch (error) {
       if (this.#observed.state === "acquired") {
+        this.#capture?.skipped("Cleanup stopped before the browser screenshot.");
         void this.startClose(this.#observed.session).catch(() => undefined);
       }
       return unconfirmed(`Browser cleanup stopped: ${message(error)}`);
     }
     if (this.stopped(deadlineAt)) {
-      if (settled.state === "acquired") void this.startClose(settled.session).catch(() => undefined);
+      if (settled.state === "acquired") {
+        this.#capture?.skipped("Cleanup deadline expired before the browser screenshot.");
+        void this.startClose(settled.session).catch(() => undefined);
+      }
       return unconfirmed("Browser cleanup deadline expired.");
     }
     if (settled.state === "notStarted" || (settled.state === "failed" && !settled.submitted)) {
       return released();
     }
     if (settled.state === "failed") return unconfirmed(`Browser acquisition is unknown: ${settled.reason}`);
+    await this.captureBeforeClose(settled.session, deadlineAt);
     try {
       const proof = await this.untilStop(this.startClose(settled.session), deadlineAt);
       if (this.stopped(deadlineAt)) return unconfirmed("Browser cleanup deadline expired.");
@@ -147,6 +156,15 @@ export class BrowserAcquisitionController {
       catch { /* first cleanup failure remains primary and sticky */ }
       return unconfirmed(`Browser close failed: ${message(error)}`);
     }
+  }
+
+  /** Bounded, never-throwing diagnostic capture inside the same cleanup deadline. */
+  private async captureBeforeClose(session: BrowserSurfaceSessionPort, deadlineAt: number): Promise<void> {
+    if (this.#capture === undefined) return;
+    try {
+      await this.#capture.capture(session, Object.freeze({ deadlineAt, signal: this.#stop?.signal,
+        now: this.#now }));
+    } catch { /* capture evidence never replaces the cleanup or Case result */ }
   }
 
   private startClose(session: BrowserSurfaceSessionPort): Promise<BrowserCloseProof> {
