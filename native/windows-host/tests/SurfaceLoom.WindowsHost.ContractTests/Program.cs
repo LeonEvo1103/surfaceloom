@@ -78,15 +78,30 @@ public static class Program
             ("native v1 EOF responsibility is explicit", NativeV1InputHardeningContractTests.EofResponsibilityIsExplicit),
             ("native v1 CRLF and multiple frames remain bounded", NativeV1InputHardeningContractTests.CrlfAndMultipleFramesRemainBounded),
             ("native v1 byte input preserves legacy boundary", NativeV1InputHardeningContractTests.ByteInputPreservesLegacyBoundary),
+            ("window capture selection is deterministic and process-bound", WindowCaptureContractTests.SelectionIsDeterministicAndProcessBound),
+            ("window capture explains why nothing is capturable", WindowCaptureContractTests.SelectionReportsWhyNothingIsCapturable),
+            ("window capture never runs off the default desktop", WindowCaptureContractTests.UnavailableEnvironmentNeverCaptures),
+            ("window capture failures are typed and leave no file", WindowCaptureContractTests.CaptureFailuresAreTypedAndLeaveNoFile),
+            ("window capture rejects invalid requests first", WindowCaptureContractTests.InvalidRequestsFailBeforeTouchingTheDesktop),
+            ("window capture never overwrites and cleans up", WindowCaptureContractTests.FilesAreNeverOverwrittenAndFailuresAreCleanedUp),
+            ("window capture reports verified facts", WindowCaptureContractTests.VerifiedCaptureReportsFacts),
+            ("window capture single-color fact is exact", WindowCaptureContractTests.SingleColorFactIgnoresAlphaAndPadding),
+            ("window capture records a live solid-color window", WindowCaptureContractTests.CapturesOwnSolidColorWindow),
         };
 
         var failures = 0;
+        var skipped = 0;
         foreach (var test in tests)
         {
             try
             {
                 test.Run();
                 Console.WriteLine($"PASS {test.Name}");
+            }
+            catch (ContractTestSkippedException skip)
+            {
+                skipped++;
+                Console.WriteLine($"SKIP {test.Name}: {skip.Message}");
             }
             catch (Exception exception)
             {
@@ -95,7 +110,7 @@ public static class Program
             }
         }
 
-        Console.WriteLine($"{tests.Length - failures}/{tests.Length} contract tests passed.");
+        Console.WriteLine($"{tests.Length - failures - skipped}/{tests.Length} contract tests passed; {skipped} skipped.");
         return failures == 0 ? 0 : 1;
     }
 

@@ -191,10 +191,13 @@ UIA Pattern 类动作可减少真实输入依赖，但完整桌面 E2E 仍应使
 
 | Lane | Backend | 用途 | 门禁 |
 |---|---|---|---|
-| contract | 无 UI | manifest、包、权限声明 | 每次提交 |
+| contract | 无 UI（默认） | manifest、包、权限声明 | 每次提交 |
 | win-smoke | direct UIA host | P0 launch/window/dialog | 每次提交或每日 |
 | win-regression | direct UIA；可选 FlaUI 增强 | 全部组件与产品场景 | 合并/夜间 |
 | webdriver-compat | Appium bridge | 现有资产兼容性 | 可选 |
+
+contract lane 默认不启动 UI。唯一例外是 Windows host 契约里的绑定窗口真实截图测试：只有设置
+`SURFACELOOM_WINDOWS_CAPTURE_LIVE=1` 时才创建测试窗口，未设置时 runner 输出 `SKIP` 且不影响退出码；CI 显式开启它。
 | win-rc | native/system surface | tray、权限可见性、installer | 发布候选 |
 
 ## 11. MVP 验收标准

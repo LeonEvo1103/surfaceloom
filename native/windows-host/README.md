@@ -284,3 +284,43 @@ Raw `ElementSnapshot` 可能包含输入值或 ARIA properties，禁止整对象
 3. 为 Open/Save Dialog、任务栏、托盘、通知等系统边界新增专用 component，并通过 capability 声明可用性。
 4. 如需真实快捷键或拖拽，单独增加受控 input backend；不要改变现有 UIA 语义动作的行为。
 5. CI 使用带登录用户的隔离 Windows VM，并在每次用例后销毁或还原快照。
+
+## 绑定应用窗口截图（C# 库级 API）
+
+`UiaSession.CaptureWindow(filePath, options)` 与 `WindowsWindowCapturer.CaptureProcessWindow(pid, filePath, options)`
+只截被测应用的一个顶层窗口，供 runner/backend 在用例失败时采集证据；Reporter 只归档生成的文件。
+本能力**没有**进入 NDJSON / native v1 协议，也没有写入 `CapabilityCatalog`（后者描述协议面能力）。
+
+- **窗口选择**：只考虑绑定 PID 的顶层窗口，要求可见、未被 DWM cloak、未最小化、尺寸不小于
+  `MinimumWidth × MinimumHeight`（默认 40×40 物理像素；裁掉不可见边框后的成图仍须满足，否则返回
+  `NoCapturableWindow`）。window session 只截其绑定窗口，不替换，显式传入其它 `WindowHandle` 会返回 `Failed`；
+  否则取 z-order 最前的无 owner 窗口，没有时再取最前的 owned 窗口。最小化窗口不会被还原，返回
+  `NoCapturableWindow` 并说明原因；desktop session 永不截整个桌面。
+- **截图方式**：`PrintWindow(PW_RENDERFULLCONTENT)` 画进私有内存 DC 的 32 位 DIB，不读屏幕 DC，
+  因此叠在上面的其它窗口不会入图；按 DWM 可见边框裁掉不可见的缩放边，再用 WPF `PngBitmapEncoder` 编码。
+  几何在 per-monitor-v2 线程 DPI 上下文中读取，尺寸为物理像素。尚未在非 100% 缩放下验证 DPI 虚拟化（DPI-unaware）
+  的目标窗口，这类窗口可能只在图像左上部分有内容。
+- **前置条件**：输入桌面必须是可读的 `Default` 桌面；锁屏或 Secure Desktop 返回 `EnvironmentUnavailable`。
+- **有界**：先以 `SendMessageTimeout(WM_NULL, SMTO_ABORTIFHUNG)` 探测窗口是否响应，探测、PrintWindow 与编码
+  共用 `Timeout`（默认 5 秒，最大 60 秒；window session 读取绑定窗口 UIA 句柄的耗时也从中扣除），
+  超时返回 `TimedOut`；卡住的后台线程被放弃，自行释放 GDI 资源且不写文件（它在目标恢复前一直占用线程和位图内存）。
+  探测之后会重新确认窗口未被最小化、隐藏或 cloak，再调用 PrintWindow。
+  探测与 PrintWindow 由目标窗口所属线程应答：若要截本进程窗口，调用方不能阻塞该 UI 线程（应在其它线程调用并保持泵消息）。
+- **结果**：`Captured`（路径、字节数、像素尺寸、HWND、PID、时间、`IsSingleColor`/`SingleColorHex`）/
+  `NoCapturableWindow` / `EnvironmentUnavailable` / `Failed`（含 PrintWindow 返回 FALSE）/ `TimedOut`。
+  文件以 `CreateNew` 写入，已存在则失败且不触碰原文件；缺失的父目录自动创建；写入或 PNG 签名校验失败时删除本次产生的文件。
+  单色画面（例如 PrintWindow 返回全黑）仍算截到，但通过 `IsSingleColor` 如实标出，由调用方判断。
+
+契约测试 `window capture records a live solid-color window` 会在测试进程里创建一个纯色 WPF 窗口并真实截图，
+因此默认跳过（runner 打印 `SKIP ...`，不计通过也不计失败，不影响退出码）。在解锁的交互式默认桌面上设置
+`SURFACELOOM_WINDOWS_CAPTURE_LIVE=1` 才运行；开启后环境不满足会带原因失败，不会悄悄通过。CI 的 Windows job 开启了它：
+
+```powershell
+$env:SURFACELOOM_WINDOWS_CAPTURE_LIVE = "1"
+dotnet run --project .\tests\SurfaceLoom.WindowsHost.ContractTests -c Release
+```
+
+```csharp
+var shot = session.CaptureWindow(Path.Combine(artifactDir, $"{caseId}-failure.png"));
+if (!shot.Succeeded) diagnostics.Add($"screenshot {shot.Outcome}: {shot.Reason}");
+```
