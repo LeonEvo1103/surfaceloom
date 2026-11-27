@@ -8,16 +8,81 @@ on:
 permissions:
   contents: read
 
+# The three contract jobs below are required status checks, so their names stay
+# fixed and none of them may be filtered at the workflow level. They are scoped
+# with job/step `if` conditions fed by the `changes` job instead; a skipped job
+# counts as passing. Path rules live in scripts/ci/select-checks.mjs and are
+# tested by scripts/tests/ci/select-checks.test.mjs. Only an explicit "false"
+# output skips work: a skipped or failed `changes` job, or a missing output,
+# runs the full check.
+
 jobs:
+  changes:
+    name: Change scope
+    # Only pull requests into the default branch are scoped. Retargeting a pull
+    # request does not re-run CI, so results scoped against another base could
+    # otherwise be reused for main. Pushes run everything.
+    if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    outputs:
+      swift: ${{ steps.select.outputs.swift }}
+      windows: ${{ steps.select.outputs.windows }}
+      windows_host: ${{ steps.select.outputs.windows_host }}
+      artifact_release: ${{ steps.select.outputs.artifact_release }}
+      typescript: ${{ steps.select.outputs.typescript }}
+      framework_p1: ${{ steps.select.outputs.framework_p1 }}
+      clipboard_transfer: ${{ steps.select.outputs.clipboard_transfer }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # pull_request checks out the test merge commit; its first parent is
+          # the base tip, so HEAD^1..HEAD is exactly what the PR changes.
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Select checks for this change
+        id: select
+        shell: bash
+        # Every early exit writes no outputs, which runs every check.
+        run: |
+          set -euo pipefail
+          changed="$RUNNER_TEMP/changed-files"
+          selection="$RUNNER_TEMP/selection"
+          # Path names come from the pull request. Percent-encode '%', ':' and
+          # '#' before logging so no name can be read as a workflow command.
+          log_safely() { sed -e 's/%/%25/g' -e 's/:/%3A/g' -e 's/#/%23/g'; }
+          parents="$(git rev-list --parents -n 1 HEAD 2>/dev/null | wc -w)" || parents=0
+          if [ "$parents" -ne 3 ] || ! git diff --no-renames --name-only -z HEAD^1 HEAD > "$changed"; then
+            echo "No reliable pull request diff; every check runs."
+            exit 0
+          fi
+          # Defence in depth: a PR that edits the workflow or the selector is
+          # never scoped by the code it is changing.
+          if grep -qziE '^(\.github/workflows/ci\.yml|scripts/ci/)' "$changed"; then
+            echo "Workflow or selector changed; every check runs."
+            exit 0
+          fi
+          tr '\0' '\n' < "$changed" | log_safely
+          node scripts/ci/select-checks.mjs --files-from "$changed" > "$selection"
+          log_safely < "$selection"
+          cat "$selection" >> "$GITHUB_OUTPUT"
+
   typescript:
     name: TypeScript contracts
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
+    env:
+      RUN_FRAMEWORK_P1: ${{ needs.changes.result != 'success' || needs.changes.outputs.framework_p1 != 'false' }}
+      # Enables the system-Chrome browser tests in packages/browser-playwright.
+      # To withdraw them, delete this one line; the preflight step follows it.
+      SURFACELOOM_BROWSER_SMOKE: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 20
-          cache: npm
+          # Caching without an npm install would save an empty cache on a miss.
+          cache: ${{ env.RUN_FRAMEWORK_P1 == 'true' && 'npm' || '' }}
           cache-dependency-path: |
             packages/core/package-lock.json
             packages/component-catalog/package-lock.json
@@ -30,12 +95,27 @@ jobs:
             packages/llm-judge/package-lock.json
             examples/reference-agent/package-lock.json
             examples/login-testing/package-lock.json
+      # Always-on guards: seconds each, and they inspect every tracked path
+      # (secrets/forbidden files, licenses, product-neutral shared layers, and a
+      # repository-wide walk that rejects symlinks and non-ASCII PowerShell).
+      - name: Publication audit
+        run: node ./scripts/audit-publication.mjs
+      - name: Source tree and PowerShell encoding guard
+        run: node --test scripts/tests/windows-powershell-source-encoding.test.mjs
       - run: node ./scripts/check-license-contract.mjs
       - run: ./scripts/check-architecture.sh
-      - run: ./scripts/run-framework-p1-tests.sh
+      - name: System Chrome for browser smoke
+        if: env.RUN_FRAMEWORK_P1 == 'true' && env.SURFACELOOM_BROWSER_SMOKE == '1'
+        # Playwright's `chrome` channel launches this path on Linux.
+        run: /opt/google/chrome/chrome --version
+      - name: Framework P1 contracts
+        if: env.RUN_FRAMEWORK_P1 == 'true'
+        run: ./scripts/run-framework-p1-tests.sh
 
   macos:
     name: macOS Swift contracts
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.swift != 'false') }}
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
@@ -43,19 +123,28 @@ jobs:
 
   windows:
     name: Windows host contracts
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.windows != 'false') }}
     runs-on: windows-2022
+    env:
+      RUN_WINDOWS_HOST: ${{ needs.changes.result != 'success' || needs.changes.outputs.windows_host != 'false' }}
+      RUN_ARTIFACT_RELEASE: ${{ needs.changes.result != 'success' || needs.changes.outputs.artifact_release != 'false' }}
+      RUN_TYPESCRIPT: ${{ needs.changes.result != 'success' || needs.changes.outputs.typescript != 'false' }}
+      RUN_CLIPBOARD_TRANSFER: ${{ needs.changes.result != 'success' || needs.changes.outputs.clipboard_transfer != 'false' }}
     defaults:
       run:
         working-directory: native/windows-host
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
+        if: env.RUN_WINDOWS_HOST == 'true'
         with:
           dotnet-version: 8.0.x
       - uses: actions/setup-node@v7
+        if: env.RUN_TYPESCRIPT == 'true' || env.RUN_CLIPBOARD_TRANSFER == 'true' || env.RUN_WINDOWS_HOST == 'true'
         with:
           node-version: 20
-          cache: npm
+          cache: ${{ env.RUN_TYPESCRIPT == 'true' && 'npm' || '' }}
           cache-dependency-path: |
             packages/core/package-lock.json
             packages/component-catalog/package-lock.json
@@ -68,17 +157,28 @@ jobs:
             packages/llm-judge/package-lock.json
             examples/reference-agent/package-lock.json
             examples/login-testing/package-lock.json
-      - run: dotnet build .\SurfaceLoom.WindowsHost.sln -c Release
-      - run: dotnet run --project .\tests\SurfaceLoom.WindowsHost.ContractTests -c Release
+      - if: env.RUN_WINDOWS_HOST == 'true'
+        run: dotnet build .\SurfaceLoom.WindowsHost.sln -c Release
+      - if: env.RUN_WINDOWS_HOST == 'true'
+        run: dotnet run --project .\tests\SurfaceLoom.WindowsHost.ContractTests -c Release
       - name: Artifact release contracts
+        if: env.RUN_ARTIFACT_RELEASE == 'true'
         shell: powershell
         working-directory: .
         run: .\scripts\test-artifact-release.ps1
+      - name: Publication audit after the host build
+        # run-typescript-tests.sh starts with this audit; without that step,
+        # still check that the build and contracts left no unignored output.
+        if: env.RUN_WINDOWS_HOST == 'true' && env.RUN_TYPESCRIPT != 'true'
+        working-directory: .
+        run: node ./scripts/audit-publication.mjs
       - name: TypeScript contracts on Windows
+        if: env.RUN_TYPESCRIPT == 'true'
         shell: bash
         working-directory: .
         run: ./scripts/run-typescript-tests.sh
       - name: Clipboard transfer PowerShell AST contracts
+        if: env.RUN_CLIPBOARD_TRANSFER == 'true'
         shell: powershell
         working-directory: .
         run: >-
