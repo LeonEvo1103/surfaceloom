@@ -4,12 +4,17 @@ import Foundation
 
 public final class MacOSApplicationDriver {
 	public let configuration: MacOSAppConfiguration
+	let sessionInputProbe: MacOSSessionInputProbe
 
 	private var reference = MacOSApplicationReference<NSRunningApplication>()
 	var application: NSRunningApplication? { reference.application }
 
-	public init(configuration: MacOSAppConfiguration) {
+	public init(
+		configuration: MacOSAppConfiguration,
+		sessionInputProbe: MacOSSessionInputProbe = .live
+	) {
 		self.configuration = configuration
+		self.sessionInputProbe = sessionInputProbe
 	}
 
 	public func launch() throws {
@@ -73,6 +78,8 @@ public final class MacOSApplicationDriver {
 		guard reference.ownership == .none else {
 			throw DesktopAutomationError.attachFailed("the driver already has an application")
 		}
+		// Attach activates the bound app, so it shares the synthetic-input precondition.
+		try syntheticInputGate.requireAvailable()
 		let runningApplication = try MacOSRunningApplicationResolver.exactlyOne(
 			liveBundleApplications(),
 			bundleIdentifier: configuration.bundleIdentifier

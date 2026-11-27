@@ -6,6 +6,7 @@ public struct MacOSAutomationDoctor {
 	public static let accessibilityCheck = "macos.accessibilityTrust"
 	public static let runnerIdentityCheck = "macos.runnerIdentity"
 	public static let firstAuthorizationCheck = "macos.tcc.firstAuthorization"
+	public static let sessionInputCheck = "macos.sessionInput"
 
 	private let configuration: MacOSAppConfiguration
 	private let probe: () -> MacOSDoctorInputs
@@ -34,6 +35,7 @@ public struct MacOSAutomationDoctor {
 		let checks = [
 			bundleCheck(configuration: configuration, exists: inputs.appBundleExists),
 			accessibilityTrustCheck(trusted: inputs.accessibilityTrusted),
+			sessionInputReadiness(inputs.sessionInput),
 			runnerCheck(pid: inputs.runnerPID, executablePath: inputs.runnerExecutablePath),
 			firstAuthorizationBoundary(),
 		]
@@ -58,6 +60,7 @@ public struct MacOSAutomationDoctor {
 			accessibilityTrusted: MacOSApplicationDriver.isAccessibilityTrusted(prompt: false),
 			runnerPID: ProcessInfo.processInfo.processIdentifier,
 			runnerExecutablePath: runnerExecutablePath(),
+			sessionInput: MacOSSessionInputProbe.live.currentState(),
 			checkedAt: Date()
 		)
 	}
@@ -160,5 +163,6 @@ struct MacOSDoctorInputs: Sendable {
 	let accessibilityTrusted: Bool
 	let runnerPID: Int32
 	let runnerExecutablePath: String?
+	let sessionInput: MacOSSessionInputState
 	let checkedAt: Date
 }

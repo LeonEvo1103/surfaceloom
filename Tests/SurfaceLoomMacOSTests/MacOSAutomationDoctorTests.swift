@@ -19,6 +19,7 @@ struct MacOSAutomationDoctorTests {
 				accessibilityTrusted: true,
 				runnerPID: 42,
 				runnerExecutablePath: "/tmp/SurfaceLoomRunner",
+				sessionInput: .available,
 				checkedAt: checkedAt
 			)
 		)
@@ -49,6 +50,13 @@ struct MacOSAutomationDoctorTests {
 		#expect(runner.details["pid"] == "42")
 		#expect(runner.details["executablePath"] == "/tmp/SurfaceLoomRunner")
 
+		let session = try check(MacOSAutomationDoctor.sessionInputCheck, in: report)
+		#expect(session.status == .pass)
+		#expect(session.required)
+		#expect(session.details["state"] == "available")
+		#expect(session.details["syntheticInput"] == "allowed")
+		#expect(session.remediation == nil)
+
 		let tcc = try check(MacOSAutomationDoctor.firstAuthorizationCheck, in: report)
 		#expect(tcc.status == .unsupported)
 		#expect(!tcc.required)
@@ -65,6 +73,7 @@ struct MacOSAutomationDoctorTests {
 				accessibilityTrusted: false,
 				runnerPID: 84,
 				runnerExecutablePath: nil,
+				sessionInput: .screenLocked,
 				checkedAt: Date(timeIntervalSince1970: 1_700_000_001)
 			)
 		)
@@ -80,6 +89,9 @@ struct MacOSAutomationDoctorTests {
 		#expect(accessibility.details["promptRequested"] == "false")
 		#expect(
 			try check(MacOSAutomationDoctor.runnerIdentityCheck, in: report).status == .warn
+		)
+		#expect(
+			try check(MacOSAutomationDoctor.sessionInputCheck, in: report).status == .fail
 		)
 
 		let observedStatuses = Set(
@@ -106,6 +118,7 @@ struct MacOSAutomationDoctorTests {
 				accessibilityTrusted: true,
 				runnerPID: 42,
 				runnerExecutablePath: "/tmp/SurfaceLoomRunner",
+				sessionInput: .available,
 				checkedAt: Date(timeIntervalSince1970: 1_700_000_000)
 			)
 		).checks.map(\.status)

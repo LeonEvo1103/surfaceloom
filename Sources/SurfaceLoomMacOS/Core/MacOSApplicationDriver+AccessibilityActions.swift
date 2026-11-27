@@ -57,24 +57,34 @@ extension MacOSApplicationDriver {
 		}
 	}
 
+	/// Synthetic mouse input. Refused with `sessionInputUnavailable` when the
+	/// session is locked, off-console or unprovable; nothing is activated, posted
+	/// or captured. Once admitted, opt-in action evidence brackets the gated action.
 	public func clickCenter(of element: AXUIElement) throws {
-		try MacOSActionEvidence.perform(
-			action: "click", target: MacOSActionTarget.identifier(of: element), pid: application?.processIdentifier ?? 0
-		) { try clickCenterOnce(of: element) }
+		try syntheticInputGate.runRecorded(
+			action: "click",
+			target: MacOSActionTarget.identifier(of: element),
+			pid: application?.processIdentifier ?? 0,
+			activate: {
+				try activateForSyntheticInput(
+					notRunning: "Cannot click an element because \(configuration.displayName) is not running",
+					notActive: "\(configuration.displayName) did not become active before element click"
+				)
+			},
+			emit: { try postCenterClick(on: element) }
+		)
 	}
 
-	private func clickCenterOnce(of element: AXUIElement) throws {
+	private func activateForSyntheticInput(notRunning: String, notActive: String) throws {
 		guard let application, isProcessAlive(application.processIdentifier) else {
-			throw DesktopAutomationError.actionFailed(
-				"Cannot click an element because \(configuration.displayName) is not running"
-			)
+			throw DesktopAutomationError.actionFailed(notRunning)
 		}
 		guard activateBoundApplication(timeout: 3) else {
-			throw DesktopAutomationError.actionFailed(
-				"\(configuration.displayName) did not become active before element click"
-			)
+			throw DesktopAutomationError.actionFailed(notActive)
 		}
+	}
 
+	private func postCenterClick(on element: AXUIElement) throws {
 		guard let position = point(attribute: kAXPositionAttribute, of: element),
 			let size = size(attribute: kAXSizeAttribute, of: element),
 			size.width > 0,
@@ -140,23 +150,23 @@ extension MacOSApplicationDriver {
 		try setValue(value, on: findElement(locator))
 	}
 
+	/// Synthetic keyboard input, gated exactly like `clickCenter(of:)`.
 	public func pressShortcut(_ shortcut: MacOSShortcut) throws {
-		try MacOSActionEvidence.perform(
-			action: "shortcut", target: MacOSActionTarget.shortcutName(shortcut), pid: application?.processIdentifier ?? 0
-		) { try pressShortcutOnce(shortcut) }
+		try syntheticInputGate.runRecorded(
+			action: "shortcut",
+			target: MacOSActionTarget.shortcutName(shortcut),
+			pid: application?.processIdentifier ?? 0,
+			activate: {
+				try activateForSyntheticInput(
+					notRunning: "Cannot send a shortcut because \(configuration.displayName) is not running",
+					notActive: "\(configuration.displayName) did not become active"
+				)
+			},
+			emit: { try postShortcut(shortcut) }
+		)
 	}
 
-	private func pressShortcutOnce(_ shortcut: MacOSShortcut) throws {
-		guard let application, isProcessAlive(application.processIdentifier) else {
-			throw DesktopAutomationError.actionFailed(
-				"Cannot send a shortcut because \(configuration.displayName) is not running"
-			)
-		}
-		guard activateBoundApplication(timeout: 3) else {
-			throw DesktopAutomationError.actionFailed(
-				"\(configuration.displayName) did not become active"
-			)
-		}
+	private func postShortcut(_ shortcut: MacOSShortcut) throws {
 		guard
 			let source = CGEventSource(stateID: .hidSystemState),
 			let keyDown = CGEvent(
